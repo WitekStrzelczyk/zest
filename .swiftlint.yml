@@ -1,0 +1,60 @@
+# SwiftLint Configuration for Zest
+
+# Disabled rules
+disabled_rules:
+  - trailing_whitespace
+  # WindowManager requires force casts for macOS Accessibility API (AXUIElement, AXValue)
+  # These casts are safe as confirmed by Swift compiler (conditional casts always succeed)
+  - force_cast
+  # EmojiData.swift contains static emoji data which exceeds normal type body length
+  - type_body_length
+
+# Opt-in rules (QA-3 to QA-7)
+opt_in_rules:
+  # QA-3: Unused Code Detection
+  - unused_declaration
+  - unused_code
+
+  # QA-4: Code Complexity
+  - cyclomatic_complexity
+
+  # QA-5: Function Size Warnings
+  - function_body_length
+
+  # QA-6: Naming Conventions
+  - type_name
+  - variable_name
+
+  # QA-7: Security Issues
+  - force_try
+  - explicitly_unwrapped_optional
+
+# Rule configurations
+cyclomatic_complexity:
+  warning: 10
+  error: 20
+
+function_body_length:
+  warning: 50
+  error: 100
+
+type_name:
+  min_length: 3
+  max_length: 50
+
+variable_name:
+  min_length: 1
+  max_length: 50
+
+# Analyzer rules (run with --analyze)
+analyzer_rules:
+  - unused_declaration
+
+included:
+  - Sources
+
+excluded:
+  - .build
+  - Tests
+  - tests
+  - scripts

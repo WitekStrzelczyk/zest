@@ -1,0 +1,33 @@
+# Zest SwiftFormat Configuration
+# https://github.com/nicklockwood/SwiftFormat
+
+# Swift version (required for some features)
+--swift-version 5.9
+
+# Indentation
+--indent 4
+--indentcase false
+--trimwhitespace always
+
+# Formatting options
+--nospaceoperators ..<,...
+--ranges spaced
+--empty void
+--commas always
+--semicolons never
+--patternlet inline
+--elseposition same-line
+--wrapcollections before-first
+--wraparguments before-first
+--closingparen balanced
+
+# Enabled rules
+--enable isEmpty
+--enable redundantSelf
+--enable sortImports
+--enable duplicateImports
+
+# Exclude paths
+--exclude .build
+--exclude DerivedData
+--exclude .swiftpm
