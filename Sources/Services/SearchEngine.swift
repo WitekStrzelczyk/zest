@@ -2,10 +2,7 @@ import AppKit
 import Foundation
 
 final class SearchEngine {
-    static let shared: SearchEngine = {
-        let instance = SearchEngine()
-        return instance
-    }()
+    static let shared: SearchEngine = .init()
 
     private var installedApps: [InstalledApp] = []
 
@@ -25,21 +22,108 @@ final class SearchEngine {
         currentSearchTask = nil
     }
 
+    /// Fast search - returns apps, calculator, clipboard, emojis immediately (no file search)
+    /// Use this for instant feedback while file search runs in background
+    func searchFast(query: String) -> [SearchResult] {
+        let lowercasedQuery = query.lowercased()
+
+        if lowercasedQuery.isEmpty {
+            return []
+        }
+
+        var results: [SearchResult] = []
+        var seenBundleIDs: Set<String> = []
+
+        // Check for calculator expression FIRST (highest priority)
+        if Calculator.shared.isMathExpression(query) {
+            if let result = Calculator.shared.evaluate(query) {
+                results.append(SearchResult(
+                    title: result,
+                    subtitle: "Copy to clipboard",
+                    icon: NSImage(systemSymbolName: "function", accessibilityDescription: "Calculator"),
+                    action: {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(result, forType: .string)
+                    }
+                ))
+            }
+        }
+
+        // Search clipboard history
+        let clipboardResults = ClipboardManager.shared.search(query: query)
+        results.append(contentsOf: clipboardResults)
+
+        // Search emojis
+        let emojiResults = EmojiSearchService.shared.search(query: query)
+        results.append(contentsOf: emojiResults)
+
+        // Fuzzy search with scoring through installed apps
+        let appResults = installedApps
+            .compactMap { app -> (app: InstalledApp, score: Int)? in
+                let score = fuzzyScore(query: lowercasedQuery, target: app.name.lowercased())
+                return score > 0 ? (app, score) : nil
+            }
+            .sorted { $0.score > $1.score }
+            .prefix(10)
+            .compactMap { item -> SearchResult? in
+                // Deduplicate by bundleID
+                guard !seenBundleIDs.contains(item.app.bundleID) else { return nil }
+                seenBundleIDs.insert(item.app.bundleID)
+
+                return SearchResult(
+                    title: item.app.name,
+                    subtitle: "Application",
+                    icon: item.app.icon,
+                    action: { [weak self] in
+                        self?.launchApp(bundleID: item.app.bundleID)
+                    }
+                )
+            }
+
+        results.append(contentsOf: appResults)
+
+        return results
+    }
+
+    /// File search only - returns file results (can be slow, run async)
+    func searchFiles(query: String) -> [SearchResult] {
+        let lowercasedQuery = query.lowercased()
+
+        if lowercasedQuery.isEmpty {
+            return []
+        }
+
+        let fileSearchQuery: String
+        let isFileSpecificSearch = lowercasedQuery.hasPrefix(fileSearchPrefix)
+
+        if isFileSpecificSearch {
+            fileSearchQuery = String(query.dropFirst(fileSearchPrefix.count))
+        } else {
+            fileSearchQuery = query
+        }
+
+        if !fileSearchQuery.isEmpty {
+            return FileSearchService.shared.searchSync(query: fileSearchQuery, maxResults: 5)
+        }
+
+        return []
+    }
+
     /// Async search that runs file search on a background thread
     /// This prevents blocking the main thread with mdfind calls
     @MainActor
     func searchAsync(query: String) async -> [SearchResult] {
         // Run the blocking search on a background thread
-        return await Task.detached(priority: .userInitiated) { [weak self] in
-            guard let self = self else { return [] }
-            return self.search(query: query)
+        await Task.detached(priority: .userInitiated) { [weak self] in
+            guard let self else { return [] }
+            return search(query: query)
         }.value
     }
 
     /// Synchronous search for backwards compatibility
     /// WARNING: This may block briefly during file search (max 2 seconds)
     func searchSyncCompat(query: String) -> [SearchResult] {
-        return search(query: query)
+        search(query: query)
     }
 
     func refreshInstalledApps() {
