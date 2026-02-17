@@ -57,6 +57,10 @@ final class SearchEngine {
         let emojiResults = EmojiSearchService.shared.search(query: query)
         results.append(contentsOf: emojiResults)
 
+        // Search contacts
+        let contactResults = ContactsService.shared.search(query: query)
+        results.append(contentsOf: contactResults)
+
         // Fuzzy search with scoring through installed apps
         let appResults = installedApps
             .compactMap { app -> (app: InstalledApp, score: Int)? in
@@ -203,6 +207,10 @@ final class SearchEngine {
         // Search emojis
         let emojiResults = EmojiSearchService.shared.search(query: query)
         results.append(contentsOf: emojiResults)
+
+        // Search contacts
+        let contactResults = ContactsService.shared.search(query: query)
+        results.append(contentsOf: contactResults)
 
         // Fuzzy search with scoring through installed apps
         let appResults = installedApps

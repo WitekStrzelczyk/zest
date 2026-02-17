@@ -1,7 +1,18 @@
 import XCTest
 @testable import ZestApp
 
+/// Note: Contacts access is disabled during tests to avoid XPC connection issues
 final class ZestTests: XCTestCase {
+
+    override class func setUp() {
+        // Disable contacts access during tests to avoid XPC connection issues
+        // in the unit test environment
+        ContactsService.isDisabled = true
+    }
+
+    override class func tearDown() {
+        ContactsService.isDisabled = false
+    }
 
     // MARK: - Calculator Tests (RED - these should FAIL first)
 

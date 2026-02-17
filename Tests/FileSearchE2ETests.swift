@@ -10,7 +10,19 @@ import XCTest
 /// IMPORTANT: These tests use real system resources and may take longer.
 /// The test runner script enforces a timeout to detect hanging issues.
 /// Run with: ./scripts/run_tests.sh 20 --filter FileSearchE2ETests
+///
+/// Note: Contacts access is disabled during tests to avoid XPC connection issues
 final class FileSearchE2ETests: XCTestCase {
+
+    override class func setUp() {
+        // Disable contacts access during tests to avoid XPC connection issues
+        // in the unit test environment
+        ContactsService.isDisabled = true
+    }
+
+    override class func tearDown() {
+        ContactsService.isDisabled = false
+    }
 
     // MARK: - File Search E2E Tests
 

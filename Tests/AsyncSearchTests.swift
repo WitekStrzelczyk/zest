@@ -2,7 +2,18 @@ import XCTest
 @testable import ZestApp
 
 /// Tests for Async Search functionality
+/// Note: Contacts access is disabled during tests to avoid XPC connection issues
 final class AsyncSearchTests: XCTestCase {
+
+    override class func setUp() {
+        // Disable contacts access during tests to avoid XPC connection issues
+        // in the unit test environment
+        ContactsService.isDisabled = true
+    }
+
+    override class func tearDown() {
+        ContactsService.isDisabled = false
+    }
 
     @MainActor
     func test_search_is_async() async {

@@ -2,7 +2,18 @@ import XCTest
 @testable import ZestApp
 
 /// Tests for SearchEngine functionality
+/// Note: Contacts access is disabled during tests to avoid XPC connection issues
 final class SearchEngineTests: XCTestCase {
+
+    override class func setUp() {
+        // Disable contacts access during tests to avoid XPC connection issues
+        // in the unit test environment
+        ContactsService.isDisabled = true
+    }
+
+    override class func tearDown() {
+        ContactsService.isDisabled = false
+    }
 
     // MARK: - Fuzzy Search Tests
 
