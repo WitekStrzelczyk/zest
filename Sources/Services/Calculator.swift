@@ -1,14 +1,11 @@
 import Foundation
 
 final class Calculator {
-    static let shared: Calculator = {
-        let instance = Calculator()
-        return instance
-    }()
+    static let shared: Calculator = .init()
 
     private init() {}
 
-    /// Check if input looks like a math expression
+    /// Check if input looks like a valid math expression
     func isMathExpression(_ input: String) -> Bool {
         let trimmed = input.trimmingCharacters(in: .whitespaces)
 
@@ -21,7 +18,15 @@ final class Calculator {
         let validFunctions = ["sqrt", "sin", "cos", "tan", "pi", "e"]
         let hasOnlyValidLetters = validFunctions.contains { letters.lowercased().contains($0) } || letters.isEmpty
 
-        return hasOperator && hasOnlyValidLetters
+        // Basic syntax validation - reject obviously invalid patterns
+        // Reject: "==", ">=", "<=", "!=", "++", "--", "+ =", "- =", etc.
+        let invalidPatterns = ["==", ">=", "<=", "!=", "++", "--", "+ =", "- =", "* =", "/ =", "+ =", "= +", "= -"]
+        let hasInvalidPattern = invalidPatterns.contains { trimmed.contains($0) }
+
+        // Must not end with an operator (except closing paren)
+        let endsWithOperator = ["+", "-", "*", "/", "^", "%", "("].contains { trimmed.last == $0 }
+
+        return hasOperator && hasOnlyValidLetters && !hasInvalidPattern && !endsWithOperator
     }
 
     /// Evaluate a math expression and return result
@@ -58,12 +63,43 @@ final class Calculator {
         // Replace ^ with ** for exponentiation
         processed = processed.replacingOccurrences(of: "^", with: "**")
 
+        // Additional validation after processing
+        guard isValidForNSExpression(processed) else {
+            return nil
+        }
+
         do {
             let result = try evaluateExpression(processed)
             return formatResult(result)
         } catch {
             return nil
         }
+    }
+
+    /// Check if expression is safe to pass to NSExpression
+    private func isValidForNSExpression(_ expression: String) -> Bool {
+        // Check for balanced parentheses
+        var parenCount = 0
+        for char in expression {
+            if char == "(" { parenCount += 1 }
+            if char == ")" { parenCount -= 1 }
+            if parenCount < 0 { return false }
+        }
+        if parenCount != 0 { return false }
+
+        // Check for consecutive operators (but allow negative numbers)
+        let ops = CharacterSet(charactersIn: "+-*/%")
+        var prevWasOp = false
+        for char in expression {
+            if ops.contains(char.unicodeScalars.first!) {
+                if prevWasOp { return false }
+                prevWasOp = true
+            } else if !char.isWhitespace && char != "(" {
+                prevWasOp = false
+            }
+        }
+
+        return true
     }
 
     private func evaluateExpression(_ expression: String) throws -> Double {
