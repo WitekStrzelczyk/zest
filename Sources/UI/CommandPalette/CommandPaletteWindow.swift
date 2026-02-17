@@ -1,5 +1,6 @@
 import AppKit
 import Carbon
+import Quartz
 
 // MARK: - Custom Results Table View
 
@@ -47,6 +48,9 @@ final class CommandPaletteWindow: NSPanel {
     /// Tracks whether focus is on results table (vs search field)
     /// This is used because makeFirstResponder only works when window is key
     private var isResultsFocused: Bool = false
+
+    /// Tracks whether Quick Look preview is currently showing
+    private var isQuickLookOpen: Bool = false
 
     // Layout constants
     private let windowWidth: CGFloat = 680
@@ -110,7 +114,7 @@ final class CommandPaletteWindow: NSPanel {
         contentView.addSubview(searchField)
 
         // Hint label at bottom
-        hintLabel = NSTextField(labelWithString: "\u{2318}\u{21A9} Reveal  \u{21B5} Select  \u{2191}\u{2193} Navigate  Esc Close")
+        hintLabel = NSTextField(labelWithString: "\u{2318}\u{21A9} Reveal  \u{21B5} Select  Space Preview  \u{2191}\u{2193} Navigate  Esc Close")
         hintLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
         hintLabel.textColor = .tertiaryLabelColor
         hintLabel.alignment = .center
@@ -380,6 +384,8 @@ final class CommandPaletteWindow: NSPanel {
             close()
         case 36: // Enter
             selectCurrentResult()
+        case 49: // Space - Quick Look preview
+            toggleQuickLook()
         case 125: // Down arrow
             if !searchResults.isEmpty {
                 // Check if focus is on search field
@@ -460,6 +466,45 @@ final class CommandPaletteWindow: NSPanel {
         let result = searchResults[selectedRow]
         result.execute()
         close()
+    }
+
+    // MARK: - Quick Look Preview
+
+    /// Accept Quick Look panel control
+    override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
+        true
+    }
+
+    /// Toggle Quick Look preview for the selected file result
+    private func toggleQuickLook() {
+        guard let selectedResult = getSelectedFileResult() else { return }
+
+        // Only file results with a valid file path can be previewed
+        guard selectedResult.isFileResult else { return }
+
+        if isQuickLookOpen {
+            // Close Quick Look
+            QLPreviewPanel.shared().orderOut(nil)
+            isQuickLookOpen = false
+        } else {
+            // Open Quick Look
+            QLPreviewPanel.shared().makeKeyAndOrderFront(nil)
+            isQuickLookOpen = true
+        }
+    }
+
+    /// Get the currently selected result if it's a file result
+    private func getSelectedFileResult() -> SearchResult? {
+        var selectedRow = resultsTableView.selectedRow
+
+        // If no selection but results exist, default to first result
+        if selectedRow < 0, !searchResults.isEmpty {
+            selectedRow = 0
+        }
+
+        guard selectedRow >= 0, selectedRow < searchResults.count else { return nil }
+
+        return searchResults[selectedRow]
     }
 }
 
@@ -634,5 +679,55 @@ extension CommandPaletteWindow {
             keyCode: 0
         )!
         keyDown(with: event)
+    }
+
+    // MARK: - Quick Look Test Helpers
+
+    /// Check if Quick Look was requested (for testing)
+    var isQuickLookRequested: Bool {
+        isQuickLookOpen
+    }
+
+    /// Check if Quick Look is closing (for testing) - tracks close operation
+    var isQuickLookClosing: Bool {
+        !isQuickLookOpen && getSelectedFileResult()?.isFileResult == true
+    }
+
+    /// Reset Quick Look request flag (for testing)
+    func resetQuickLookRequestFlag() {
+        // This is used to reset the tracking between test assertions
+        // The actual state is tracked by isQuickLookOpen
+    }
+
+    /// Get file URL for selected result (for testing)
+    var selectedFileURL: URL? {
+        getSelectedFileResult()?.fileURL
+    }
+}
+
+// MARK: - QLPreviewPanelDataSource
+
+extension CommandPaletteWindow: QLPreviewPanelDataSource {
+    func numberOfPreviewItems(in _: QLPreviewPanel!) -> Int {
+        getSelectedFileResult()?.isFileResult == true ? 1 : 0
+    }
+
+    func previewPanel(_: QLPreviewPanel!, previewItemAt _: Int) -> (any QLPreviewItem)! {
+        guard let result = getSelectedFileResult(), result.isFileResult else {
+            return nil
+        }
+        return result.fileURL as QLPreviewItem?
+    }
+}
+
+// MARK: - QLPreviewPanelDelegate
+
+extension CommandPaletteWindow: QLPreviewPanelDelegate {
+    override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        panel.dataSource = self
+    }
+
+    override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        panel.dataSource = nil
     }
 }

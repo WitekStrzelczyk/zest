@@ -379,6 +379,94 @@ final class KeyboardNavigationTests: XCTestCase {
         XCTAssertFalse(window.acceptsMouseMovedEvents, "Window should not accept mouse events after ESC")
     }
 
+    // MARK: - Quick Look Preview Tests (Story 22)
+
+    func test_space_key_requests_quick_look_for_file_result() {
+        // Given: Window has file results with first selected
+        window.show(previousApp: nil)
+        let mockResults = createMockFileResults(count: 3)
+        window.updateResultsForTesting(mockResults)
+
+        // When: Space is pressed
+        window.simulateKeyPress(keyCode: 49) // Space
+
+        // Then: Quick Look should be requested
+        XCTAssertTrue(window.isQuickLookRequested, "Space should request Quick Look for file result")
+    }
+
+    func test_space_key_does_not_trigger_quick_look_for_non_file_result() {
+        // Given: Window has non-file results (app results)
+        window.show(previousApp: nil)
+        let mockResults = createMockResults(count: 3)
+        window.updateResultsForTesting(mockResults)
+
+        // When: Space is pressed
+        window.simulateKeyPress(keyCode: 49) // Space
+
+        // Then: Quick Look should NOT be requested
+        XCTAssertFalse(window.isQuickLookRequested, "Space should not request Quick Look for non-file result")
+    }
+
+    func test_space_key_does_nothing_when_no_results() {
+        // Given: Window has no results
+        window.show(previousApp: nil)
+        window.updateResultsForTesting([])
+
+        // When: Space is pressed
+        window.simulateKeyPress(keyCode: 49) // Space
+
+        // Then: Nothing happens, window stays open
+        XCTAssertTrue(window.isVisible, "Window should remain open when Space pressed with no results")
+        XCTAssertFalse(window.isQuickLookRequested, "Quick Look should not be requested with no results")
+    }
+
+    func test_space_key_toggles_quick_look_off() {
+        // Given: Window has file results with Quick Look open
+        window.show(previousApp: nil)
+        let mockResults = createMockFileResults(count: 3)
+        window.updateResultsForTesting(mockResults)
+
+        // Open Quick Look first
+        window.simulateKeyPress(keyCode: 49) // Space
+        XCTAssertTrue(window.isQuickLookRequested, "Quick Look should be open")
+
+        // Reset the flag to simulate Quick Look being open
+        window.resetQuickLookRequestFlag()
+
+        // When: Space is pressed again
+        window.simulateKeyPress(keyCode: 49) // Space
+
+        // Then: Quick Look should close
+        XCTAssertTrue(window.isQuickLookClosing, "Space should close Quick Look when already open")
+    }
+
+    func test_selected_file_result_provides_file_url() {
+        // Given: Window has file results
+        window.show(previousApp: nil)
+        let mockResults = createMockFileResults(count: 3)
+        window.updateResultsForTesting(mockResults)
+
+        // When: Getting selected file URL
+        let fileURL = window.selectedFileURL
+
+        // Then: Should return valid URL
+        XCTAssertNotNil(fileURL, "Selected file result should provide file URL")
+        XCTAssertTrue(fileURL!.path.hasSuffix(".txt"), "File URL should point to .txt file")
+    }
+
+    func test_non_file_result_returns_nil_file_url() {
+        // Given: Window has non-file results
+        window.show(previousApp: nil)
+        let mockResults = createMockResults(count: 3)
+        window.updateResultsForTesting(mockResults)
+
+        // When: Getting selected file URL
+        let fileURL = window.selectedFileURL
+
+        // Then: Should return nil
+        XCTAssertNil(fileURL, "Non-file result should return nil file URL")
+    }
+
     // MARK: - Helper Methods
 
     private func createMockResults(count: Int) -> [SearchResult] {
@@ -413,6 +501,19 @@ final class KeyboardNavigationTests: XCTestCase {
                 icon: nil,
                 action: {},
                 revealAction: { revealHandler(index) }
+            )
+        }
+    }
+
+    private func createMockFileResults(count: Int) -> [SearchResult] {
+        (0..<count).map { index in
+            SearchResult(
+                title: "File \(index + 1).txt",
+                subtitle: "File",
+                icon: nil,
+                action: {},
+                revealAction: nil,
+                filePath: "/Users/test/Documents/File \(index + 1).txt"
             )
         }
     }

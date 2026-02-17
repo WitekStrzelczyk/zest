@@ -116,7 +116,8 @@ final class FileSearchService {
                         },
                         revealAction: {
                             NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
-                        }
+                        },
+                        filePath: path
                     ))
                 }
             }

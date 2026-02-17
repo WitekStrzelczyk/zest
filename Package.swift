@@ -17,7 +17,10 @@ let package = Package(
             name: "ZestApp",
             dependencies: [],
             path: "Sources",
-            exclude: ["Info.plist", "Zest.entitlements"]
+            exclude: ["Info.plist", "Zest.entitlements"],
+            linkerSettings: [
+                .linkedFramework("QuickLook")
+            ]
         ),
         .testTarget(
             name: "ZestTests",
