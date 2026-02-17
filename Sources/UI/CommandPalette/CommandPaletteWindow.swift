@@ -1,14 +1,52 @@
 import AppKit
 import Carbon
 
+// MARK: - Custom Results Table View
+
+/// Custom NSTableView that handles keyboard navigation and forwards character keys to search field
+final class ResultsTableView: NSTableView {
+    weak var commandPalette: CommandPaletteWindow?
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func keyDown(with event: NSEvent) {
+        // Handle up arrow on first row - return to search field
+        if event.keyCode == 126 { // Up arrow
+            if selectedRow <= 0 {
+                // Return to search field
+                commandPalette?.returnToSearchField()
+                return
+            }
+        }
+
+        // Handle character keys - return to search field and forward the key
+        if let characters = event.characters, !characters.isEmpty {
+            let isPrintableChar = characters.unicodeScalars.first.map { CharacterSet.alphanumerics.contains($0) } ?? false
+            if isPrintableChar {
+                commandPalette?.returnToSearchFieldAndType(characters)
+                return
+            }
+        }
+
+        // Default handling for other keys
+        super.keyDown(with: event)
+    }
+}
+
+// MARK: - Command Palette Window
+
 final class CommandPaletteWindow: NSPanel {
     private var searchField: NSTextField!
-    private var resultsTableView: NSTableView!
+    private var resultsTableView: ResultsTableView!
     private var scrollView: NSScrollView!
     private(set) var hintLabel: NSTextField!
     private var noResultsLabel: NSTextField!
     private var previousApp: NSRunningApplication?
     private var searchResults: [SearchResult] = []
+
+    /// Tracks whether focus is on results table (vs search field)
+    /// This is used because makeFirstResponder only works when window is key
+    private var isResultsFocused: Bool = false
 
     // Layout constants
     private let windowWidth: CGFloat = 680
@@ -79,14 +117,15 @@ final class CommandPaletteWindow: NSPanel {
         hintLabel.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(hintLabel)
 
-        // Results table
-        resultsTableView = NSTableView()
+        // Results table (custom class for keyboard handling)
+        resultsTableView = ResultsTableView()
         resultsTableView.headerView = nil
         resultsTableView.backgroundColor = .clear
         resultsTableView.intercellSpacing = NSSize(width: 0, height: 0)
         resultsTableView.selectionHighlightStyle = .regular
         resultsTableView.delegate = self
         resultsTableView.dataSource = self
+        resultsTableView.commandPalette = self
 
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("Result"))
         column.width = windowWidth - 16
@@ -157,6 +196,7 @@ final class CommandPaletteWindow: NSPanel {
         scrollView.isHidden = true
         noResultsLabel.isHidden = true
         hintLabel.isHidden = false
+        isResultsFocused = false // Reset to search field focus
 
         // Position window - store top position for resize from bottom (top fixed)
         if let screen = NSScreen.main {
@@ -169,12 +209,46 @@ final class CommandPaletteWindow: NSPanel {
         }
 
         makeKeyAndOrderFront(nil)
-        searchField.becomeFirstResponder()
+        // Use makeFirstResponder for proper first responder management
+        makeFirstResponder(searchField)
     }
 
     override func close() {
-        super.close()
+        // First, resign first responder and key window status
+        // This ensures the window stops capturing keyboard events
+        makeFirstResponder(nil)
+        resignKey()
+
+        // Use orderOut to hide without activating previous app immediately
+        // This is cleaner than super.close() for nonactivating panels
+        orderOut(nil)
+
+        // Hide the entire application to ensure it stops capturing keys
+        NSApp.hide(nil)
+
+        // Reactivate previous app after window is hidden
         previousApp?.activate(options: .activateIgnoringOtherApps)
+        previousApp = nil
+    }
+
+    // MARK: - Focus Management
+
+    /// Return focus to search field from results table
+    func returnToSearchField() {
+        resultsTableView.deselectAll(nil)
+        isResultsFocused = false
+        makeFirstResponder(searchField)
+    }
+
+    /// Return focus to search field and type a character
+    func returnToSearchFieldAndType(_ character: String) {
+        resultsTableView.deselectAll(nil)
+        isResultsFocused = false
+        makeFirstResponder(searchField)
+
+        // Append the character to the search field
+        searchField.stringValue += character
+        performSearch(searchField.stringValue)
     }
 
     // MARK: - Search
@@ -182,15 +256,15 @@ final class CommandPaletteWindow: NSPanel {
     /// Store initial top position to resize from bottom (top stays fixed)
     private var initialWindowTop: CGFloat?
 
-    /// Debounce task for search
-    private var searchDebounceTask: Task<Void, Never>?
+    /// Task for background file search
+    private var fileSearchTask: Task<Void, Never>?
 
     /// Current search query to avoid race conditions
     private var currentSearchQuery: String = ""
 
     private func performSearch(_ query: String) {
-        // Cancel previous debounced search
-        searchDebounceTask?.cancel()
+        // Cancel previous file search
+        fileSearchTask?.cancel()
 
         // Cancel any in-progress search
         SearchEngine.shared.cancelCurrentSearch()
@@ -214,26 +288,43 @@ final class CommandPaletteWindow: NSPanel {
             // Store current query for race condition handling
             currentSearchQuery = query
 
-            // Debounce search by 50ms to avoid searching on every keystroke
-            searchDebounceTask = Task { [weak self] in
-                // Small debounce - 50ms
-                try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+            // PHASE 1: Show fast results immediately (apps, calculator, clipboard, emojis)
+            let fastResults = SearchEngine.shared.searchFast(query: query)
+            updateSearchResults(fastResults, topY: topY, screen: screen)
 
-                guard !Task.isCancelled else { return }
+            // PHASE 2: Run file search in background and append when ready
+            fileSearchTask = Task { [weak self] in
                 guard let self else { return }
 
-                // Verify query hasn't changed during debounce
+                // Small delay before file search to not compete with fast results
+                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+
+                guard !Task.isCancelled else { return }
+
+                // Verify query hasn't changed
                 guard currentSearchQuery == query else { return }
 
-                // Perform search on background (async to avoid blocking main thread)
-                let results = await SearchEngine.shared.searchAsync(query: query)
+                // Run file search on background
+                let fileResults = await Task.detached(priority: .utility) {
+                    SearchEngine.shared.searchFiles(query: query)
+                }.value
 
                 // Check if query still matches (prevent race condition)
                 guard currentSearchQuery == query else { return }
 
+                // Merge results: fast results + file results
+                var combinedResults = fastResults
+                for fileResult in fileResults {
+                    // Avoid duplicates by title
+                    if !combinedResults.contains(where: { $0.title == fileResult.title }) {
+                        combinedResults.append(fileResult)
+                    }
+                }
+
                 // Update UI on main thread
                 await MainActor.run {
-                    self.updateSearchResults(results, topY: topY, screen: screen)
+                    guard self.currentSearchQuery == query else { return }
+                    self.updateSearchResults(combinedResults, topY: topY, screen: screen)
                 }
             }
         }
@@ -258,6 +349,9 @@ final class CommandPaletteWindow: NSPanel {
             scrollView.isHidden = false
             noResultsLabel.isHidden = true
             hintLabel.isHidden = true
+
+            // Auto-select first result when results appear
+            resultsTableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
 
             // Calculate height: search + results + hints
             let availableHeight = screen.visibleFrame.height * maxResultsHeight
@@ -288,24 +382,64 @@ final class CommandPaletteWindow: NSPanel {
             selectCurrentResult()
         case 125: // Down arrow
             if !searchResults.isEmpty {
-                let newRow = min(resultsTableView.selectedRow + 1, searchResults.count - 1)
-                resultsTableView.selectRowIndexes(IndexSet(integer: newRow), byExtendingSelection: false)
-                resultsTableView.scrollRowToVisible(newRow)
+                // Check if focus is on search field
+                if !isResultsFocused {
+                    // Move focus to results table and select first result
+                    resultsTableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+                    resultsTableView.scrollRowToVisible(0)
+                    isResultsFocused = true
+                    makeFirstResponder(resultsTableView)
+                } else {
+                    // Already on results table, navigate to next row
+                    let currentRow = resultsTableView.selectedRow
+                    let newRow = min(currentRow + 1, searchResults.count - 1)
+                    resultsTableView.selectRowIndexes(IndexSet(integer: newRow), byExtendingSelection: false)
+                    resultsTableView.scrollRowToVisible(newRow)
+                }
             }
         case 126: // Up arrow
             if !searchResults.isEmpty {
-                let newRow = max(resultsTableView.selectedRow - 1, 0)
-                resultsTableView.selectRowIndexes(IndexSet(integer: newRow), byExtendingSelection: false)
-                resultsTableView.scrollRowToVisible(newRow)
+                let currentRow = resultsTableView.selectedRow
+                if currentRow <= 0 || !isResultsFocused {
+                    // At first result or no selection - return to search field
+                    resultsTableView.deselectAll(nil)
+                    isResultsFocused = false
+                    makeFirstResponder(searchField)
+                } else {
+                    let newRow = currentRow - 1
+                    resultsTableView.selectRowIndexes(IndexSet(integer: newRow), byExtendingSelection: false)
+                    resultsTableView.scrollRowToVisible(newRow)
+                    // Keep first responder on results table
+                    makeFirstResponder(resultsTableView)
+                }
             }
         default:
+            // If typing a character while results are focused, return to search field
+            if let characters = event.characters, !characters.isEmpty {
+                let isPrintableChar = characters.unicodeScalars.first.map { CharacterSet.alphanumerics.contains($0) } ?? false
+                if isPrintableChar && isResultsFocused {
+                    // Return focus to search field and let the character be typed
+                    resultsTableView.deselectAll(nil)
+                    isResultsFocused = false
+                    makeFirstResponder(searchField)
+                    // Let the search field handle the character
+                    super.keyDown(with: event)
+                    return
+                }
+            }
             super.keyDown(with: event)
         }
     }
 
     /// Reveal the currently selected result in Finder (Cmd+Enter)
     private func revealCurrentResultInFinder() {
-        let selectedRow = resultsTableView.selectedRow
+        var selectedRow = resultsTableView.selectedRow
+
+        // If no selection but results exist, default to first result
+        if selectedRow < 0, !searchResults.isEmpty {
+            selectedRow = 0
+        }
+
         guard selectedRow >= 0, selectedRow < searchResults.count else { return }
 
         let result = searchResults[selectedRow]
@@ -314,7 +448,13 @@ final class CommandPaletteWindow: NSPanel {
     }
 
     private func selectCurrentResult() {
-        let selectedRow = resultsTableView.selectedRow
+        var selectedRow = resultsTableView.selectedRow
+
+        // If no selection but results exist, default to first result
+        if selectedRow < 0, !searchResults.isEmpty {
+            selectedRow = 0
+        }
+
         guard selectedRow >= 0, selectedRow < searchResults.count else { return }
 
         let result = searchResults[selectedRow]
@@ -335,6 +475,32 @@ extension CommandPaletteWindow: NSTextFieldDelegate {
             close()
             return true
         }
+
+        // Handle arrow keys from search field
+        if commandSelector == #selector(NSResponder.moveDown(_:)) {
+            if !searchResults.isEmpty {
+                // Move focus to results table
+                isResultsFocused = true
+                resultsTableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+                resultsTableView.scrollRowToVisible(0)
+                makeFirstResponder(resultsTableView)
+                return true
+            }
+        }
+
+        if commandSelector == #selector(NSResponder.moveUp(_:)) {
+            // Already at search field, nothing to do
+            return true
+        }
+
+        // Handle Enter key - execute first result if no explicit selection
+        if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+            if !searchResults.isEmpty {
+                selectCurrentResult()
+                return true
+            }
+        }
+
         return false
     }
 }
@@ -390,5 +556,83 @@ extension CommandPaletteWindow: NSTableViewDelegate, NSTableViewDataSource {
 
     func tableView(_: NSTableView, heightOfRow _: Int) -> CGFloat {
         rowHeight
+    }
+}
+
+// MARK: - Test Helpers
+
+extension CommandPaletteWindow {
+    /// Current selected result index (for testing)
+    var selectedIndex: Int {
+        resultsTableView.selectedRow
+    }
+
+    /// Check if search field is first responder (for testing)
+    var isSearchFieldFirstResponder: Bool {
+        !isResultsFocused
+    }
+
+    /// Check if results table is first responder (for testing)
+    var isResultsTableFirstResponder: Bool {
+        isResultsFocused
+    }
+
+    /// Update results for testing purposes
+    func updateResultsForTesting(_ results: [SearchResult]) {
+        searchResults = results
+        resultsTableView.reloadData()
+
+        if !results.isEmpty {
+            // Auto-select first result
+            resultsTableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            scrollView.isHidden = false
+        } else {
+            scrollView.isHidden = true
+        }
+    }
+
+    /// Clear selection (for testing)
+    func clearSelectionForTesting() {
+        resultsTableView.deselectAll(nil)
+    }
+
+    /// Set selected result index (for testing)
+    func setSelectedIndexForTesting(_ index: Int) {
+        guard index >= 0, index < searchResults.count else { return }
+        resultsTableView.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+    }
+
+    /// Simulate key press (for testing)
+    func simulateKeyPress(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []) {
+        let event = NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: modifiers,
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "",
+            charactersIgnoringModifiers: "",
+            isARepeat: false,
+            keyCode: keyCode
+        )!
+        keyDown(with: event)
+    }
+
+    /// Simulate character key press (for testing)
+    func simulateCharacterKeyPress(character: String) {
+        let event = NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: character,
+            charactersIgnoringModifiers: character,
+            isARepeat: false,
+            keyCode: 0
+        )!
+        keyDown(with: event)
     }
 }
