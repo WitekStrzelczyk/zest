@@ -16,17 +16,15 @@ final class FileSearchService {
         ".git",
         "node_modules",
         "build",
-        ".build",
+        ".build"
     ]
 
-    private let searchScopes: [String] = [
-        NSMetadataQueryLocalComputerScope,
-        NSMetadataQueryUserHomeScope,
-    ]
-
-    /// Maximum time to wait for mdfind process (in seconds)
+    /// Maximum time to wait for query (in seconds)
     /// This prevents the app from freezing if Spotlight hangs
     let searchTimeout: TimeInterval = 2.0
+
+    /// Flag to force use of mdfind (useful for testing)
+    var forceMdfind: Bool = false
 
     private init() {}
 
@@ -50,17 +48,147 @@ final class FileSearchService {
         return false
     }
 
-    /// Synchronous search using mdfind (Spotlight command-line)
-    /// This gives us the same results as Spotlight
+    /// Synchronous search using native Spotlight APIs
+    /// Uses NSMetadataQuery in the app, falls back to mdfind for reliability
     /// - Parameter query: The search query string
     /// - Parameter maxResults: Maximum number of results to return
     /// - Returns: Array of SearchResult objects, empty if timeout or error occurs
     func searchSync(query: String, maxResults: Int = 10) -> [SearchResult] {
         guard !query.isEmpty else { return [] }
 
-        var results: [SearchResult] = []
+        // First try NSMetadataQuery (native API, no shell process)
+        // If it returns results quickly, use them
+        if !forceMdfind {
+            let urls = performNSMetadataQuery(query: query, maxResults: maxResults)
+            if !urls.isEmpty {
+                return buildSearchResults(from: urls, maxResults: maxResults)
+            }
+        }
 
-        // Use mdfind with -name flag (same as Spotlight)
+        // Fall back to mdfind if NSMetadataQuery returns no results
+        // This handles test environments where NSMetadataQuery may not work
+        let paths = performMdfindQuery(query: query, maxResults: maxResults)
+        return buildSearchResults(from: paths, maxResults: maxResults)
+    }
+
+    /// Perform search using NSMetadataQuery (native Spotlight API)
+    private func performNSMetadataQuery(query: String, maxResults: Int) -> [URL] {
+        let state = NSMetadataQueryState()
+        let metadataQuery = configureMetadataQuery(query: query)
+
+        setupQueryObservers(
+            metadataQuery: metadataQuery,
+            state: state,
+            maxResults: maxResults
+        )
+
+        runQueryOnDedicatedThread(metadataQuery: metadataQuery, state: state)
+
+        // Wait with shorter timeout for NSMetadataQuery
+        let queryTimeout = min(searchTimeout, 0.5)
+        let waitResult = state.semaphore.wait(timeout: .now() + queryTimeout)
+
+        cleanupQuery(metadataQuery: metadataQuery, observers: state.observers)
+
+        return waitResult == .timedOut ? [] : state.collectedURLs
+    }
+
+    /// Configure an NSMetadataQuery with search parameters
+    private func configureMetadataQuery(query: String) -> NSMetadataQuery {
+        let metadataQuery = NSMetadataQuery()
+        metadataQuery.searchScopes = [
+            NSMetadataQueryUserHomeScope,
+            NSMetadataQueryLocalComputerScope
+        ]
+        metadataQuery.predicate = NSPredicate(
+            format: "kMDItemDisplayName CONTAINS[cd] %@", query
+        )
+        return metadataQuery
+    }
+
+    /// Setup notification observers for the metadata query
+    private func setupQueryObservers(
+        metadataQuery: NSMetadataQuery,
+        state: NSMetadataQueryState,
+        maxResults: Int
+    ) {
+        let notificationCenter = NotificationCenter.default
+
+        let finishObserver = notificationCenter.addObserver(
+            forName: NSNotification.Name.NSMetadataQueryDidFinishGathering,
+            object: metadataQuery,
+            queue: nil
+        ) { _ in
+            guard !state.completed else { return }
+            state.completed = true
+            self.collectResults(from: metadataQuery, into: state)
+            state.semaphore.signal()
+        }
+
+        let updateObserver = notificationCenter.addObserver(
+            forName: NSNotification.Name.NSMetadataQueryDidUpdate,
+            object: metadataQuery,
+            queue: nil
+        ) { _ in
+            guard !state.completed else { return }
+            self.collectResults(from: metadataQuery, into: state)
+
+            if state.collectedURLs.count >= maxResults * 3 {
+                state.completed = true
+                state.semaphore.signal()
+            }
+        }
+
+        state.observers = [finishObserver, updateObserver]
+    }
+
+    /// Collect results from a metadata query into the state
+    private func collectResults(from metadataQuery: NSMetadataQuery, into state: NSMetadataQueryState) {
+        guard let results = metadataQuery.results as? [NSMetadataItem] else { return }
+        for item in results {
+            if let url = item.value(forAttribute: NSMetadataItemPathKey) as? URL {
+                if !state.collectedURLs.contains(url) {
+                    state.collectedURLs.append(url)
+                }
+            }
+        }
+    }
+
+    /// Run the query on a dedicated thread with its own run loop
+    private func runQueryOnDedicatedThread(metadataQuery: NSMetadataQuery, state: NSMetadataQueryState) {
+        let queryThread = Thread {
+            metadataQuery.start()
+            let timeoutDate = Date(timeIntervalSinceNow: self.searchTimeout)
+            while !state.completed, Date() < timeoutDate {
+                RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.05))
+            }
+            metadataQuery.stop()
+        }
+        queryThread.start()
+    }
+
+    /// Clean up query observers and stop the query
+    private func cleanupQuery(metadataQuery: NSMetadataQuery, observers: [Any]) {
+        let notificationCenter = NotificationCenter.default
+        observers.forEach { notificationCenter.removeObserver($0) }
+        metadataQuery.stop()
+    }
+}
+
+/// State container for NSMetadataQuery execution
+private class NSMetadataQueryState {
+    let semaphore = DispatchSemaphore(value: 0)
+    var collectedURLs: [URL] = []
+    var completed = false
+    var observers: [Any] = []
+}
+
+extension FileSearchService {
+
+    /// Perform search using mdfind command-line tool (fallback)
+    private func performMdfindQuery(query: String, maxResults: Int) -> [String] {
+        var paths: [String] = []
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/mdfind")
         process.arguments = ["-name", query]
@@ -72,57 +200,89 @@ final class FileSearchService {
         do {
             try process.run()
 
-            // Wait with timeout to prevent hanging the main thread
             let semaphore = DispatchSemaphore(value: 0)
             var didTimeout = false
 
-            // Run wait in background thread
             DispatchQueue.global().async {
                 process.waitUntilExit()
                 semaphore.signal()
             }
 
-            // Wait with timeout
             let waitResult = semaphore.wait(timeout: .now() + searchTimeout)
             if waitResult == .timedOut {
                 didTimeout = true
                 process.terminate()
             }
 
-            // Only process results if we didn't timeout
-            guard !didTimeout else {
-                return []
-            }
+            guard !didTimeout else { return [] }
 
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8) {
                 let lines = output.components(separatedBy: "\n").filter { !$0.isEmpty }
-
-                for path in lines.prefix(maxResults) {
-                    // Skip files from hidden directories (privacy)
-                    if isPathInHiddenDirectory(path) {
-                        continue
-                    }
-
-                    let name = (path as NSString).lastPathComponent
-                    let icon = NSWorkspace.shared.icon(forFile: path)
-
-                    results.append(SearchResult(
-                        title: name,
-                        subtitle: "File",
-                        icon: icon,
-                        action: {
-                            NSWorkspace.shared.open(URL(fileURLWithPath: path))
-                        },
-                        revealAction: {
-                            NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
-                        },
-                        filePath: path
-                    ))
-                }
+                paths = Array(lines.prefix(maxResults * 2))
             }
         } catch {
-            // mdfind failed, return empty
+            // mdfind failed
+        }
+
+        return paths
+    }
+
+    /// Build SearchResult array from URLs
+    private func buildSearchResults(from urls: [URL], maxResults: Int) -> [SearchResult] {
+        var results: [SearchResult] = []
+
+        for url in urls {
+            if results.count >= maxResults { break }
+
+            let path = url.path
+            if isPathInHiddenDirectory(path) { continue }
+
+            let name = url.lastPathComponent
+            let icon = NSWorkspace.shared.icon(forFile: path)
+
+            results.append(SearchResult(
+                title: name,
+                subtitle: "File",
+                icon: icon,
+                action: { [path] in
+                    NSWorkspace.shared.open(URL(fileURLWithPath: path))
+                },
+                revealAction: { [path] in
+                    NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
+                },
+                filePath: path
+            ))
+        }
+
+        return results
+    }
+
+    /// Build SearchResult array from file paths
+    private func buildSearchResults(from paths: [String], maxResults: Int) -> [SearchResult] {
+        var results: [SearchResult] = []
+
+        for path in paths {
+            if results.count >= maxResults { break }
+
+            if isPathInHiddenDirectory(path) { continue }
+
+            let url = URL(fileURLWithPath: path)
+            let name = url.lastPathComponent
+            let icon = NSWorkspace.shared.icon(forFile: path)
+
+            results.append(SearchResult(
+                title: name,
+                subtitle: "File",
+                icon: icon,
+                action: { [path] in
+                    NSWorkspace.shared.open(URL(fileURLWithPath: path))
+                },
+                revealAction: { [path] in
+                    NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
+                },
+                filePath: path
+            ))
         }
 
         return results
