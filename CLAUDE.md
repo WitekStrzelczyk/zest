@@ -42,6 +42,44 @@ Run `./scripts/quality.sh` to execute:
 4. **Test** - `swift test --enable-code-coverage`
 5. **Coverage** - xccov reports
 
+## Mandatory Build Verification (IMPORTANT)
+
+**ALWAYS verify build succeeds with ZERO warnings before considering any task complete.**
+
+### Required Steps After Code Changes
+
+1. **Build the project:**
+   ```bash
+   swift build 2>&1 | grep -E "(error:|warning:)"
+   ```
+   If ANY warnings appear, fix them before proceeding.
+
+2. **Run the app to verify it launches:**
+   ```bash
+   swift run
+   ```
+   The app should build and run without errors.
+
+3. **Run tests with timeout:**
+   ```bash
+   ./scripts/run_tests.sh 40
+   ```
+
+### Common Warning Types to Fix
+
+| Warning | Cause | Fix |
+|---------|-------|-----|
+| `no calls to throwing functions occur within 'try' expression` | Using `try?` on non-throwing function | Remove `try?` |
+| `initialization of immutable value was never used` | Unused variable | Use `_` or remove |
+| `no 'async' operations occur within 'await' expression` | Using `await` on sync function | Remove `await` |
+
+### Why This Matters
+
+- Warnings indicate code quality issues
+- Unused variables = dead code
+- Incorrect `try?`/`await` = misunderstanding of API
+- Zero warnings = clean, maintainable codebase
+
 ## Key Patterns
 
 - Menu bar app (LSUIElement = true)

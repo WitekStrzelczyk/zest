@@ -16,9 +16,11 @@ final class FileSearchE2ETests: XCTestCase {
 
     /// Tests that searching for a common file type returns results
     /// This test exercises the full mdfind -> FileSearchService -> SearchResult pipeline
-    func test_fileSearch_findsQuickstartMdx_returnsMoreThanZeroResults() {
+    /// Uses "Package.swift" which exists in this project and is commonly indexed by Spotlight
+    func test_fileSearch_findsPackageSwift_returnsMoreThanZeroResults() {
         let service = FileSearchService.shared
-        let query = "quickstart.mdx"
+        // Search for Package.swift which exists in this project
+        let query = "Package.swift"
 
         let results = service.searchSync(query: query, maxResults: 10)
 
@@ -26,22 +28,21 @@ final class FileSearchE2ETests: XCTestCase {
         XCTAssertGreaterThan(
             results.count,
             0,
-            "Searching for 'quickstart.mdx' should return at least 1 result. " +
-                "If this fails, check: 1) Spotlight has indexed the file, " +
-                "2) mdfind command works in terminal, 3) File exists on system"
+            "Searching for 'Package.swift' should return at least 1 result. " +
+                "This file exists in the Zest project and should be indexed by Spotlight."
         )
     }
 
     /// Tests that results have proper metadata populated
     func test_fileSearch_resultsHaveValidMetadata() throws {
         let service = FileSearchService.shared
-        let query = "quickstart.mdx"
+        let query = "Package.swift"
 
         let results = service.searchSync(query: query, maxResults: 5)
 
         // Skip if no results (file may not exist on this system)
         guard !results.isEmpty else {
-            throw XCTSkip("No results returned - quickstart.mdx may not exist on this system")
+            throw XCTSkip("No results returned - Package.swift may not be indexed by Spotlight yet")
         }
 
         for result in results {
@@ -69,7 +70,7 @@ final class FileSearchE2ETests: XCTestCase {
     /// Tests that SearchEngine integrates file search results correctly
     func test_searchEngine_includesFileResults_forFilePrefixQuery() {
         let engine = SearchEngine.shared
-        let query = "file:quickstart.mdx"
+        let query = "file:Package.swift"
 
         let results = engine.search(query: query)
 
@@ -79,14 +80,14 @@ final class FileSearchE2ETests: XCTestCase {
         XCTAssertGreaterThan(
             fileResults.count,
             0,
-            "SearchEngine with 'file:quickstart.mdx' query should return file results"
+            "SearchEngine with 'file:Package.swift' query should return file results"
         )
     }
 
     /// Tests that SearchEngine includes file results in general search
     func test_searchEngine_includesFileResults_inGeneralSearch() {
         let engine = SearchEngine.shared
-        let query = "quickstart.mdx"
+        let query = "Package.swift"
 
         let results = engine.search(query: query)
 
@@ -98,7 +99,7 @@ final class FileSearchE2ETests: XCTestCase {
         XCTAssertGreaterThan(
             fileResults.count,
             0,
-            "General search for 'quickstart.mdx' should return file results. " +
+            "General search for 'Package.swift' should return file results. " +
                 "Got \(results.count) total results: \(results.map { "\($0.title) (\($0.subtitle))" })"
         )
     }

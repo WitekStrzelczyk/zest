@@ -642,6 +642,7 @@ AI commands should provide fast responses and handle errors gracefully.
 
 ```
 Command Palette Activation (Foundation)
+├── Full Keyboard Navigation (KB-1) [Cross-cutting]
 ├── Fuzzy Search Across Applications
 │   └── Application Launch Execution
 ├── Window Management
@@ -1258,6 +1259,85 @@ Part of: Story QA-8 (Test Coverage Measurement)
 - First fix test timeout issue (QA-INF-2)
 - Then verify coverage measurement works
 - Target: 60% coverage (currently 50% minimum)
+
+---
+
+## Keyboard Navigation (Accessibility)
+
+### [x] Story KB-1: Full Keyboard Navigation
+
+**As a** power user who keeps hands on the keyboard at all times
+**I want** to operate Zest entirely without a mouse
+**So that** I can maintain my workflow efficiency and accessibility
+
+### Use Case Context
+Part of: "Accessibility" use case
+- Foundation for all interaction with the command palette
+- This is a cross-cutting concern that affects every feature
+
+### Verification Strategy
+Every action possible with a mouse must have an equivalent keyboard action. Focus must be automatic and predictable.
+
+#### Test Cases (Acceptance Criteria)
+
+**App Launch/Activation:**
+- **Given** any application is focused, **When** I press the global hotkey (Cmd+Space), **Then** the command palette appears
+- **Given** the command palette appears, **When** I start typing immediately (no click), **Then** my input appears in the search field
+- **Given** the command palette appears, **When** I observe the window state, **Then** the search field has keyboard focus automatically
+
+**Search & Results Navigation:**
+- **Given** the command palette is open, **When** I type "saf", **Then** results appear with Safari or matching apps
+- **Given** search results are displayed, **When** I press Down Arrow, **Then** the next result is selected (visual highlight moves down)
+- **Given** the first result is not selected, **When** I press Up Arrow, **Then** the previous result is selected
+- **Given** the first result is selected, **When** I press Up Arrow, **Then** selection stays on the first result (no wrap)
+- **Given** the last result is selected, **When** I press Down Arrow, **Then** selection stays on the last result (no wrap)
+- **Given** results extend beyond visible area, **When** I navigate with arrows, **Then** the list scrolls to keep the selected item visible
+
+**Actions:**
+- **Given** a result is selected, **When** I press Enter, **Then** the action executes and the palette closes
+- **Given** no result is selected but results exist, **When** I press Enter, **Then** the first result executes (default behavior)
+- **Given** the palette is open, **When** I press Escape, **Then** the palette closes and focus returns to the previous application
+- **Given** the palette is open, **When** I press Cmd+Space (the global hotkey again), **Then** the palette closes
+- **Given** a file search result is selected, **When** I press Cmd+Enter, **Then** the file is revealed in Finder
+
+**Edge Cases:**
+- **Given** no results match my search, **When** I press Enter, **Then** nothing happens (palette stays open)
+- **Given** no results match my search, **When** I press Down/Up Arrow, **Then** nothing happens (no navigation)
+- **Given** the search field is empty, **When** I observe the palette, **Then** no results are displayed
+
+### Keyboard Shortcuts Reference Table
+
+| Action | Shortcut | Context |
+|--------|----------|---------|
+| Open/Close Palette | `Cmd+Space` | Global (any app) |
+| Close Palette | `Escape` | Palette open |
+| Navigate Down | `Down Arrow` | Results visible |
+| Navigate Up | `Up Arrow` | Results visible |
+| Execute Default Action | `Enter` | Result selected or results exist |
+| Reveal in Finder | `Cmd+Enter` | File result selected |
+| Type to Search | (any character) | Palette open (search field focused) |
+
+### Implementation Notes
+
+**Current State Analysis:**
+The implementation already supports most keyboard navigation:
+- Global hotkey (Cmd+Space) works via Carbon API
+- Search field receives automatic focus via `searchField.becomeFirstResponder()` in `show()`
+- Down/Up arrow navigation implemented in `keyDown(with:)`
+- Enter executes selected result
+- Escape closes palette
+- Cmd+Enter reveals in Finder (for applicable results)
+
+**Required Enhancements:**
+1. **Default selection on first result:** When results appear, automatically select the first result (row 0) to ensure Enter works without explicit arrow key navigation first
+2. **Enter on no selection:** When Enter is pressed with no selection but results exist, execute the first result
+3. **Cmd+Space toggle:** When palette is open and Cmd+Space is pressed, close it (currently implemented via toggle in AppDelegate)
+4. **Hint label accuracy:** Update hint label to reflect actual keyboard shortcuts (currently shows correct shortcuts)
+
+**Accessibility Considerations:**
+- VoiceOver should announce the selected result when navigating with arrows
+- High contrast selection highlight for visibility
+- Keyboard focus ring should be visible on the search field
 
 ---
 
