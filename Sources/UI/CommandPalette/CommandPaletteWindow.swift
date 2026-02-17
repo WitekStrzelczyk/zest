@@ -2,17 +2,95 @@ import AppKit
 import Carbon
 import Quartz
 
+// MARK: - Custom Row View with Dual-State Highlighting
+
+/// Custom NSTableRowView that implements dual-state highlighting:
+/// - Keyboard focus (selection): darker background (15% opacity)
+/// - Mouse hover: lighter background (8% opacity)
+/// - Both on same item: focus takes precedence
+final class ResultRowView: NSTableRowView {
+    /// Whether the mouse is currently hovering over this row
+    var isHovered: Bool = false {
+        didSet {
+            if oldValue != isHovered {
+                needsDisplay = true
+            }
+        }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        // Draw custom background based on state
+        if isSelected {
+            // Keyboard focus - darker (15% opacity)
+            NSColor.labelColor.withAlphaComponent(0.15).setFill()
+            bounds.fill()
+        } else if isHovered {
+            // Mouse hover - lighter (8% opacity)
+            NSColor.labelColor.withAlphaComponent(0.08).setFill()
+            bounds.fill()
+        }
+
+        super.draw(dirtyRect)
+    }
+
+    override func drawSelection(in dirtyRect: NSRect) {
+        // We handle selection drawing ourselves in draw(_:)
+        // This prevents the default blue selection highlight
+    }
+}
+
 // MARK: - Custom Results Table View
 
 /// Custom NSTableView that handles keyboard navigation and forwards character keys to search field
 final class ResultsTableView: NSTableView {
     weak var commandPalette: CommandPaletteWindow?
 
+    /// Currently hovered row index (managed centrally to prevent multiple highlights)
+    private(set) var hoveredRow: Int? = nil
+
     override var acceptsFirstResponder: Bool {
         true
     }
 
+    /// Set hover state for a specific row, clearing others
+    func setHoveredRow(_ row: Int?) {
+        let previousHovered = hoveredRow
+        hoveredRow = row
+
+        // Clear previous hover
+        if let prev = previousHovered, prev >= 0, prev < numberOfRows {
+            if let rowView = rowView(atRow: prev, makeIfNecessary: false) as? ResultRowView {
+                rowView.isHovered = false
+            }
+        }
+
+        // Set new hover
+        if let new = row, new >= 0, new < numberOfRows {
+            if let rowView = rowView(atRow: new, makeIfNecessary: false) as? ResultRowView {
+                rowView.isHovered = true
+            }
+        }
+    }
+
+    /// Clear all hover states from all visible rows
+    func clearHover() {
+        // Clear tracked hover state
+        hoveredRow = nil
+
+        // Clear hover state from ALL visible row views
+        // This ensures any rows that may have been hovered but not properly tracked
+        // (e.g., due to row recycling or nil returns from rowView(atRow:)) get cleared
+        enumerateAvailableRowViews { rowView, _ in
+            if let resultRowView = rowView as? ResultRowView {
+                resultRowView.isHovered = false
+            }
+        }
+    }
+
     override func keyDown(with event: NSEvent) {
+        // Clear hover when using keyboard navigation
+        clearHover()
+
         // Handle up arrow on first row - return to search field
         if event.keyCode == 126 { // Up arrow
             if selectedRow <= 0 {
@@ -33,6 +111,69 @@ final class ResultsTableView: NSTableView {
 
         // Default handling for other keys
         super.keyDown(with: event)
+    }
+
+    // MARK: - Mouse Tracking
+
+    override func mouseMoved(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        let row = row(at: point)
+
+        if row >= 0 && row < numberOfRows {
+            setHoveredRow(row)
+        } else {
+            clearHover()
+        }
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        clearHover()
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+
+        // Ensure we have tracking for mouse movements
+        let options: NSTrackingArea.Options = [
+            .mouseMoved,
+            .mouseEnteredAndExited,
+            .activeInActiveApp,
+            .inVisibleRect
+        ]
+
+        // Remove existing custom tracking areas and add new one
+        for area in trackingAreas {
+            if area.owner === self {
+                removeTrackingArea(area)
+            }
+        }
+
+        let trackingArea = NSTrackingArea(rect: bounds, options: options, owner: self, userInfo: nil)
+        addTrackingArea(trackingArea)
+    }
+
+    // MARK: - Test Helpers
+
+    /// Set hover state on multiple rows for testing
+    func setHoverOnRowsForTesting(_ rows: [Int]) {
+        for row in rows {
+            if row >= 0, row < numberOfRows {
+                if let rowView = rowView(atRow: row, makeIfNecessary: true) as? ResultRowView {
+                    rowView.isHovered = true
+                }
+            }
+        }
+    }
+
+    /// Check if any rows have hover state for testing
+    func hasAnyHoveredRowsForTesting() -> Bool {
+        var hasHovered = false
+        enumerateAvailableRowViews { rowView, _ in
+            if let resultRowView = rowView as? ResultRowView, resultRowView.isHovered {
+                hasHovered = true
+            }
+        }
+        return hasHovered
     }
 }
 
@@ -128,7 +269,7 @@ final class CommandPaletteWindow: NSPanel {
         resultsTableView.headerView = nil
         resultsTableView.backgroundColor = .clear
         resultsTableView.intercellSpacing = NSSize(width: 0, height: 0)
-        resultsTableView.selectionHighlightStyle = .regular
+        resultsTableView.selectionHighlightStyle = .none  // Custom drawing in ResultRowView
         resultsTableView.delegate = self
         resultsTableView.dataSource = self
         resultsTableView.commandPalette = self
@@ -390,6 +531,9 @@ final class CommandPaletteWindow: NSPanel {
             toggleQuickLook()
         case 125: // Down arrow
             if !searchResults.isEmpty {
+                // Clear hover when using keyboard navigation
+                resultsTableView.clearHover()
+
                 // Check if focus is on search field
                 if !isResultsFocused {
                     // Move focus to results table and select first result
@@ -407,6 +551,9 @@ final class CommandPaletteWindow: NSPanel {
             }
         case 126: // Up arrow
             if !searchResults.isEmpty {
+                // Clear hover when using keyboard navigation
+                resultsTableView.clearHover()
+
                 let currentRow = resultsTableView.selectedRow
                 if currentRow <= 0 || !isResultsFocused {
                     // At first result or no selection - return to search field
@@ -559,6 +706,13 @@ extension CommandPaletteWindow: NSTableViewDelegate, NSTableViewDataSource {
         searchResults.count
     }
 
+    func tableView(_: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+        // Return custom row view with dual-state highlighting
+        let rowView = ResultRowView()
+        rowView.identifier = NSUserInterfaceItemIdentifier("ResultRow")
+        return rowView
+    }
+
     func tableView(_: NSTableView, viewFor _: NSTableColumn?, row: Int) -> NSView? {
         let result = searchResults[row]
 
@@ -704,6 +858,23 @@ extension CommandPaletteWindow {
     /// Get file URL for selected result (for testing)
     var selectedFileURL: URL? {
         getSelectedFileResult()?.fileURL
+    }
+
+    // MARK: - Hover State Test Helpers
+
+    /// Set hover state on multiple rows for testing
+    func setHoverOnRowsForTesting(_ rows: [Int]) {
+        resultsTableView.setHoverOnRowsForTesting(rows)
+    }
+
+    /// Check if any rows have hover state for testing
+    func hasAnyHoveredRowsForTesting() -> Bool {
+        resultsTableView.hasAnyHoveredRowsForTesting()
+    }
+
+    /// Clear hover on all rows for testing
+    func clearHoverOnAllRowsForTesting() {
+        resultsTableView.clearHover()
     }
 }
 

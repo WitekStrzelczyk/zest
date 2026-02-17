@@ -379,6 +379,73 @@ final class KeyboardNavigationTests: XCTestCase {
         XCTAssertFalse(window.acceptsMouseMovedEvents, "Window should not accept mouse events after ESC")
     }
 
+    // MARK: - Hover State Clearing Tests
+
+    func test_arrow_up_clears_hover_state_from_all_visible_rows() {
+        // Given: Window has results with some rows hovered
+        window.show(previousApp: nil)
+        let mockResults = createMockResults(count: 5)
+        window.updateResultsForTesting(mockResults)
+
+        // Navigate to second result to set up keyboard navigation state
+        window.simulateKeyPress(keyCode: 125) // Down - focus on results, row 0
+        window.simulateKeyPress(keyCode: 125) // Down - row 1
+
+        // Manually set hover on multiple rows (simulating mouse movement before keyboard)
+        // This tests that ALL hovered rows get cleared, not just the tracked one
+        setHoverOnMultipleRows([0, 2, 3])
+
+        // Verify rows have hover state
+        XCTAssertTrue(hasAnyHoveredRows(), "Some rows should be hovered before keyboard navigation")
+
+        // When: Up arrow is pressed (keyboard navigation)
+        window.simulateKeyPress(keyCode: 126) // Up
+
+        // Then: ALL hover states should be cleared
+        XCTAssertFalse(hasAnyHoveredRows(), "All hover states should be cleared on keyboard navigation")
+    }
+
+    func test_arrow_down_clears_hover_state_from_all_visible_rows() {
+        // Given: Window has results with some rows hovered
+        window.show(previousApp: nil)
+        let mockResults = createMockResults(count: 5)
+        window.updateResultsForTesting(mockResults)
+
+        // Navigate to results first
+        window.simulateKeyPress(keyCode: 125) // Down - focus on results, row 0
+
+        // Manually set hover on multiple rows
+        setHoverOnMultipleRows([1, 2, 4])
+
+        // Verify rows have hover state
+        XCTAssertTrue(hasAnyHoveredRows(), "Some rows should be hovered before keyboard navigation")
+
+        // When: Down arrow is pressed (keyboard navigation)
+        window.simulateKeyPress(keyCode: 125) // Down
+
+        // Then: ALL hover states should be cleared
+        XCTAssertFalse(hasAnyHoveredRows(), "All hover states should be cleared on keyboard navigation")
+    }
+
+    func test_clearHover_clears_all_visible_row_hover_states() {
+        // Given: Window has results with multiple rows hovered
+        window.show(previousApp: nil)
+        let mockResults = createMockResults(count: 5)
+        window.updateResultsForTesting(mockResults)
+
+        // Set hover on multiple rows directly
+        setHoverOnMultipleRows([0, 2, 4])
+
+        // Verify rows have hover state
+        XCTAssertTrue(hasAnyHoveredRows(), "Some rows should be hovered")
+
+        // When: clearHover is called directly
+        window.clearHoverOnAllRowsForTesting()
+
+        // Then: ALL hover states should be cleared
+        XCTAssertFalse(hasAnyHoveredRows(), "All hover states should be cleared")
+    }
+
     // MARK: - Quick Look Preview Tests (Story 22)
 
     func test_space_key_requests_quick_look_for_file_result() {
@@ -516,5 +583,15 @@ final class KeyboardNavigationTests: XCTestCase {
                 filePath: "/Users/test/Documents/File \(index + 1).txt"
             )
         }
+    }
+
+    // MARK: - Hover State Test Helpers
+
+    private func setHoverOnMultipleRows(_ rows: [Int]) {
+        window.setHoverOnRowsForTesting(rows)
+    }
+
+    private func hasAnyHoveredRows() -> Bool {
+        window.hasAnyHoveredRowsForTesting()
     }
 }
