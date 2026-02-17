@@ -94,7 +94,7 @@ final class Calculator {
             if ops.contains(char.unicodeScalars.first!) {
                 if prevWasOp { return false }
                 prevWasOp = true
-            } else if !char.isWhitespace && char != "(" {
+            } else if !char.isWhitespace, char != "(" {
                 prevWasOp = false
             }
         }

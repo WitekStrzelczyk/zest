@@ -8,7 +8,9 @@ import Quartz
 final class ResultsTableView: NSTableView {
     weak var commandPalette: CommandPaletteWindow?
 
-    override var acceptsFirstResponder: Bool { true }
+    override var acceptsFirstResponder: Bool {
+        true
+    }
 
     override func keyDown(with event: NSEvent) {
         // Handle up arrow on first row - return to search field
@@ -423,7 +425,7 @@ final class CommandPaletteWindow: NSPanel {
             // If typing a character while results are focused, return to search field
             if let characters = event.characters, !characters.isEmpty {
                 let isPrintableChar = characters.unicodeScalars.first.map { CharacterSet.alphanumerics.contains($0) } ?? false
-                if isPrintableChar && isResultsFocused {
+                if isPrintableChar, isResultsFocused {
                     // Return focus to search field and let the character be typed
                     resultsTableView.deselectAll(nil)
                     isResultsFocused = false
@@ -471,7 +473,7 @@ final class CommandPaletteWindow: NSPanel {
     // MARK: - Quick Look Preview
 
     /// Accept Quick Look panel control
-    override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
+    override func acceptsPreviewPanelControl(_: QLPreviewPanel!) -> Bool {
         true
     }
 
