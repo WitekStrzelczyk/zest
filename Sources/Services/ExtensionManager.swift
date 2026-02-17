@@ -42,10 +42,7 @@ protocol ZestExtensionProtocol {
 
 /// Manages extension loading and execution
 final class ExtensionManager {
-    static let shared: ExtensionManager = {
-        let instance = ExtensionManager()
-        return instance
-    }()
+    static let shared: ExtensionManager = .init()
 
     private var loadedExtensions: [Extension] = []
     private let extensionsDirectory: URL
@@ -66,12 +63,12 @@ final class ExtensionManager {
 
     /// Get all loaded extensions
     func getAllExtensions() -> [Extension] {
-        return loadedExtensions
+        loadedExtensions
     }
 
     /// Get all commands from all extensions
     func getAllCommands() -> [ExtensionCommand] {
-        return loadedExtensions.flatMap { $0.commands }
+        loadedExtensions.flatMap(\.commands)
     }
 
     /// Search commands across all extensions
@@ -81,7 +78,7 @@ final class ExtensionManager {
         let lowercasedQuery = query.lowercased()
         return getAllCommands().filter { command in
             command.name.lowercased().contains(lowercasedQuery) ||
-            command.keywords.contains { $0.lowercased().contains(lowercasedQuery) }
+                command.keywords.contains { $0.lowercased().contains(lowercasedQuery) }
         }
     }
 

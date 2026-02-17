@@ -3,7 +3,6 @@ import Foundation
 
 /// Manages menu bar presence and actions for Zest
 final class MenuBarManager {
-
     // MARK: - Properties
 
     private(set) var statusItem: NSStatusItem?
@@ -84,15 +83,15 @@ final class MenuBarManager {
         statusItem?.menu = menu
     }
 
-    @objc private func statusBarButtonClicked(_ sender: Any?) {
+    @objc private func statusBarButtonClicked(_: Any?) {
         onMenuBarClick?()
     }
 
-    @objc private func preferencesSelected(_ sender: Any?) {
+    @objc private func preferencesSelected(_: Any?) {
         onPreferencesSelected?()
     }
 
-    @objc private func quitSelected(_ sender: Any?) {
+    @objc private func quitSelected(_: Any?) {
         onQuitSelected?()
     }
 

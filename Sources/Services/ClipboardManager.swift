@@ -2,10 +2,7 @@ import AppKit
 import Foundation
 
 final class ClipboardManager {
-    static let shared: ClipboardManager = {
-        let instance = ClipboardManager()
-        return instance
-    }()
+    static let shared: ClipboardManager = .init()
 
     private var history: [ClipboardItem] = []
     private var lastChangeCount: Int = 0

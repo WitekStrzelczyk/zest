@@ -1,5 +1,5 @@
-import Foundation
 import EventKit
+import Foundation
 
 /// Represents a reminder from the Reminders app
 struct Reminder: Identifiable, Hashable {
@@ -21,10 +21,7 @@ struct Reminder: Identifiable, Hashable {
 
 /// Manages integration with Apple Reminders
 final class RemindersService {
-    static let shared: RemindersService = {
-        let instance = RemindersService()
-        return instance
-    }()
+    static let shared: RemindersService = .init()
 
     private let eventStore = EKEventStore()
     private var hasAccess = false
@@ -48,7 +45,7 @@ final class RemindersService {
             // For macOS < 14, use the older API
             return await withCheckedContinuation { continuation in
                 eventStore.requestAccess(to: .reminder) { granted, error in
-                    if let error = error {
+                    if let error {
                         print("Error requesting Reminders access: \(error)")
                     }
                     self.hasAccess = granted ?? false
@@ -85,7 +82,7 @@ final class RemindersService {
         let lowercasedQuery = query.lowercased()
         return allReminders.filter { reminder in
             reminder.title.lowercased().contains(lowercasedQuery) ||
-            (reminder.notes?.lowercased().contains(lowercasedQuery) ?? false)
+                (reminder.notes?.lowercased().contains(lowercasedQuery) ?? false)
         }
     }
 
@@ -101,7 +98,7 @@ final class RemindersService {
         reminder.notes = notes
         reminder.calendar = eventStore.defaultCalendarForNewReminders()
 
-        if let dueDate = dueDate {
+        if let dueDate {
             let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: dueDate)
             reminder.dueDateComponents = components
         }
@@ -199,12 +196,12 @@ final class RemindersService {
         if let timeMatch = lowercasedInput.range(of: #"at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?"#, options: .regularExpression) {
             let timeString = String(input[timeMatch])
             // Extract hour from time string
-            let numbers = timeString.compactMap { $0.wholeNumberValue }
+            let numbers = timeString.compactMap(\.wholeNumberValue)
             if let hour = numbers.first {
                 var hour24 = hour
-                if timeString.contains("pm") && hour < 12 {
+                if timeString.contains("pm"), hour < 12 {
                     hour24 += 12
-                } else if timeString.contains("am") && hour == 12 {
+                } else if timeString.contains("am"), hour == 12 {
                     hour24 = 0
                 }
 

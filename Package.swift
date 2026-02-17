@@ -16,7 +16,8 @@ let package = Package(
         .executableTarget(
             name: "ZestApp",
             dependencies: [],
-            path: "Sources"
+            path: "Sources",
+            exclude: ["Info.plist", "Zest.entitlements"]
         ),
         .testTarget(
             name: "ZestTests",

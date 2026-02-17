@@ -1,7 +1,7 @@
 import Foundation
 
 /// Emoji data: emoji character, keywords for search
-struct EmojiData {
+enum EmojiData {
     static let emojis: [(emoji: String, keywords: [String])] = [
         // Face emojis
         ("😀", ["smile", "happy", "grin", "face"]),

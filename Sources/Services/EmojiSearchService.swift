@@ -3,10 +3,7 @@ import Foundation
 
 /// Service for searching and inserting emojis
 final class EmojiSearchService {
-    static let shared: EmojiSearchService = {
-        let instance = EmojiSearchService()
-        return instance
-    }()
+    static let shared: EmojiSearchService = .init()
 
     /// Maximum number of results to return
     private let maxResults = 10

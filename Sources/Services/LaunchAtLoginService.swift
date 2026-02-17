@@ -3,10 +3,7 @@ import ServiceManagement
 
 /// Service for managing launch at login functionality
 final class LaunchAtLoginService {
-    static let shared: LaunchAtLoginService = {
-        let instance = LaunchAtLoginService()
-        return instance
-    }()
+    static let shared: LaunchAtLoginService = .init()
 
     private init() {}
 

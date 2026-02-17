@@ -1,5 +1,5 @@
-import Foundation
 import AppKit
+import Foundation
 
 /// Represents a Focus mode
 struct FocusMode: Identifiable, Hashable {
@@ -18,10 +18,7 @@ struct FocusMode: Identifiable, Hashable {
 
 /// Manages Focus Mode control on macOS
 final class FocusModeService {
-    static let shared: FocusModeService = {
-        let instance = FocusModeService()
-        return instance
-    }()
+    static let shared: FocusModeService = .init()
 
     private init() {}
 
@@ -30,8 +27,7 @@ final class FocusModeService {
     /// Get all available focus modes
     func getAllFocusModes() -> [FocusMode] {
         // Get list of focus modes from system
-        let modes = fetchFocusModesFromSystem()
-        return modes
+        fetchFocusModesFromSystem()
     }
 
     /// Search focus modes by query
@@ -147,7 +143,7 @@ final class FocusModeService {
 
     private func toggleFocusModeByName(_ name: String) -> Bool {
         // Try to use shortcuts app to toggle focus mode
-        return runShortcutsCommand(focusMode: name)
+        runShortcutsCommand(focusMode: name)
     }
 
     private func runShortcutsCommand(focusMode: String) -> Bool {
@@ -178,7 +174,7 @@ final class FocusModeService {
         var error: NSDictionary?
         if let scriptObject = NSAppleScript(source: script) {
             scriptObject.executeAndReturnError(&error)
-            if let error = error {
+            if let error {
                 print("AppleScript error: \(error)")
                 return false
             }

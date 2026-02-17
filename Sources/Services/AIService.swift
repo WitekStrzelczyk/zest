@@ -3,30 +3,30 @@ import Foundation
 /// AI provider options
 enum AIProvider: String, CaseIterable {
     case openAI = "openai"
-    case anthropic = "anthropic"
-    case local = "local"
+    case anthropic
+    case local
 
     var displayName: String {
         switch self {
-        case .openAI: return "OpenAI"
-        case .anthropic: return "Anthropic"
-        case .local: return "Local Model"
+        case .openAI: "OpenAI"
+        case .anthropic: "Anthropic"
+        case .local: "Local Model"
         }
     }
 
     var defaultModel: String {
         switch self {
-        case .openAI: return "gpt-4"
-        case .anthropic: return "claude-3-opus"
-        case .local: return "llama2"
+        case .openAI: "gpt-4"
+        case .anthropic: "claude-3-opus"
+        case .local: "llama2"
         }
     }
 
     var apiKeyKeychainItem: String {
         switch self {
-        case .openAI: return "com.zest.openai.apikey"
-        case .anthropic: return "com.zest.anthropic.apikey"
-        case .local: return ""
+        case .openAI: "com.zest.openai.apikey"
+        case .anthropic: "com.zest.anthropic.apikey"
+        case .local: ""
         }
     }
 }
@@ -39,16 +39,13 @@ struct AIResponse {
     let tokensUsed: Int?
 
     var formattedContent: String {
-        return content
+        content
     }
 }
 
 /// Manages AI command integration
 final class AIService {
-    static let shared: AIService = {
-        let instance = AIService()
-        return instance
-    }()
+    static let shared: AIService = .init()
 
     private var apiKey: String?
     private var currentProvider: AIProvider?
@@ -63,7 +60,7 @@ final class AIService {
 
     /// Check if service is configured
     var isConfigured: Bool {
-        return apiKey != nil
+        apiKey != nil
     }
 
     /// Configure API key
@@ -115,7 +112,7 @@ final class AIService {
 
     /// Get current provider
     func getCurrentProvider() -> AIProvider? {
-        return currentProvider
+        currentProvider
     }
 
     /// Clear configuration
@@ -131,7 +128,8 @@ final class AIService {
     private func loadConfiguration() {
         // Load from UserDefaults for now
         if let providerRaw = UserDefaults.standard.string(forKey: "ai_provider"),
-           let provider = AIProvider(rawValue: providerRaw) {
+           let provider = AIProvider(rawValue: providerRaw)
+        {
             currentProvider = provider
             currentModel = provider.defaultModel
             // Note: In production, load API key from Keychain
@@ -164,9 +162,9 @@ final class AIService {
             "model": currentModel ?? "gpt-4",
             "messages": [
                 ["role": "system", "content": "You are a helpful assistant in the Zest command palette. Provide concise, actionable responses."],
-                ["role": "user", "content": prompt]
+                ["role": "user", "content": prompt],
             ],
-            "temperature": 0.7
+            "temperature": 0.7,
         ]
 
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
@@ -177,7 +175,8 @@ final class AIService {
                let choices = json["choices"] as? [[String: Any]],
                let firstChoice = choices.first,
                let message = firstChoice["message"] as? [String: Any],
-               let content = message["content"] as? String {
+               let content = message["content"] as? String
+            {
                 return AIResponse(content: content, provider: .openAI, model: currentModel ?? "gpt-4", tokensUsed: json["usage"] as? Int)
             }
         } catch {
@@ -214,8 +213,8 @@ final class AIService {
             "model": currentModel ?? "claude-3-opus-20240229",
             "max_tokens": 1024,
             "messages": [
-                ["role": "user", "content": prompt]
-            ]
+                ["role": "user", "content": prompt],
+            ],
         ]
 
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
@@ -225,7 +224,8 @@ final class AIService {
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let content = json["content"] as? [[String: Any]],
                let firstContent = content.first,
-               let text = firstContent["text"] as? String {
+               let text = firstContent["text"] as? String
+            {
                 return AIResponse(content: text, provider: .anthropic, model: currentModel ?? "claude-3-opus", tokensUsed: json["usage"] as? Int)
             }
         } catch {
@@ -245,9 +245,9 @@ final class AIService {
 
     // MARK: - Local Model Implementation
 
-    private func executeLocal(prompt: String) async -> AIResponse? {
+    private func executeLocal(prompt _: String) async -> AIResponse? {
         // For local models, could use llama.cpp or similar
-        return AIResponse(content: "Local model not configured. Please configure a local model endpoint.", provider: .local, model: currentModel ?? "llama2", tokensUsed: nil)
+        AIResponse(content: "Local model not configured. Please configure a local model endpoint.", provider: .local, model: currentModel ?? "llama2", tokensUsed: nil)
     }
 
     private func executeLocalStreaming(prompt: String, onChunk: @escaping (String) -> Void) async -> AIResponse? {

@@ -1,5 +1,5 @@
-import Foundation
 import AppKit
+import Foundation
 
 /// Represents a note from the Notes app
 struct Note: Identifiable, Hashable {
@@ -26,10 +26,7 @@ struct Note: Identifiable, Hashable {
 
 /// Manages integration with Apple Notes
 final class NotesService {
-    static let shared: NotesService = {
-        let instance = NotesService()
-        return instance
-    }()
+    static let shared: NotesService = .init()
 
     private init() {}
 
@@ -46,7 +43,7 @@ final class NotesService {
         var error: NSDictionary?
         if let scriptObject = NSAppleScript(source: script) {
             scriptObject.executeAndReturnError(&error)
-            if let error = error {
+            if let error {
                 print("Notes access error: \(error)")
                 return false
             }
@@ -79,7 +76,7 @@ final class NotesService {
 
         let result = scriptObject.executeAndReturnError(&error)
 
-        if let error = error {
+        if let error {
             print("AppleScript error fetching notes: \(error)")
             return []
         }
@@ -120,7 +117,7 @@ final class NotesService {
         let lowercasedQuery = query.lowercased()
         return allNotes.filter { note in
             note.title.lowercased().contains(lowercasedQuery) ||
-            note.content.lowercased().contains(lowercasedQuery)
+                note.content.lowercased().contains(lowercasedQuery)
         }
     }
 
@@ -141,7 +138,7 @@ final class NotesService {
         var error: NSDictionary?
         if let scriptObject = NSAppleScript(source: script) {
             let result = scriptObject.executeAndReturnError(&error)
-            if let error = error {
+            if let error {
                 print("AppleScript error creating note: \(error)")
                 return nil
             }
@@ -151,7 +148,7 @@ final class NotesService {
     }
 
     /// Open Notes app
-    func openNote(id: String) -> Bool {
+    func openNote(id _: String) -> Bool {
         // Open Notes app
         if let notesApp = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Notes") {
             NSWorkspace.shared.openApplication(at: notesApp, configuration: NSWorkspace.OpenConfiguration())

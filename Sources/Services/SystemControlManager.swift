@@ -14,37 +14,34 @@ enum SystemControlAction: String, CaseIterable {
 
     var icon: String {
         switch self {
-        case .toggleDarkMode: return "moon.circle"
-        case .mute: return "speaker.wave.2"
-        case .emptyTrash: return "trash"
-        case .lockScreen: return "lock"
-        case .sleep: return "moon.zzz"
-        case .restart: return "arrow.clockwise"
-        case .shutdown: return "power"
-        case .logout: return "rectangle.portrait.and.arrow.right"
+        case .toggleDarkMode: "moon.circle"
+        case .mute: "speaker.wave.2"
+        case .emptyTrash: "trash"
+        case .lockScreen: "lock"
+        case .sleep: "moon.zzz"
+        case .restart: "arrow.clockwise"
+        case .shutdown: "power"
+        case .logout: "rectangle.portrait.and.arrow.right"
         }
     }
 
     var keywords: [String] {
         switch self {
-        case .toggleDarkMode: return ["dark", "mode", "theme", "appearance"]
-        case .mute: return ["mute", "unmute", "sound", "audio", "volume"]
-        case .emptyTrash: return ["trash", "delete", "clean", "empty"]
-        case .lockScreen: return ["lock", "screen", "security"]
-        case .sleep: return ["sleep", "suspend"]
-        case .restart: return ["restart", "reboot", "reboot"]
-        case .shutdown: return ["shutdown", "power", "off"]
-        case .logout: return ["logout", "sign", "out", "exit"]
+        case .toggleDarkMode: ["dark", "mode", "theme", "appearance"]
+        case .mute: ["mute", "unmute", "sound", "audio", "volume"]
+        case .emptyTrash: ["trash", "delete", "clean", "empty"]
+        case .lockScreen: ["lock", "screen", "security"]
+        case .sleep: ["sleep", "suspend"]
+        case .restart: ["restart", "reboot", "reboot"]
+        case .shutdown: ["shutdown", "power", "off"]
+        case .logout: ["logout", "sign", "out", "exit"]
         }
     }
 }
 
 /// Manages system control actions
 final class SystemControlManager {
-    static let shared: SystemControlManager = {
-        let instance = SystemControlManager()
-        return instance
-    }()
+    static let shared: SystemControlManager = .init()
 
     private init() {}
 
@@ -62,7 +59,7 @@ final class SystemControlManager {
         let lowercasedQuery = query.lowercased()
         return SystemControlAction.allCases.filter { action in
             action.rawValue.lowercased().contains(lowercasedQuery) ||
-            action.keywords.contains { $0.lowercased().contains(lowercasedQuery) }
+                action.keywords.contains { $0.lowercased().contains(lowercasedQuery) }
         }.map { ($0, $0.rawValue) }
     }
 
@@ -70,21 +67,21 @@ final class SystemControlManager {
     func execute(action: SystemControlAction) -> Bool {
         switch action {
         case .toggleDarkMode:
-            return toggleDarkMode()
+            toggleDarkMode()
         case .mute:
-            return toggleMute()
+            toggleMute()
         case .emptyTrash:
-            return emptyTrash()
+            emptyTrash()
         case .lockScreen:
-            return lockScreen()
+            lockScreen()
         case .sleep:
-            return sleep()
+            sleep()
         case .restart:
-            return restart()
+            restart()
         case .shutdown:
-            return shutdown()
+            shutdown()
         case .logout:
-            return logout()
+            logout()
         }
     }
 
@@ -168,7 +165,7 @@ final class SystemControlManager {
         var error: NSDictionary?
         if let scriptObject = NSAppleScript(source: script) {
             scriptObject.executeAndReturnError(&error)
-            if let error = error {
+            if let error {
                 print("AppleScript error: \(error)")
                 return false
             }

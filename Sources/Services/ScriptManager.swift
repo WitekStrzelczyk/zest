@@ -38,10 +38,7 @@ struct ScriptExecutionResult {
 // MARK: - Script Manager
 
 final class ScriptManager {
-    static let shared: ScriptManager = {
-        let instance = ScriptManager()
-        return instance
-    }()
+    static let shared: ScriptManager = .init()
 
     private let logger = Logger(subsystem: "com.zestapp.Zest", category: "ScriptManager")
     private var currentProcess: Process?

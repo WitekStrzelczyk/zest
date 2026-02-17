@@ -3,10 +3,7 @@ import Foundation
 
 /// Manages quicklinks (URL bookmarks) storage and operations
 final class QuicklinkManager {
-    static let shared: QuicklinkManager = {
-        let instance = QuicklinkManager()
-        return instance
-    }()
+    static let shared: QuicklinkManager = .init()
 
     private let fileManager = FileManager.default
     private var quicklinks: [Quicklink] = []
@@ -40,8 +37,8 @@ final class QuicklinkManager {
         let lowercasedQuery = query.lowercased()
         return quicklinks.filter { quicklink in
             quicklink.name.lowercased().contains(lowercasedQuery) ||
-            quicklink.url.lowercased().contains(lowercasedQuery) ||
-            quicklink.keywords.contains { $0.lowercased().contains(lowercasedQuery) }
+                quicklink.url.lowercased().contains(lowercasedQuery) ||
+                quicklink.keywords.contains { $0.lowercased().contains(lowercasedQuery) }
         }
     }
 
@@ -138,7 +135,7 @@ final class QuicklinkManager {
                 name: "Slack",
                 url: "https://slack.com",
                 keywords: ["chat", "team", "communication"]
-            )
+            ),
         ]
 
         quicklinks = builtInQuicklinks

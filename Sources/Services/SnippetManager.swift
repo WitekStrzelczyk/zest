@@ -2,10 +2,7 @@ import Foundation
 
 /// Manages snippets storage and retrieval
 final class SnippetManager {
-    static let shared: SnippetManager = {
-        let instance = SnippetManager()
-        return instance
-    }()
+    static let shared: SnippetManager = .init()
 
     private let fileManager = FileManager.default
     private var snippets: [Snippet] = []
@@ -39,7 +36,7 @@ final class SnippetManager {
         let lowercasedQuery = query.lowercased()
         return snippets.filter { snippet in
             snippet.name.lowercased().contains(lowercasedQuery) ||
-            snippet.keywords.contains { $0.lowercased().contains(lowercasedQuery) }
+                snippet.keywords.contains { $0.lowercased().contains(lowercasedQuery) }
         }
     }
 
@@ -138,7 +135,7 @@ final class SnippetManager {
                 Sent from Zest Command Palette
                 """,
                 keywords: ["signature", "email", "sign"]
-            )
+            ),
         ]
 
         // Add date/time expansion to snippets

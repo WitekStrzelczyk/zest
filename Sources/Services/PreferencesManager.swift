@@ -29,10 +29,7 @@ enum AppTheme: String, Codable, CaseIterable {
 
 /// Manages application preferences using UserDefaults
 final class PreferencesManager: ObservableObject {
-    static let shared: PreferencesManager = {
-        let instance = PreferencesManager()
-        return instance
-    }()
+    static let shared: PreferencesManager = .init()
 
     private let defaults = UserDefaults.standard
 

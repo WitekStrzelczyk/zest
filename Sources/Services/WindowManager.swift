@@ -60,10 +60,7 @@ final class WindowManager {
 
     // MARK: - Singleton
 
-    static let shared: WindowManager = {
-        let instance = WindowManager()
-        return instance
-    }()
+    static let shared: WindowManager = .init()
 
     private init() {}
 
