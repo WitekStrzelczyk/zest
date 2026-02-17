@@ -49,6 +49,15 @@ final class MenuBarManager {
     private func setupMenu() {
         let menu = NSMenu()
 
+        // Open Zest (opens the command palette)
+        let openItem = NSMenuItem(
+            title: "Open Zest",
+            action: #selector(openSelected(_:)),
+            keyEquivalent: "o"
+        )
+        openItem.target = self
+        menu.addItem(openItem)
+
         // Recent Items submenu
         let recentMenu = NSMenu()
         recentMenu.addItem(withTitle: "No recent items", action: nil, keyEquivalent: "")
@@ -81,6 +90,13 @@ final class MenuBarManager {
         menu.addItem(quitItem)
 
         statusItem?.menu = menu
+    }
+
+    /// Callback for when Open is selected
+    var onOpenSelected: (() -> Void)?
+
+    @objc private func openSelected(_: Any?) {
+        onOpenSelected?()
     }
 
     @objc private func statusBarButtonClicked(_: Any?) {
