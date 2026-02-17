@@ -45,41 +45,12 @@ final class ResultRowView: NSTableRowView {
 final class ResultsTableView: NSTableView {
     weak var commandPalette: CommandPaletteWindow?
 
-    /// Currently hovered row index (managed centrally to prevent multiple highlights)
-    private(set) var hoveredRow: Int? = nil
-
     override var acceptsFirstResponder: Bool {
         true
     }
 
-    /// Set hover state for a specific row, clearing others
-    func setHoveredRow(_ row: Int?) {
-        let previousHovered = hoveredRow
-        hoveredRow = row
-
-        // Clear previous hover
-        if let prev = previousHovered, prev >= 0, prev < numberOfRows {
-            if let rowView = rowView(atRow: prev, makeIfNecessary: false) as? ResultRowView {
-                rowView.isHovered = false
-            }
-        }
-
-        // Set new hover
-        if let new = row, new >= 0, new < numberOfRows {
-            if let rowView = rowView(atRow: new, makeIfNecessary: false) as? ResultRowView {
-                rowView.isHovered = true
-            }
-        }
-    }
-
     /// Clear all hover states from all visible rows
     func clearHover() {
-        // Clear tracked hover state
-        hoveredRow = nil
-
-        // Clear hover state from ALL visible row views
-        // This ensures any rows that may have been hovered but not properly tracked
-        // (e.g., due to row recycling or nil returns from rowView(atRow:)) get cleared
         enumerateAvailableRowViews { rowView, _ in
             if let resultRowView = rowView as? ResultRowView {
                 resultRowView.isHovered = false
@@ -119,10 +90,13 @@ final class ResultsTableView: NSTableView {
         let point = convert(event.locationInWindow, from: nil)
         let row = row(at: point)
 
-        if row >= 0 && row < numberOfRows {
-            setHoveredRow(row)
-        } else {
-            clearHover()
+        // Clear all hovers first, then set hover on the row under mouse
+        clearHover()
+
+        if row >= 0, row < numberOfRows {
+            if let rowView = rowView(atRow: row, makeIfNecessary: false) as? ResultRowView {
+                rowView.isHovered = true
+            }
         }
     }
 
