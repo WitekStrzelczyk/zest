@@ -27,8 +27,9 @@ final class FileSearchService {
         NSMetadataQueryUserHomeScope,
     ]
 
-    /// Maximum time to wait for search results (in seconds)
-    private let searchTimeout: TimeInterval = 2.0  // 2 seconds to allow Spotlight to index
+    /// Maximum time to wait for mdfind process (in seconds)
+    /// This prevents the app from freezing if Spotlight hangs
+    let searchTimeout: TimeInterval = 2.0
 
     private init() {}
 
@@ -54,6 +55,9 @@ final class FileSearchService {
 
     /// Synchronous search using mdfind (Spotlight command-line)
     /// This gives us the same results as Spotlight
+    /// - Parameter query: The search query string
+    /// - Parameter maxResults: Maximum number of results to return
+    /// - Returns: Array of SearchResult objects, empty if timeout or error occurs
     func searchSync(query: String, maxResults: Int = 10) -> [SearchResult] {
         guard !query.isEmpty else { return [] }
 
@@ -70,7 +74,28 @@ final class FileSearchService {
 
         do {
             try process.run()
-            process.waitUntilExit()
+
+            // Wait with timeout to prevent hanging the main thread
+            let semaphore = DispatchSemaphore(value: 0)
+            var didTimeout = false
+
+            // Run wait in background thread
+            DispatchQueue.global().async {
+                process.waitUntilExit()
+                semaphore.signal()
+            }
+
+            // Wait with timeout
+            let waitResult = semaphore.wait(timeout: .now() + searchTimeout)
+            if waitResult == .timedOut {
+                didTimeout = true
+                process.terminate()
+            }
+
+            // Only process results if we didn't timeout
+            guard !didTimeout else {
+                return []
+            }
 
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8) {

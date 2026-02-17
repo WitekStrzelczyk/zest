@@ -198,7 +198,6 @@ final class CommandPaletteWindow: NSPanel {
         guard let topY = initialWindowTop, let screen = NSScreen.main else { return }
 
         let currentFrame = frame
-        let currentHeight = currentFrame.height
 
         if query.isEmpty {
             searchResults = []
@@ -226,7 +225,7 @@ final class CommandPaletteWindow: NSPanel {
                 // Verify query hasn't changed during debounce
                 guard currentSearchQuery == query else { return }
 
-                // Perform async search on background
+                // Perform search on background (async to avoid blocking main thread)
                 let results = await SearchEngine.shared.searchAsync(query: query)
 
                 // Check if query still matches (prevent race condition)

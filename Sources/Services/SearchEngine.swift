@@ -25,9 +25,20 @@ final class SearchEngine {
         currentSearchTask = nil
     }
 
-    /// Async search that runs on main thread (needed for AppKit)
+    /// Async search that runs file search on a background thread
+    /// This prevents blocking the main thread with mdfind calls
     @MainActor
-    func searchAsync(query: String) -> [SearchResult] {
+    func searchAsync(query: String) async -> [SearchResult] {
+        // Run the blocking search on a background thread
+        return await Task.detached(priority: .userInitiated) { [weak self] in
+            guard let self = self else { return [] }
+            return self.search(query: query)
+        }.value
+    }
+
+    /// Synchronous search for backwards compatibility
+    /// WARNING: This may block briefly during file search (max 2 seconds)
+    func searchSyncCompat(query: String) -> [SearchResult] {
         return search(query: query)
     }
 
@@ -207,7 +218,7 @@ final class SearchEngine {
 
         // Try to find and launch by bundle ID first
         if let appURL = workspace.urlForApplication(withBundleIdentifier: bundleID) {
-            try? workspace.openApplication(at: appURL, configuration: .init())
+            workspace.openApplication(at: appURL, configuration: .init())
         } else {
             // Fallback: try as file path
             let appURL = URL(fileURLWithPath: bundleID)
