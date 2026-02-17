@@ -2,10 +2,7 @@ import AppKit
 import Foundation
 
 final class FileSearchService {
-    static let shared: FileSearchService = {
-        let instance = FileSearchService()
-        return instance
-    }()
+    static let shared: FileSearchService = .init()
 
     /// List of hidden directories to exclude from search results (for privacy)
     private let hiddenDirectoryNames: Set<String> = [
