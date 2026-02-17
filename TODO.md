@@ -537,7 +537,7 @@ Extensions should be isolated, secure, and easy to install.
 
 ---
 
-### [ ] Story 18: Menu Bar Presence
+### [x] Story 18: Menu Bar Presence
 
 **As a** macOS user who wants quick access to app controls
 **I want** to see Zest in the menu bar with quick actions
