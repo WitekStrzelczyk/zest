@@ -34,7 +34,14 @@ final class SearchEngine {
         var results: [SearchResult] = []
         var seenBundleIDs: Set<String> = []
 
-        // Check for calculator expression FIRST (highest priority)
+        // Check for shell command FIRST (highest priority - starts with ">")
+        if ShellCommandService.shared.isShellCommand(query) {
+            let shellResult = ShellCommandService.shared.createShellCommandResult(for: query)
+            results.append(shellResult)
+            return results // Return early - shell commands take priority
+        }
+
+        // Check for calculator expression (high priority)
         if Calculator.shared.isMathExpression(query) {
             if let result = Calculator.shared.evaluate(query) {
                 results.append(SearchResult(
@@ -187,7 +194,14 @@ final class SearchEngine {
         var results: [SearchResult] = []
         var seenBundleIDs: Set<String> = []
 
-        // Check for calculator expression FIRST (highest priority)
+        // Check for shell command FIRST (highest priority - starts with ">")
+        if ShellCommandService.shared.isShellCommand(query) {
+            let shellResult = ShellCommandService.shared.createShellCommandResult(for: query)
+            results.append(shellResult)
+            return results // Return early - shell commands take priority
+        }
+
+        // Check for calculator expression (high priority)
         if Calculator.shared.isMathExpression(query) {
             if let result = Calculator.shared.evaluate(query) {
                 results.append(SearchResult(

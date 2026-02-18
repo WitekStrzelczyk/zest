@@ -920,7 +920,7 @@ Coverage must be measurable and reportable in CI.
 
 ---
 
-### [ ] Story QA-9: Performance Profiling - Metrics Collection
+### [x] Story QA-9: Performance Profiling - Metrics Collection
 
 **As a** developer optimizing app performance
 **I want** to collect performance metrics automatically
@@ -1343,7 +1343,7 @@ The implementation already supports most keyboard navigation:
 
 ## New Features from Competitor Analysis
 
-### [ ] Story 22: Quick Look Preview
+### [x] Story 22: Quick Look Preview
 
 **As a** user who needs to verify file contents before opening
 **I want** to preview files directly in the command palette
@@ -1369,7 +1369,7 @@ Quick Look should display file previews instantly without launching the full app
 
 ---
 
-### [ ] Story 23: Contacts Integration
+### [x] Story 23: Contacts Integration
 
 **As a** user who frequently needs contact information
 **I want** to search contacts from the command palette
@@ -1394,7 +1394,7 @@ Contacts should be searchable and display key information.
 
 ---
 
-### [ ] Story 24: Enhanced Shell Integration
+### [x] Story 24: Enhanced Shell Integration
 
 **As a** developer who frequently runs terminal commands
 **I want** to execute shell commands directly from the command palette

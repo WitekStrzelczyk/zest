@@ -146,4 +146,55 @@ final class SearchEngineTests: XCTestCase {
 
         XCTAssertNotNil(activityMonitorResult, "Should find Activity Monitor when searching for 'activity'")
     }
+
+    // MARK: - Shell Command Tests (Story 24)
+
+    func test_search_detectsShellCommand_withPrefix() {
+        let engine = SearchEngine.shared
+
+        let results = engine.search(query: "> echo hello")
+
+        XCTAssertEqual(results.count, 1, "Shell command should return exactly one result")
+        XCTAssertEqual(results.first?.title, "echo hello", "Result title should be the command")
+        XCTAssertEqual(results.first?.subtitle, "Shell Command", "Result subtitle should indicate shell command")
+    }
+
+    func test_search_detectsShellCommand_withNoSpace() {
+        let engine = SearchEngine.shared
+
+        let results = engine.search(query: ">ls")
+
+        XCTAssertEqual(results.count, 1, "Shell command should return exactly one result")
+        XCTAssertEqual(results.first?.title, "ls", "Result title should be 'ls'")
+    }
+
+    func test_search_shellCommand_prioritizedOverApps() {
+        let engine = SearchEngine.shared
+
+        // "> safari" should be treated as a shell command, not finding Safari app
+        let results = engine.search(query: "> safari")
+
+        XCTAssertEqual(results.count, 1, "Shell command should take priority")
+        XCTAssertEqual(results.first?.subtitle, "Shell Command", "Should be shell command, not app")
+    }
+
+    func test_search_shellCommand_emptyAfterPrefix() {
+        let engine = SearchEngine.shared
+
+        // Just ">" should not be a valid shell command
+        let results = engine.search(query: ">")
+
+        // Should not return shell command result, should fall through to other searches
+        let hasShellCommand = results.contains { $0.subtitle == "Shell Command" }
+        XCTAssertFalse(hasShellCommand, "Just '>' should not create a shell command result")
+    }
+
+    func test_searchFast_detectsShellCommand() {
+        let engine = SearchEngine.shared
+
+        let results = engine.searchFast(query: "> git status")
+
+        XCTAssertEqual(results.count, 1, "Fast search should detect shell commands")
+        XCTAssertEqual(results.first?.subtitle, "Shell Command", "Result should be shell command")
+    }
 }

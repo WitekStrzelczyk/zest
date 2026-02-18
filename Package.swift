@@ -19,13 +19,15 @@ let package = Package(
             path: "Sources",
             exclude: ["Info.plist", "Zest.entitlements"],
             linkerSettings: [
-                .linkedFramework("QuickLook")
+                .linkedFramework("QuickLook"),
+                .unsafeFlags(["-L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/lib/darwin"]),
+                .linkedLibrary("clang_rt.profile_osx")
             ]
         ),
         .testTarget(
             name: "ZestTests",
             dependencies: ["ZestApp"],
-            path: "tests"
+            path: "Tests"
         )
     ]
 )
