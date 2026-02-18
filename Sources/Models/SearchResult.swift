@@ -1,11 +1,26 @@
 import AppKit
 
+/// Display priority: lower rawValue appears higher in results
+enum SearchResultCategory: Int, Comparable {
+    case application = 0
+    case action = 1
+    case contact = 2
+    case clipboard = 3
+    case file = 4
+    case emoji = 5
+
+    static func < (lhs: SearchResultCategory, rhs: SearchResultCategory) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
 struct SearchResult {
     let title: String
     let subtitle: String
     let icon: NSImage?
     let action: () -> Void
     let revealAction: (() -> Void)?
+    let category: SearchResultCategory
 
     /// File path for Quick Look preview (nil for non-file results)
     let filePath: String?
@@ -14,6 +29,7 @@ struct SearchResult {
         title: String,
         subtitle: String,
         icon: NSImage?,
+        category: SearchResultCategory = .action,
         action: @escaping () -> Void,
         revealAction: (() -> Void)? = nil,
         filePath: String? = nil
@@ -21,6 +37,7 @@ struct SearchResult {
         self.title = title
         self.subtitle = subtitle
         self.icon = icon
+        self.category = category
         self.action = action
         self.revealAction = revealAction
         self.filePath = filePath

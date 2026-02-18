@@ -1721,3 +1721,150 @@ Fallback commands should appear when local search returns no results, providing 
 - Store fallback commands separately from regular commands
 - Pass search query to fallback as `{query}` parameter
 - Show fallbacks with distinct visual style (dimmed or with globe icon)
+
+---
+
+### [ ] Story 29: Quick Unit Conversion
+
+**As a** user who frequently works across imperial and metric systems
+**I want** to convert units instantly by typing natural language expressions
+**So that** I can quickly translate measurements without opening a browser or calculator app
+
+### Use Case Context
+Part of: "Built-in Tools" use case
+- Follows: "Calculator Function" story (Story 9)
+- Similar UX pattern: instant calculation as you type
+- Complements: Quick emoji picker and calculator features
+
+### Business Value
+- Saves 10-15 seconds per conversion vs. opening a browser
+- Reduces context switching during international collaboration
+- Supports users working with international recipes, travel planning, engineering specs, and fitness tracking
+- High-frequency need: temperature, distance, and weight conversions are daily tasks for many users
+
+### Research Summary
+
+**Most Common Conversions (Imperial ↔ Metric):**
+
+| Category | Conversion | Formula | Example Input |
+|----------|------------|---------|---------------|
+| Temperature | Fahrenheit ↔ Celsius | C = (F-32) × 5/9 | `72f to c` |
+| Distance | Miles ↔ Kilometers | 1 mi = 1.609 km | `10km to miles` |
+| Distance | Feet ↔ Meters | 1 ft = 0.3048 m | `6ft in meters` |
+| Distance | Inches ↔ Centimeters | 1 in = 2.54 cm | `5 inches to cm` |
+| Weight | Pounds ↔ Kilograms | 1 lb = 0.4536 kg | `150lbs to kg` |
+| Weight | Ounces ↔ Grams | 1 oz = 28.35 g | `8oz in grams` |
+| Volume | Gallons ↔ Liters | 1 gal = 3.785 L | `2 gallons to liters` |
+| Volume | Fluid Oz ↔ Milliliters | 1 fl oz = 29.57 mL | `12fl oz to ml` |
+
+**Competitor Analysis (Raycast/Alfred Patterns):**
+- Raycast: Built-in calculator handles conversions with natural syntax (`100 km to miles`)
+- Alfred: Requires workflow extension; popular "Convert" workflow by Dean Jackson
+- Both support: instant feedback, flexible syntax, clipboard copy on Enter
+- UX pattern: Results appear inline as user types, no separate UI needed
+
+### Verification Strategy
+
+Unit conversion must work instantly with natural language input, supporting common abbreviations and full names.
+
+#### Test Cases (Acceptance Criteria)
+
+**Temperature Conversions:**
+- **Given** the command palette is open, **When** I type "72f to c", **Then** "22.22 C" appears as the result
+- **Given** the command palette is open, **When** I type "0c in fahrenheit", **Then** "32 F" appears as the result
+- **Given** the command palette is open, **When** I type "100 celsius to f", **Then** "212 F" appears as the result
+- **Given** the command palette is open, **When** I type "-40f to c", **Then** "-40 C" appears (the crossover point)
+
+**Distance Conversions:**
+- **Given** the command palette is open, **When** I type "10km to miles", **Then** "6.21 miles" appears as the result
+- **Given** the command palette is open, **When** I type "5 miles in km", **Then** "8.05 km" appears as the result
+- **Given** the command palette is open, **When** I type "6ft to meters", **Then** "1.83 m" appears as the result
+- **Given** the command palette is open, **When** I type "30cm to inches", **Then** "11.81 in" appears as the result
+
+**Weight Conversions:**
+- **Given** the command palette is open, **When** I type "150lbs to kg", **Then** "68.04 kg" appears as the result
+- **Given** the command palette is open, **When** I type "100kg in pounds", **Then** "220.46 lbs" appears as the result
+- **Given** the command palette is open, **When** I type "8oz to grams", **Then** "226.80 g" appears as the result
+
+**Volume Conversions:**
+- **Given** the command palette is open, **When** I type "1 gallon to liters", **Then** "3.79 L" appears as the result
+- **Given** the command palette is open, **When** I type "500ml to fl oz", **Then** "16.91 fl oz" appears as the result
+
+**Flexible Input Syntax:**
+- **Given** the command palette is open, **When** I type "5km>miles", **Then** conversion works (supports ">" separator)
+- **Given** the command palette is open, **When** I type "5km = miles", **Then** conversion works (supports "=" separator)
+- **Given** the command palette is open, **When** I type "convert 5kg to pounds", **Then** conversion works (supports "convert" prefix)
+
+**Clipboard Integration:**
+- **Given** a conversion result is displayed, **When** I press Enter, **Then** the numeric result is copied to clipboard
+- **Given** I copy a conversion result, **When** I paste elsewhere, **Then** only the number appears (e.g., "22.22" not "22.22 C")
+
+**Error Handling:**
+- **Given** the command palette is open, **When** I type "5xyz to abc", **Then** no conversion result appears (unrecognized units)
+- **Given** the command palette is open, **When** I type "5kg to", **Then** no conversion appears until target unit is specified
+- **Given** incompatible units, **When** I type "5kg to celsius", **Then** no conversion appears (cannot convert weight to temperature)
+
+**Edge Cases:**
+- **Given** the command palette is open, **When** I type "0f to c", **Then** "-17.78 C" appears correctly
+- **Given** the command palette is open, **When** I type "1.609 km to miles", **Then** "1.00 mile" appears (handles decimal input)
+- **Given** very large numbers, **When** I type "1000000 km to miles", **Then** result displays with appropriate formatting
+
+### Implementation Notes
+
+**Architecture:**
+- Create `UnitConversionService.swift` similar to existing `CalculatorService.swift`
+- Integrate with `SearchService` to detect conversion patterns
+- Add conversion results to `SearchResult` enum
+
+**Input Pattern Detection:**
+```swift
+// Regex patterns to detect conversion expressions
+// Examples: "72f to c", "10km>miles", "5kg in pounds"
+let conversionPattern = #"(\d+(?:\.\d+)?)\s*(\w+)\s*(?:to|in|>|=)\s*(\w+)"#
+```
+
+**Supported Units (Phase 1 - MVP):**
+- Temperature: f, c, fahrenheit, celsius, k, kelvin
+- Length: km, mi, kilometer, mile, m, ft, meter, foot, feet, cm, in, inch, inches
+- Weight: kg, lb, lbs, kilogram, pound, g, oz, gram, ounce
+- Volume: l, gal, liter, litre, gallon, ml, fl oz, milliliter
+
+**Conversion Formulas:**
+- Store conversion factors in a lookup table
+- Temperature requires special formula (not just multiplication)
+- Consider using Foundation's `UnitConverter` and `Dimension` classes for accuracy
+
+**Result Formatting:**
+- Round to 2 decimal places for most conversions
+- Show appropriate precision (e.g., 1.00 for exact conversions)
+- Include unit symbol in display but copy only numeric value
+
+**Performance:**
+- Conversion should be instant (<10ms)
+- No network calls required (all calculations local)
+- Cache recent conversions for potential autocomplete
+
+**Future Enhancements (Not in MVP):**
+- Currency conversion (requires API)
+- Cooking measurements (cups, tablespoons)
+- Area conversions (sq ft to sq m)
+- Speed conversions (mph to km/h)
+
+### Technical Approach
+
+1. **Pattern Matching:** Use regex to detect conversion expressions in search input
+2. **Unit Parsing:** Create unit abbreviation map for flexible matching
+3. **Conversion Engine:** Implement conversion logic for each unit category
+4. **Integration:** Hook into existing calculator detection in SearchService
+5. **Display:** Show as special SearchResult type with conversion icon
+
+**Code Structure:**
+```
+Sources/
+├── Services/
+│   └── UnitConversionService.swift
+├── Models/
+│   └── UnitConverter.swift
+└── Extensions/
+    └── String+UnitParsing.swift
+```

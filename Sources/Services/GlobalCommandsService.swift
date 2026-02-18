@@ -28,7 +28,7 @@ final class GlobalCommandsService {
             GlobalCommand(
                 name: "Open Spotify",
                 keyCode: UInt32(kVK_ANSI_M),
-                modifiers: UInt32(optionKey | cmdKey),
+                modifiers: UInt32(controlKey | cmdKey),
                 description: "Opens the Spotify application"
             ) { [weak self] in
                 _ = self?.openSpotify()
@@ -36,7 +36,7 @@ final class GlobalCommandsService {
             GlobalCommand(
                 name: "Maximize Window",
                 keyCode: UInt32(kVK_UpArrow),
-                modifiers: UInt32(optionKey | cmdKey),
+                modifiers: UInt32(controlKey | cmdKey),
                 description: "Maximizes the current window"
             ) { [weak self] in
                 _ = self?.maximizeWindow()

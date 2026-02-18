@@ -176,6 +176,7 @@ final class ContactsService {
                 title: contact.displayName,
                 subtitle: "Email: \(email)",
                 icon: icon,
+                category: .contact,
                 action: { [email] in
                     Self.copyToClipboardStatic(email)
                 }
@@ -189,6 +190,7 @@ final class ContactsService {
                 title: contact.displayName,
                 subtitle: "Phone: \(phone)",
                 icon: icon,
+                category: .contact,
                 action: { [phone] in
                     Self.copyToClipboardStatic(phone)
                 }
@@ -203,6 +205,7 @@ final class ContactsService {
                 title: displayName,
                 subtitle: "Contact (no contact info)",
                 icon: icon,
+                category: .contact,
                 action: {
                     // Copy the name as fallback
                     Self.copyToClipboardStatic(displayName)

@@ -2,19 +2,14 @@ import AppKit
 import Carbon
 import Quartz
 
-// MARK: - Custom Row View with Dual-State Highlighting
+// MARK: - Row View with Custom Highlight Colors
 
-/// Custom NSTableRowView that implements dual-state highlighting:
-/// - Keyboard focus (selection): darker background (15% opacity)
-/// - Mouse hover: lighter background (8% opacity)
-/// - Both on same item: focus takes precedence
+/// Row view using `.inset` table style for layout (rounded rects)
+/// but with custom subtle colors instead of the default blue accent.
 final class ResultRowView: NSTableRowView {
-    /// Whether the mouse is currently hovering over this row
     var isHovered: Bool = false {
         didSet {
-            if oldValue != isHovered {
-                needsDisplay = true
-            }
+            if oldValue != isHovered { needsDisplay = true }
         }
     }
 
@@ -23,24 +18,73 @@ final class ResultRowView: NSTableRowView {
         isHovered = false
     }
 
-    override func draw(_ dirtyRect: NSRect) {
-        // Draw custom background based on state
-        if isSelected {
-            // Keyboard focus - darker (15% opacity)
-            NSColor.labelColor.withAlphaComponent(0.15).setFill()
-            bounds.fill()
-        } else if isHovered {
-            // Mouse hover - lighter (8% opacity)
-            NSColor.labelColor.withAlphaComponent(0.08).setFill()
-            bounds.fill()
-        }
-
-        super.draw(dirtyRect)
+    override func drawSelection(in dirtyRect: NSRect) {
+        // 20% lighter than background -- subtle keyboard selection
+        NSColor.white.withAlphaComponent(0.12).setFill()
+        let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 1), xRadius: 6, yRadius: 6)
+        path.fill()
     }
 
-    override func drawSelection(in _: NSRect) {
-        // We handle selection drawing ourselves in draw(_:)
-        // This prevents the default blue selection highlight
+    override func draw(_ dirtyRect: NSRect) {
+        if !isSelected, isHovered {
+            // 30% lighter than background -- mouse hover
+            NSColor.white.withAlphaComponent(0.06).setFill()
+            let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 1), xRadius: 6, yRadius: 6)
+            path.fill()
+        }
+        super.draw(dirtyRect)
+    }
+}
+
+// MARK: - Fading Scroll View
+
+/// Scroll view that fades content at the top and bottom edges when scrollable.
+final class FadingScrollView: NSScrollView {
+    private let fadeHeight: CGFloat = 16
+
+    override func layout() {
+        super.layout()
+        updateFadeMask()
+    }
+
+    override func reflectScrolledClipView(_ clipView: NSClipView) {
+        super.reflectScrolledClipView(clipView)
+        updateFadeMask()
+    }
+
+    private func updateFadeMask() {
+        wantsLayer = true
+        guard let docView = documentView else {
+            layer?.mask = nil
+            return
+        }
+
+        let contentHeight = docView.frame.height
+        let visibleHeight = contentView.bounds.height
+        guard contentHeight > visibleHeight else {
+            layer?.mask = nil
+            return
+        }
+
+        let scrollOffset = contentView.bounds.origin.y
+        let maxScroll = contentHeight - visibleHeight
+        let fadeTop = scrollOffset > 1
+        let fadeBottom = scrollOffset < maxScroll - 1
+
+        let maskLayer = CAGradientLayer()
+        maskLayer.frame = bounds
+        maskLayer.colors = [
+            fadeTop ? NSColor.clear.cgColor : NSColor.black.cgColor,
+            NSColor.black.cgColor,
+            NSColor.black.cgColor,
+            fadeBottom ? NSColor.clear.cgColor : NSColor.black.cgColor,
+        ]
+
+        let topStop = fadeTop ? fadeHeight / bounds.height : 0
+        let bottomStop = fadeBottom ? 1 - (fadeHeight / bounds.height) : 1
+        maskLayer.locations = [0, NSNumber(value: Double(topStop)), NSNumber(value: Double(bottomStop)), 1]
+
+        layer?.mask = maskLayer
     }
 }
 
@@ -72,29 +116,56 @@ final class ResultsTableView: NSTableView {
     }
 
     override func keyDown(with event: NSEvent) {
-        // Clear hover when using keyboard navigation
-        clearHover()
+        guard let palette = commandPalette else {
+            super.keyDown(with: event)
+            return
+        }
 
-        // Handle up arrow on first row - return to search field
-        if event.keyCode == 126 { // Up arrow
+        switch Int(event.keyCode) {
+        case kVK_Escape:
+            palette.handleEscape()
+
+        case kVK_Return:
+            palette.selectCurrentResult()
+
+        case kVK_UpArrow:
+            clearHover()
             if selectedRow <= 0 {
-                // Return to search field
-                commandPalette?.returnToSearchField()
-                return
+                palette.returnToSearchField()
+            } else {
+                super.keyDown(with: event)
+            }
+
+        case kVK_DownArrow:
+            clearHover()
+            super.keyDown(with: event)
+
+        case kVK_Space:
+            palette.toggleQuickLook()
+
+        default:
+            if let characters = event.characters,
+               !characters.isEmpty,
+               !event.modifierFlags.contains(.command),
+               !event.modifierFlags.contains(.control)
+            {
+                palette.returnToSearchFieldAndType(characters)
+            } else {
+                super.keyDown(with: event)
             }
         }
+    }
 
-        // Handle character keys - return to search field and forward the key
-        if let characters = event.characters, !characters.isEmpty {
-            let isPrintableChar = characters.unicodeScalars.first.map { CharacterSet.alphanumerics.contains($0) } ?? false
-            if isPrintableChar {
-                commandPalette?.returnToSearchFieldAndType(characters)
-                return
-            }
+    // MARK: - Mouse Click
+
+    override func mouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        let clickedRow = row(at: point)
+
+        if clickedRow >= 0, clickedRow < numberOfRows {
+            selectRowIndexes(IndexSet(integer: clickedRow), byExtendingSelection: false)
+            commandPalette?.selectCurrentResult()
         }
-
-        // Default handling for other keys
-        super.keyDown(with: event)
     }
 
     // MARK: - Mouse Tracking
@@ -172,7 +243,6 @@ final class CommandPaletteWindow: NSPanel {
     private var scrollView: NSScrollView!
     private(set) var hintLabel: NSTextField!
     private var noResultsLabel: NSTextField!
-    private var previousApp: NSRunningApplication?
     private var searchResults: [SearchResult] = []
 
     /// Tracks whether focus is on results table (vs search field)
@@ -182,12 +252,26 @@ final class CommandPaletteWindow: NSPanel {
     /// Tracks whether Quick Look preview is currently showing
     private var isQuickLookOpen: Bool = false
 
+    /// Global event monitor to catch keys when app isn't frontmost (e.g. launched from terminal)
+    private var quickLookGlobalMonitor: Any?
+    /// Local event monitor for when app IS frontmost
+    private var quickLookLocalMonitor: Any?
+
+
     // Layout constants
     private let windowWidth: CGFloat = 680
     private let searchFieldHeight: CGFloat = 56
     private let rowHeight: CGFloat = 40
     private let hintHeight: CGFloat = 24
     private let maxResultsHeight: CGFloat = 0.4 // 40% of screen
+
+    override var canBecomeKey: Bool {
+        true
+    }
+
+    override var canBecomeMain: Bool {
+        true
+    }
 
     override init(
         contentRect _: NSRect,
@@ -216,6 +300,8 @@ final class CommandPaletteWindow: NSPanel {
         backgroundColor = .clear
         hasShadow = true
         isOpaque = false
+        // Allow panel to become key for text input (needed for Cmd+key shortcuts)
+        becomesKeyOnlyIfNeeded = false
     }
 
     private func setupUI() {
@@ -251,24 +337,25 @@ final class CommandPaletteWindow: NSPanel {
         hintLabel.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(hintLabel)
 
-        // Results table (custom class for keyboard handling)
+        // Results table -- .inset style gives native rounded selection (like Spotlight)
         resultsTableView = ResultsTableView()
+        resultsTableView.style = .inset
         resultsTableView.headerView = nil
         resultsTableView.backgroundColor = .clear
-        resultsTableView.intercellSpacing = NSSize(width: 0, height: 0)
-        resultsTableView.selectionHighlightStyle = .none // Custom drawing in ResultRowView
+        resultsTableView.selectionHighlightStyle = .regular
         resultsTableView.delegate = self
         resultsTableView.dataSource = self
         resultsTableView.commandPalette = self
 
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("Result"))
-        column.width = windowWidth - 16
         resultsTableView.addTableColumn(column)
+        resultsTableView.columnAutoresizingStyle = .firstColumnOnlyAutoresizingStyle
 
-        scrollView = NSScrollView()
+        scrollView = FadingScrollView()
         scrollView.documentView = resultsTableView
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
+        scrollView.scrollerStyle = .overlay
         scrollView.autohidesScrollers = true
         scrollView.borderType = .noBorder
         scrollView.backgroundColor = .clear
@@ -300,11 +387,11 @@ final class CommandPaletteWindow: NSPanel {
             searchField.centerYAnchor.constraint(equalTo: searchIcon.centerYAnchor),
             searchField.heightAnchor.constraint(equalToConstant: 28),
 
-            // Scroll view - below search, above hints
+            // Scroll view - below search, to bottom edge
             scrollView.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 4),
             scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: hintLabel.topAnchor, constant: -4),
+            scrollView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
 
             // No results - centered in scroll area
             noResultsLabel.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
@@ -322,8 +409,7 @@ final class CommandPaletteWindow: NSPanel {
 
     // MARK: - Show/Hide
 
-    func show(previousApp: NSRunningApplication?) {
-        self.previousApp = previousApp
+    func show() {
         searchField.stringValue = ""
         searchResults = []
         resultsTableView.reloadData()
@@ -342,27 +428,18 @@ final class CommandPaletteWindow: NSPanel {
             initialWindowTop = frame.maxY
         }
 
+        // Menu bar apps (LSUIElement=true) need this to become key window
+        NSApp.activate(ignoringOtherApps: true)
         makeKeyAndOrderFront(nil)
-        // Use makeFirstResponder for proper first responder management
-        makeFirstResponder(searchField)
     }
 
     override func close() {
-        // First, resign first responder and key window status
-        // This ensures the window stops capturing keyboard events
-        makeFirstResponder(nil)
-        resignKey()
-
-        // Use orderOut to hide without activating previous app immediately
-        // This is cleaner than super.close() for nonactivating panels
+        removeQuickLookMonitors()
+        if isQuickLookOpen, QLPreviewPanel.sharedPreviewPanelExists() {
+            QLPreviewPanel.shared().orderOut(nil)
+            isQuickLookOpen = false
+        }
         orderOut(nil)
-
-        // Hide the entire application to ensure it stops capturing keys
-        NSApp.hide(nil)
-
-        // Reactivate previous app after window is hidden
-        previousApp?.activate(options: .activateIgnoringOtherApps)
-        previousApp = nil
     }
 
     // MARK: - Focus Management
@@ -372,6 +449,11 @@ final class CommandPaletteWindow: NSPanel {
         resultsTableView.deselectAll(nil)
         isResultsFocused = false
         makeFirstResponder(searchField)
+
+        // Place cursor at end instead of selecting all
+        if let editor = fieldEditor(false, for: searchField) as? NSTextView {
+            editor.setSelectedRange(NSRange(location: editor.string.count, length: 0))
+        }
     }
 
     /// Return focus to search field and type a character
@@ -380,8 +462,12 @@ final class CommandPaletteWindow: NSPanel {
         isResultsFocused = false
         makeFirstResponder(searchField)
 
-        // Append the character to the search field
+        // Append the character and place cursor at end
         searchField.stringValue += character
+        if let editor = fieldEditor(false, for: searchField) as? NSTextView {
+            editor.string = searchField.stringValue
+            editor.setSelectedRange(NSRange(location: editor.string.count, length: 0))
+        }
         performSearch(searchField.stringValue)
     }
 
@@ -414,10 +500,9 @@ final class CommandPaletteWindow: NSPanel {
             noResultsLabel.isHidden = true
             hintLabel.isHidden = false
 
-            // Resize from bottom - top stays fixed
             let newHeight = searchFieldHeight + hintHeight
             let newY = topY - newHeight
-            setFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: newHeight), display: true)
+            animateFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: newHeight))
         } else {
             // Store current query for race condition handling
             currentSearchQuery = query
@@ -446,14 +531,14 @@ final class CommandPaletteWindow: NSPanel {
                 // Check if query still matches (prevent race condition)
                 guard currentSearchQuery == query else { return }
 
-                // Merge results: fast results + file results
+                // Merge results: fast results + file results, sorted by category
                 var combinedResults = fastResults
                 for fileResult in fileResults {
-                    // Avoid duplicates by title
                     if !combinedResults.contains(where: { $0.title == fileResult.title }) {
                         combinedResults.append(fileResult)
                     }
                 }
+                combinedResults.sort { $0.category < $1.category }
 
                 // Update UI on main thread
                 await MainActor.run {
@@ -467,6 +552,13 @@ final class CommandPaletteWindow: NSPanel {
     private func updateSearchResults(_ results: [SearchResult], topY: CGFloat, screen: NSScreen) {
         let currentFrame = frame
 
+        // Preserve current selection across reloads (e.g. when Phase 2 file results arrive)
+        let previouslySelectedTitle: String? = {
+            let row = resultsTableView.selectedRow
+            guard row >= 0, row < searchResults.count else { return nil }
+            return searchResults[row].title
+        }()
+
         searchResults = results
         resultsTableView.reloadData()
 
@@ -475,121 +567,63 @@ final class CommandPaletteWindow: NSPanel {
             noResultsLabel.isHidden = false
             hintLabel.isHidden = true
 
-            // Resize from bottom - top stays fixed
             let newHeight = searchFieldHeight + 50
             let newY = topY - newHeight
-            setFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: newHeight), display: true)
+            animateFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: newHeight))
         } else {
             scrollView.isHidden = false
             noResultsLabel.isHidden = true
             hintLabel.isHidden = true
 
-            // Auto-select first result when results appear
-            resultsTableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            var restoredRow = 0
+            if let title = previouslySelectedTitle {
+                if let idx = searchResults.firstIndex(where: { $0.title == title }) {
+                    restoredRow = idx
+                }
+            }
+            resultsTableView.selectRowIndexes(IndexSet(integer: restoredRow), byExtendingSelection: false)
+            resultsTableView.scrollRowToVisible(restoredRow)
 
-            // Calculate height: search + results + hints
             let availableHeight = screen.visibleFrame.height * maxResultsHeight
-            let maxRows = Int((availableHeight - searchFieldHeight - hintHeight - 20) / rowHeight)
+            let maxRows = Int((availableHeight - searchFieldHeight - 20) / rowHeight)
             let visibleRows = min(searchResults.count, maxRows)
             let resultsHeight = CGFloat(visibleRows) * rowHeight + 8
-            let newHeight = searchFieldHeight + resultsHeight + hintHeight
+            let newHeight = searchFieldHeight + resultsHeight
 
-            // Resize from bottom - top stays fixed
             let newY = topY - newHeight
-            setFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: newHeight), display: true)
+            animateFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: newHeight))
+        }
+    }
+
+    // MARK: - Animated Resize
+
+    private func animateFrame(_ newFrame: NSRect) {
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.15
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            self.animator().setFrame(newFrame, display: true)
         }
     }
 
     // MARK: - Key Events
 
     override func keyDown(with event: NSEvent) {
-        // Check for Cmd+Enter (Reveal in Finder)
-        if event.modifierFlags.contains(.command), event.keyCode == 36 {
-            revealCurrentResultInFinder()
+        if Int(event.keyCode) == kVK_Escape {
+            handleEscape()
             return
         }
+        super.keyDown(with: event)
+    }
 
-        switch event.keyCode {
-        case 53: // Escape
+    func handleEscape() {
+        if isQuickLookOpen {
+            closeQuickLook()
+        } else {
             close()
-        case 36: // Enter
-            selectCurrentResult()
-        case 49: // Space - Quick Look preview
-            toggleQuickLook()
-        case 125: // Down arrow
-            if !searchResults.isEmpty {
-                // Clear hover when using keyboard navigation
-                resultsTableView.clearHover()
-
-                // Check if focus is on search field
-                if !isResultsFocused {
-                    // Move focus to results table and select first result
-                    resultsTableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-                    resultsTableView.scrollRowToVisible(0)
-                    isResultsFocused = true
-                    makeFirstResponder(resultsTableView)
-                } else {
-                    // Already on results table, navigate to next row
-                    let currentRow = resultsTableView.selectedRow
-                    let newRow = min(currentRow + 1, searchResults.count - 1)
-                    resultsTableView.selectRowIndexes(IndexSet(integer: newRow), byExtendingSelection: false)
-                    resultsTableView.scrollRowToVisible(newRow)
-                }
-            }
-        case 126: // Up arrow
-            if !searchResults.isEmpty {
-                // Clear hover when using keyboard navigation
-                resultsTableView.clearHover()
-
-                let currentRow = resultsTableView.selectedRow
-                if currentRow <= 0 || !isResultsFocused {
-                    // At first result or no selection - return to search field
-                    resultsTableView.deselectAll(nil)
-                    isResultsFocused = false
-                    makeFirstResponder(searchField)
-                } else {
-                    let newRow = currentRow - 1
-                    resultsTableView.selectRowIndexes(IndexSet(integer: newRow), byExtendingSelection: false)
-                    resultsTableView.scrollRowToVisible(newRow)
-                    // Keep first responder on results table
-                    makeFirstResponder(resultsTableView)
-                }
-            }
-        default:
-            // If typing a character while results are focused, return to search field
-            if let characters = event.characters, !characters.isEmpty {
-                let isPrintableChar = characters.unicodeScalars.first.map { CharacterSet.alphanumerics.contains($0) } ?? false
-                if isPrintableChar, isResultsFocused {
-                    // Return focus to search field and let the character be typed
-                    resultsTableView.deselectAll(nil)
-                    isResultsFocused = false
-                    makeFirstResponder(searchField)
-                    // Let the search field handle the character
-                    super.keyDown(with: event)
-                    return
-                }
-            }
-            super.keyDown(with: event)
         }
     }
 
-    /// Reveal the currently selected result in Finder (Cmd+Enter)
-    private func revealCurrentResultInFinder() {
-        var selectedRow = resultsTableView.selectedRow
-
-        // If no selection but results exist, default to first result
-        if selectedRow < 0, !searchResults.isEmpty {
-            selectedRow = 0
-        }
-
-        guard selectedRow >= 0, selectedRow < searchResults.count else { return }
-
-        let result = searchResults[selectedRow]
-        result.reveal()
-        close()
-    }
-
-    private func selectCurrentResult() {
+    func selectCurrentResult() {
         var selectedRow = resultsTableView.selectedRow
 
         // If no selection but results exist, default to first result
@@ -612,21 +646,59 @@ final class CommandPaletteWindow: NSPanel {
     }
 
     /// Toggle Quick Look preview for the selected file result
-    private func toggleQuickLook() {
+    func toggleQuickLook() {
         guard let selectedResult = getSelectedFileResult() else { return }
-
-        // Only file results with a valid file path can be previewed
         guard selectedResult.isFileResult else { return }
 
         if isQuickLookOpen {
-            // Close Quick Look
-            QLPreviewPanel.shared().orderOut(nil)
-            isQuickLookOpen = false
+            closeQuickLook()
         } else {
-            // Open Quick Look
+            NSApp.activate(ignoringOtherApps: true)
             QLPreviewPanel.shared().makeKeyAndOrderFront(nil)
             isQuickLookOpen = true
+            installQuickLookMonitors()
         }
+    }
+
+    func closeQuickLook() {
+        removeQuickLookMonitors()
+        guard isQuickLookOpen else { return }
+        if QLPreviewPanel.sharedPreviewPanelExists() {
+            QLPreviewPanel.shared().orderOut(nil)
+        }
+        isQuickLookOpen = false
+        makeKeyAndOrderFront(nil)
+    }
+
+    private func installQuickLookMonitors() {
+        removeQuickLookMonitors()
+
+        let handler: (NSEvent) -> Void = { [weak self] event in
+            guard let self, self.isQuickLookOpen else { return }
+            let keyCode = Int(event.keyCode)
+            if keyCode == kVK_Escape || keyCode == kVK_Space {
+                DispatchQueue.main.async { self.closeQuickLook() }
+            }
+        }
+
+        // Global monitor: catches keys even when terminal/another app is frontmost
+        quickLookGlobalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown, handler: handler)
+
+        // Local monitor: catches keys when Zest is frontmost
+        quickLookLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, self.isQuickLookOpen else { return event }
+            let keyCode = Int(event.keyCode)
+            if keyCode == kVK_Escape || keyCode == kVK_Space {
+                self.closeQuickLook()
+                return nil
+            }
+            return event
+        }
+    }
+
+    private func removeQuickLookMonitors() {
+        if let m = quickLookGlobalMonitor { NSEvent.removeMonitor(m); quickLookGlobalMonitor = nil }
+        if let m = quickLookLocalMonitor { NSEvent.removeMonitor(m); quickLookLocalMonitor = nil }
     }
 
     /// Get the currently selected result if it's a file result
@@ -653,33 +725,23 @@ extension CommandPaletteWindow: NSTextFieldDelegate {
 
     func control(_: NSControl, textView _: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
         if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
-            close()
+            handleEscape()
             return true
         }
 
-        // Handle arrow keys from search field
+        if commandSelector == #selector(NSResponder.insertNewline(_:)) {
+            selectCurrentResult()
+            return true
+        }
+
         if commandSelector == #selector(NSResponder.moveDown(_:)) {
             if !searchResults.isEmpty {
-                // Move focus to results table
                 isResultsFocused = true
+                makeFirstResponder(resultsTableView)
                 resultsTableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
                 resultsTableView.scrollRowToVisible(0)
-                makeFirstResponder(resultsTableView)
-                return true
             }
-        }
-
-        if commandSelector == #selector(NSResponder.moveUp(_:)) {
-            // Already at search field, nothing to do
             return true
-        }
-
-        // Handle Enter key - execute first result if no explicit selection
-        if commandSelector == #selector(NSResponder.insertNewline(_:)) {
-            if !searchResults.isEmpty {
-                selectCurrentResult()
-                return true
-            }
         }
 
         return false
@@ -715,28 +777,41 @@ extension CommandPaletteWindow: NSTableViewDelegate, NSTableViewDataSource {
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        let subtitleLabel = NSTextField(labelWithString: result.subtitle)
-        subtitleLabel.font = NSFont.systemFont(ofSize: 12, weight: .regular)
-        subtitleLabel.textColor = .secondaryLabelColor
-        subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
+        // Category badge: rounded background with small text
+        let badgeLabel = NSTextField(labelWithString: result.subtitle)
+        badgeLabel.font = NSFont.systemFont(ofSize: 10, weight: .medium)
+        badgeLabel.textColor = .secondaryLabelColor
+        badgeLabel.alignment = .center
+        badgeLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        let badgeContainer = NSView()
+        badgeContainer.wantsLayer = true
+        badgeContainer.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.08).cgColor
+        badgeContainer.layer?.cornerRadius = 4
+        badgeContainer.translatesAutoresizingMaskIntoConstraints = false
+        badgeContainer.addSubview(badgeLabel)
 
         cellView.addSubview(imageView)
         cellView.addSubview(titleLabel)
-        cellView.addSubview(subtitleLabel)
+        cellView.addSubview(badgeContainer)
 
         NSLayoutConstraint.activate([
-            imageView.leadingAnchor.constraint(equalTo: cellView.leadingAnchor, constant: 12),
+            imageView.leadingAnchor.constraint(equalTo: cellView.leadingAnchor, constant: 2),
             imageView.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
             imageView.widthAnchor.constraint(equalToConstant: 28),
             imageView.heightAnchor.constraint(equalToConstant: 28),
 
             titleLabel.leadingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: 10),
-            titleLabel.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -12),
-            titleLabel.topAnchor.constraint(equalTo: cellView.topAnchor, constant: 4),
+            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: badgeContainer.leadingAnchor, constant: -8),
+            titleLabel.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
 
-            subtitleLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-            subtitleLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
-            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 0),
+            badgeContainer.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -8),
+            badgeContainer.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
+
+            badgeLabel.leadingAnchor.constraint(equalTo: badgeContainer.leadingAnchor, constant: 6),
+            badgeLabel.trailingAnchor.constraint(equalTo: badgeContainer.trailingAnchor, constant: -6),
+            badgeLabel.topAnchor.constraint(equalTo: badgeContainer.topAnchor, constant: 2),
+            badgeLabel.bottomAnchor.constraint(equalTo: badgeContainer.bottomAnchor, constant: -2),
         ])
 
         return cellView
@@ -763,6 +838,26 @@ extension CommandPaletteWindow {
     /// Check if results table is first responder (for testing)
     var isResultsTableFirstResponder: Bool {
         isResultsFocused
+    }
+
+    /// Get the current text in the search field (for testing)
+    var searchFieldText: String {
+        searchField.stringValue
+    }
+
+    /// Check if text is selected in the search field (for testing)
+    var isSearchFieldTextSelected: Bool {
+        guard let fieldEditor = fieldEditor(false, for: searchField) else { return false }
+        return fieldEditor.selectedRange.length > 0
+    }
+
+    /// Set text in search field (for testing)
+    func setSearchFieldTextForTesting(_ text: String) {
+        searchField.stringValue = text
+        // Also update the field editor so it's in sync
+        if let fieldEditor = fieldEditor(false, for: searchField) {
+            fieldEditor.string = text
+        }
     }
 
     /// Update results for testing purposes
@@ -885,9 +980,23 @@ extension CommandPaletteWindow: QLPreviewPanelDataSource {
 extension CommandPaletteWindow: QLPreviewPanelDelegate {
     override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
         panel.dataSource = self
+        panel.delegate = self
     }
 
     override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
         panel.dataSource = nil
+        panel.delegate = nil
+    }
+
+    func previewPanel(_ panel: QLPreviewPanel!, handle event: NSEvent!) -> Bool {
+        guard event.type == .keyDown else { return false }
+
+        let keyCode = Int(event.keyCode)
+        if keyCode == kVK_Escape || keyCode == kVK_Space {
+            closeQuickLook()
+            return true
+        }
+
+        return false
     }
 }

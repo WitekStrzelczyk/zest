@@ -68,6 +68,7 @@ final class EmojiSearchService {
                 title: emojiString,
                 subtitle: "Emoji",
                 icon: createEmojiIcon(emojiString),
+                category: .emoji,
                 action: { [weak self] in
                     self?.pasteEmoji(emojiString)
                 }

@@ -290,6 +290,7 @@ extension FileSearchService {
                 title: name,
                 subtitle: "File",
                 icon: icon,
+                category: .file,
                 action: { [path] in
                     NSWorkspace.shared.open(URL(fileURLWithPath: path))
                 },
@@ -320,6 +321,7 @@ extension FileSearchService {
                 title: name,
                 subtitle: "File",
                 icon: icon,
+                category: .file,
                 action: { [path] in
                     NSWorkspace.shared.open(URL(fileURLWithPath: path))
                 },

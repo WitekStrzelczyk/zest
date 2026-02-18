@@ -38,6 +38,7 @@ final class ClipboardManager {
                     title: preview,
                     subtitle: item.isImage ? "Image" : "Text",
                     icon: item.icon,
+                    category: .clipboard,
                     action: { [weak self] in
                         self?.copyToClipboard(item)
                     }

@@ -48,6 +48,7 @@ final class SearchEngine {
                     title: result,
                     subtitle: "Copy to clipboard",
                     icon: NSImage(systemSymbolName: "function", accessibilityDescription: "Calculator"),
+                    category: .action,
                     action: {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(result, forType: .string)
@@ -55,22 +56,6 @@ final class SearchEngine {
                 ))
             }
         }
-
-        // Search clipboard history
-        let clipboardResults = ClipboardManager.shared.search(query: query)
-        results.append(contentsOf: clipboardResults)
-
-        // Search emojis
-        let emojiResults = EmojiSearchService.shared.search(query: query)
-        results.append(contentsOf: emojiResults)
-
-        // Search contacts
-        let contactResults = ContactsService.shared.search(query: query)
-        results.append(contentsOf: contactResults)
-
-        // Search user commands
-        let commandResults = UserCommandsService.shared.search(query: query)
-        results.append(contentsOf: commandResults)
 
         // Fuzzy search with scoring through installed apps
         let appResults = installedApps
@@ -81,11 +66,9 @@ final class SearchEngine {
             .sorted { $0.score > $1.score }
             .prefix(10)
             .compactMap { item -> SearchResult? in
-                // Deduplicate by bundleID
                 guard !seenBundleIDs.contains(item.app.bundleID) else { return nil }
                 seenBundleIDs.insert(item.app.bundleID)
 
-                // Check if this is Activity Monitor - show CPU/Memory metrics
                 let subtitle: String = if item.app.name == "Activity Monitor" {
                     SystemMetricsService.shared.getCurrentMetrics()
                 } else {
@@ -96,15 +79,31 @@ final class SearchEngine {
                     title: item.app.name,
                     subtitle: subtitle,
                     icon: item.app.icon,
+                    category: .application,
                     action: { [weak self] in
                         self?.launchApp(bundleID: item.app.bundleID)
                     }
                 )
             }
-
         results.append(contentsOf: appResults)
 
-        return results
+        // User commands (actions)
+        let commandResults = UserCommandsService.shared.search(query: query)
+        results.append(contentsOf: commandResults)
+
+        // Contacts
+        let contactResults = ContactsService.shared.search(query: query)
+        results.append(contentsOf: contactResults)
+
+        // Clipboard history
+        let clipboardResults = ClipboardManager.shared.search(query: query)
+        results.append(contentsOf: clipboardResults)
+
+        // Emojis (last)
+        let emojiResults = EmojiSearchService.shared.search(query: query)
+        results.append(contentsOf: emojiResults)
+
+        return results.sorted { $0.category < $1.category }
     }
 
     /// File search only - returns file results (can be slow, run async)
@@ -211,6 +210,7 @@ final class SearchEngine {
                     title: result,
                     subtitle: "Copy to clipboard",
                     icon: NSImage(systemSymbolName: "function", accessibilityDescription: "Calculator"),
+                    category: .action,
                     action: {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(result, forType: .string)
@@ -218,22 +218,6 @@ final class SearchEngine {
                 ))
             }
         }
-
-        // Search clipboard history
-        let clipboardResults = ClipboardManager.shared.search(query: query)
-        results.append(contentsOf: clipboardResults)
-
-        // Search emojis
-        let emojiResults = EmojiSearchService.shared.search(query: query)
-        results.append(contentsOf: emojiResults)
-
-        // Search contacts
-        let contactResults = ContactsService.shared.search(query: query)
-        results.append(contentsOf: contactResults)
-
-        // Search user commands
-        let commandResults = UserCommandsService.shared.search(query: query)
-        results.append(contentsOf: commandResults)
 
         // Fuzzy search with scoring through installed apps
         let appResults = installedApps
@@ -244,11 +228,9 @@ final class SearchEngine {
             .sorted { $0.score > $1.score }
             .prefix(10)
             .compactMap { item -> SearchResult? in
-                // Deduplicate by bundleID
                 guard !seenBundleIDs.contains(item.app.bundleID) else { return nil }
                 seenBundleIDs.insert(item.app.bundleID)
 
-                // Check if this is Activity Monitor - show CPU/Memory metrics
                 let subtitle: String = if item.app.name == "Activity Monitor" {
                     SystemMetricsService.shared.getCurrentMetrics()
                 } else {
@@ -259,24 +241,33 @@ final class SearchEngine {
                     title: item.app.name,
                     subtitle: subtitle,
                     icon: item.app.icon,
+                    category: .application,
                     action: { [weak self] in
                         self?.launchApp(bundleID: item.app.bundleID)
                     }
                 )
             }
-
         results.append(contentsOf: appResults)
 
-        // Search for files using Spotlight (NSMetadataQuery)
-        // Either through "file:" prefix or as part of general search
+        // User commands (actions)
+        let commandResults = UserCommandsService.shared.search(query: query)
+        results.append(contentsOf: commandResults)
+
+        // Contacts
+        let contactResults = ContactsService.shared.search(query: query)
+        results.append(contentsOf: contactResults)
+
+        // Clipboard history
+        let clipboardResults = ClipboardManager.shared.search(query: query)
+        results.append(contentsOf: clipboardResults)
+
+        // Search for files using Spotlight
         let fileSearchQuery: String
         let isFileSpecificSearch = lowercasedQuery.hasPrefix(fileSearchPrefix)
 
         if isFileSpecificSearch {
-            // Remove "file:" prefix for search
             fileSearchQuery = String(query.dropFirst(fileSearchPrefix.count))
         } else {
-            // Include files in general search
             fileSearchQuery = query
         }
 
@@ -285,7 +276,11 @@ final class SearchEngine {
             results.append(contentsOf: fileResults)
         }
 
-        // Final deduplication pass (in case clipboard has same items)
+        // Emojis (last)
+        let emojiResults = EmojiSearchService.shared.search(query: query)
+        results.append(contentsOf: emojiResults)
+
+        // Deduplicate and sort by category
         var finalResults: [SearchResult] = []
         var seenTitles: Set<String> = []
         for result in results {
@@ -295,7 +290,7 @@ final class SearchEngine {
             }
         }
 
-        return Array(finalResults.prefix(10))
+        return Array(finalResults.sorted { $0.category < $1.category }.prefix(10))
     }
 
     /// Returns score > 0 if query matches target (higher = better match)
