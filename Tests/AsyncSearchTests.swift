@@ -68,11 +68,11 @@ final class AsyncSearchTests: XCTestCase {
 
         let elapsed = Date().timeIntervalSince(startTime)
 
-        // Search should complete within 3 seconds (2s timeout + buffer)
+        // Search should complete within 4 seconds (1s NSMetadataQuery + 2s mdfind timeout + buffer)
         XCTAssertLessThan(
             elapsed,
-            3.0,
-            "searchAsync should complete within 3 seconds. Took \(elapsed) seconds."
+            4.0,
+            "searchAsync should complete within 4 seconds. Took \(elapsed) seconds."
         )
     }
 }

@@ -26,6 +26,17 @@ final class FileSearchService {
     /// Flag to force use of mdfind (useful for testing)
     var forceMdfind: Bool = false
 
+    /// Configured search scopes for NSMetadataQuery
+    /// Returns the paths that will be searched
+    var configuredSearchScopes: [String] {
+        buildSearchScopes().compactMap { scope -> String? in
+            if let url = scope as? URL {
+                return url.path
+            }
+            return nil
+        }
+    }
+
     private init() {}
 
     /// Check if a path is inside a hidden directory (for privacy filtering)
@@ -46,6 +57,35 @@ final class FileSearchService {
         }
 
         return false
+    }
+
+    /// Build search scopes for NSMetadataQuery
+    /// Returns URLs for Documents, Downloads, Desktop, and Home directories
+    private func buildSearchScopes() -> [Any] {
+        var scopes: [Any] = []
+        let fileManager = FileManager.default
+
+        // Add Documents directory
+        if let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
+            scopes.append(documentsURL)
+        }
+
+        // Add Downloads directory
+        if let downloadsURL = fileManager.urls(for: .downloadsDirectory, in: .userDomainMask).first {
+            scopes.append(downloadsURL)
+        }
+
+        // Add Desktop directory
+        if let desktopURL = fileManager.urls(for: .desktopDirectory, in: .userDomainMask).first {
+            scopes.append(desktopURL)
+        }
+
+        // Add user home directory as fallback
+        if let homeURL = fileManager.homeDirectoryForCurrentUser as URL? {
+            scopes.append(homeURL)
+        }
+
+        return scopes
     }
 
     /// Synchronous search using native Spotlight APIs
@@ -72,7 +112,8 @@ final class FileSearchService {
     }
 
     /// Perform search using NSMetadataQuery (native Spotlight API)
-    private func performNSMetadataQuery(query: String, maxResults: Int) -> [URL] {
+    /// Internal access for testing
+    func performNSMetadataQuery(query: String, maxResults: Int) -> [URL] {
         let state = NSMetadataQueryState()
         let metadataQuery = configureMetadataQuery(query: query)
 
@@ -84,22 +125,27 @@ final class FileSearchService {
 
         runQueryOnDedicatedThread(metadataQuery: metadataQuery, state: state)
 
-        // Wait with shorter timeout for NSMetadataQuery
-        let queryTimeout = min(searchTimeout, 0.5)
+        // Use a reasonable timeout for NSMetadataQuery (1 second)
+        // NSMetadataQuery typically returns results within 50-200ms
+        let queryTimeout: TimeInterval = 1.0
         let waitResult = state.semaphore.wait(timeout: .now() + queryTimeout)
 
         cleanupQuery(metadataQuery: metadataQuery, observers: state.observers)
 
-        return waitResult == .timedOut ? [] : state.collectedURLs
+        // Return collected results whether we timed out or completed
+        // NSMetadataQuery may have collected partial results even on timeout
+        if waitResult == .timedOut {
+            // Return partial results if available
+            return state.collectedURLs
+        }
+        return state.collectedURLs
     }
 
     /// Configure an NSMetadataQuery with search parameters
     private func configureMetadataQuery(query: String) -> NSMetadataQuery {
         let metadataQuery = NSMetadataQuery()
-        metadataQuery.searchScopes = [
-            NSMetadataQueryUserHomeScope,
-            NSMetadataQueryLocalComputerScope
-        ]
+        // Use specific directory scopes instead of broad computer-wide search
+        metadataQuery.searchScopes = buildSearchScopes()
         metadataQuery.predicate = NSPredicate(
             format: "kMDItemDisplayName CONTAINS[cd] %@", query
         )
