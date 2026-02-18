@@ -88,4 +88,62 @@ final class SearchEngineTests: XCTestCase {
 
         XCTAssertNotNil(results, "Search should return results including clipboard history")
     }
+
+    // MARK: - Activity Monitor Metrics Tests
+
+    func test_search_activityMonitor_showsCPUMemoryMetrics() {
+        let engine = SearchEngine.shared
+
+        let results = engine.search(query: "Activity Monitor")
+
+        // Find Activity Monitor in results
+        let activityMonitorResult = results.first { $0.title == "Activity Monitor" }
+
+        XCTAssertNotNil(activityMonitorResult, "Should find Activity Monitor in results")
+
+        // Subtitle should contain CPU and MEM metrics
+        if let result = activityMonitorResult {
+            XCTAssertTrue(result.subtitle.contains("CPU:"), "Activity Monitor subtitle should contain 'CPU:'")
+            XCTAssertTrue(result.subtitle.contains("MEM:"), "Activity Monitor subtitle should contain 'MEM:'")
+            XCTAssertTrue(result.subtitle.contains("%"), "Activity Monitor subtitle should contain '%'")
+        }
+    }
+
+    func test_search_activityMonitor_formatIsCorrect() {
+        let engine = SearchEngine.shared
+
+        let results = engine.search(query: "Activity Monitor")
+
+        let activityMonitorResult = results.first { $0.title == "Activity Monitor" }
+
+        if let result = activityMonitorResult {
+            // Format should be "CPU: XX% | MEM: XX%"
+            let pattern = #"CPU: \d+% \| MEM: \d+%"#
+            let regex = try? NSRegularExpression(pattern: pattern)
+            let range = NSRange(result.subtitle.startIndex..., in: result.subtitle)
+            let matches = regex?.firstMatch(in: result.subtitle, range: range)
+
+            XCTAssertNotNil(matches, "Activity Monitor subtitle should match format 'CPU: XX% | MEM: XX%'")
+        }
+    }
+
+    func test_search_monitor_findsActivityMonitor() {
+        let engine = SearchEngine.shared
+
+        let results = engine.search(query: "monitor")
+
+        let activityMonitorResult = results.first { $0.title == "Activity Monitor" }
+
+        XCTAssertNotNil(activityMonitorResult, "Should find Activity Monitor when searching for 'monitor'")
+    }
+
+    func test_search_activity_findsActivityMonitor() {
+        let engine = SearchEngine.shared
+
+        let results = engine.search(query: "activity")
+
+        let activityMonitorResult = results.first { $0.title == "Activity Monitor" }
+
+        XCTAssertNotNil(activityMonitorResult, "Should find Activity Monitor when searching for 'activity'")
+    }
 }

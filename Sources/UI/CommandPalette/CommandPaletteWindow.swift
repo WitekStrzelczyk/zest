@@ -18,6 +18,11 @@ final class ResultRowView: NSTableRowView {
         }
     }
 
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        isHovered = false
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         // Draw custom background based on state
         if isSelected {
@@ -51,9 +56,17 @@ final class ResultsTableView: NSTableView {
 
     /// Clear all hover states from all visible rows
     func clearHover() {
+        // Method 1: Clear via enumerateAvailableRowViews
         enumerateAvailableRowViews { rowView, _ in
             if let resultRowView = rowView as? ResultRowView {
                 resultRowView.isHovered = false
+            }
+        }
+
+        // Method 2: Also iterate through all possible rows and clear if view exists
+        for row in 0..<numberOfRows {
+            if let rowView = rowView(atRow: row, makeIfNecessary: false) as? ResultRowView {
+                rowView.isHovered = false
             }
         }
     }

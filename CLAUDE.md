@@ -19,7 +19,9 @@ Zest/
 ├── Sources/          # Swift source code
 ├── Tests/           # Unit tests (XCTest)
 ├── scripts/         # Build & quality scripts
-│   └── quality.sh   # Format → Lint → Build → Test → Coverage
+│   ├── quality.sh   # Format → Lint → Build → Test → Coverage
+│   ├── run_tests.sh # Run tests with timeout (default 40s)
+│   └── run_app.sh   # Kill existing instances and run fresh
 ├── docs/            # Documentation
 │   └── retrospections/ # Implementation learnings
 ├── screenshots/     # Test screenshots
@@ -56,6 +58,10 @@ Run `./scripts/quality.sh` to execute:
 
 2. **Run the app to verify it launches:**
    ```bash
+   # Use the script (recommended - kills existing instances first)
+   ./scripts/run_app.sh
+
+   # Or run directly
    swift run
    ```
    The app should build and run without errors.

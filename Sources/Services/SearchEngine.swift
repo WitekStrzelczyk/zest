@@ -74,9 +74,17 @@ final class SearchEngine {
                 guard !seenBundleIDs.contains(item.app.bundleID) else { return nil }
                 seenBundleIDs.insert(item.app.bundleID)
 
+                // Check if this is Activity Monitor - show CPU/Memory metrics
+                let subtitle: String
+                if item.app.name == "Activity Monitor" {
+                    subtitle = SystemMetricsService.shared.getCurrentMetrics()
+                } else {
+                    subtitle = "Application"
+                }
+
                 return SearchResult(
                     title: item.app.name,
-                    subtitle: "Application",
+                    subtitle: subtitle,
                     icon: item.app.icon,
                     action: { [weak self] in
                         self?.launchApp(bundleID: item.app.bundleID)
@@ -142,32 +150,26 @@ final class SearchEngine {
                 return InstalledApp(name: name, bundleID: bundleID, icon: icon)
             }
 
-        // Also get installed apps from /Applications
-        let applicationsURL = URL(fileURLWithPath: "/Applications")
-        let systemApplicationsURL = URL(fileURLWithPath: "/System/Applications")
+        // Scan all application directories
+        let applicationPaths = [
+            "/Applications",
+            "/Applications/Utilities",
+            "/System/Applications",
+            "/System/Applications/Utilities"
+        ]
 
-        if let appURLs = try? FileManager.default.contentsOfDirectory(
-            at: applicationsURL,
-            includingPropertiesForKeys: nil
-        ) {
-            for url in appURLs where url.pathExtension == "app" {
-                let name = url.deletingPathExtension().lastPathComponent
-                if !apps.contains(where: { $0.name == name }) {
-                    let icon = NSWorkspace.shared.icon(forFile: url.path)
-                    apps.append(InstalledApp(name: name, bundleID: url.path, icon: icon))
-                }
-            }
-        }
-
-        if let systemAppURLs = try? FileManager.default.contentsOfDirectory(
-            at: systemApplicationsURL,
-            includingPropertiesForKeys: nil
-        ) {
-            for url in systemAppURLs where url.pathExtension == "app" {
-                let name = url.deletingPathExtension().lastPathComponent
-                if !apps.contains(where: { $0.name == name }) {
-                    let icon = NSWorkspace.shared.icon(forFile: url.path)
-                    apps.append(InstalledApp(name: name, bundleID: url.path, icon: icon))
+        for path in applicationPaths {
+            let url = URL(fileURLWithPath: path)
+            if let appURLs = try? FileManager.default.contentsOfDirectory(
+                at: url,
+                includingPropertiesForKeys: nil
+            ) {
+                for appURL in appURLs where appURL.pathExtension == "app" {
+                    let name = appURL.deletingPathExtension().lastPathComponent
+                    if !apps.contains(where: { $0.name == name }) {
+                        let icon = NSWorkspace.shared.icon(forFile: appURL.path)
+                        apps.append(InstalledApp(name: name, bundleID: appURL.path, icon: icon))
+                    }
                 }
             }
         }
@@ -225,9 +227,17 @@ final class SearchEngine {
                 guard !seenBundleIDs.contains(item.app.bundleID) else { return nil }
                 seenBundleIDs.insert(item.app.bundleID)
 
+                // Check if this is Activity Monitor - show CPU/Memory metrics
+                let subtitle: String
+                if item.app.name == "Activity Monitor" {
+                    subtitle = SystemMetricsService.shared.getCurrentMetrics()
+                } else {
+                    subtitle = "Application"
+                }
+
                 return SearchResult(
                     title: item.app.name,
-                    subtitle: "Application",
+                    subtitle: subtitle,
                     icon: item.app.icon,
                     action: { [weak self] in
                         self?.launchApp(bundleID: item.app.bundleID)
