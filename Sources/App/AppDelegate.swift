@@ -6,13 +6,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var commandPaletteWindow: CommandPaletteWindow?
     private var hotKeyRef: EventHotKeyRef?
 
+    // Global hotkey identifiers for cleanup
+    private var registeredHotkeyIds: [HotkeyIdentifier] = []
+
     func applicationDidFinishLaunching(_: Notification) {
         setupMenuBar()
         setupGlobalHotKey()
+        setupGlobalCommandHotkeys()
     }
 
     func applicationWillTerminate(_: Notification) {
         unregisterHotKey()
+        GlobalHotkeyManager.shared.unregisterAll()
     }
 
     // MARK: - Menu Bar
@@ -63,7 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.terminate(nil)
     }
 
-    // MARK: - Global HotKey (Carbon API)
+    // MARK: - Global HotKey (Carbon API) - Cmd+Space for Command Palette
 
     private func setupGlobalHotKey() {
         // Register Cmd+Space as global hotkey
@@ -135,6 +140,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             fatalError("AppDelegate is not the expected type")
         }
         return appDelegate
+    }
+
+    // MARK: - Global Command Hotkeys
+
+    private func setupGlobalCommandHotkeys() {
+        let hotkeyManager = GlobalHotkeyManager.shared
+        let commandsService = GlobalCommandsService.shared
+
+        // Register each global command
+        for command in commandsService.availableCommands {
+            let identifier = hotkeyManager.register(
+                keyCode: command.keyCode,
+                modifiers: command.modifiers,
+                action: command.action
+            )
+            registeredHotkeyIds.append(identifier)
+        }
     }
 
     // MARK: - Command Palette
