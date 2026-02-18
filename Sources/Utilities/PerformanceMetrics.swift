@@ -105,11 +105,10 @@ final class PerformanceMetrics: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
 
-        let resultCount: Int
-        if let results = result as? [Any] {
-            resultCount = results.count
+        let resultCount: Int = if let results = result as? [Any] {
+            results.count
         } else {
-            resultCount = 1
+            1
         }
 
         searchOperations.append(SearchMetric(
@@ -163,7 +162,7 @@ final class PerformanceMetrics: @unchecked Sendable {
     ///   - onTiming: Callback with the duration in milliseconds
     /// - Returns: The result of the operation
     @discardableResult
-    func measureWithCallback<T>(_ label: String, _ operation: () -> T, onTiming: (Double) -> Void) -> T {
+    func measureWithCallback<T>(_: String, _ operation: () -> T, onTiming: (Double) -> Void) -> T {
         let start = CFAbsoluteTimeGetCurrent()
         let result = operation()
         let duration = (CFAbsoluteTimeGetCurrent() - start) * 1000
@@ -258,8 +257,8 @@ final class PerformanceMetrics: @unchecked Sendable {
                     "query": $0.query,
                     "durationMs": $0.durationMs,
                     "resultCount": $0.resultCount,
-                    "timestamp": ISO8601DateFormatter().string(from: $0.timestamp)
-                ] }
+                    "timestamp": ISO8601DateFormatter().string(from: $0.timestamp),
+                ] },
             ]
         }
 
@@ -267,7 +266,7 @@ final class PerformanceMetrics: @unchecked Sendable {
         if let startup = startupMetric {
             result["startup"] = [
                 "durationMs": startup.durationMs,
-                "timestamp": ISO8601DateFormatter().string(from: startup.timestamp)
+                "timestamp": ISO8601DateFormatter().string(from: startup.timestamp),
             ]
         }
 
@@ -275,7 +274,7 @@ final class PerformanceMetrics: @unchecked Sendable {
         if !memoryBaselines.isEmpty {
             result["memory"] = memoryBaselines.map { [
                 "memoryMB": $0.memoryMB,
-                "timestamp": ISO8601DateFormatter().string(from: $0.timestamp)
+                "timestamp": ISO8601DateFormatter().string(from: $0.timestamp),
             ] }
         }
 
@@ -326,12 +325,14 @@ final class PerformanceMetrics: @unchecked Sendable {
 
         let averageDuration = totalDuration / Double(iterations)
 
-        os_log("Benchmark '%@': %.4fms average over %d iterations",
-               log: OSLog(subsystem: "com.zest.app", category: "Benchmark"),
-               type: .info,
-               name,
-               averageDuration,
-               iterations)
+        os_log(
+            "Benchmark '%@': %.4fms average over %d iterations",
+            log: OSLog(subsystem: "com.zest.app", category: "Benchmark"),
+            type: .info,
+            name,
+            averageDuration,
+            iterations
+        )
 
         return averageDuration
     }
@@ -353,12 +354,14 @@ final class PerformanceMetrics: @unchecked Sendable {
 
         let averageDuration = totalDuration / Double(iterations)
 
-        os_log("Async Benchmark '%@': %.4fms average over %d iterations",
-               log: OSLog(subsystem: "com.zest.app", category: "Benchmark"),
-               type: .info,
-               name,
-               averageDuration,
-               iterations)
+        os_log(
+            "Async Benchmark '%@': %.4fms average over %d iterations",
+            log: OSLog(subsystem: "com.zest.app", category: "Benchmark"),
+            type: .info,
+            name,
+            averageDuration,
+            iterations
+        )
 
         return averageDuration
     }

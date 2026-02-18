@@ -109,7 +109,7 @@ final class GlobalHotkeyManager {
         InstallEventHandler(
             GetApplicationEventTarget(),
             { _, event, userData -> OSStatus in
-                guard let userData = userData else { return noErr }
+                guard let userData else { return noErr }
 
                 let manager = Unmanaged<GlobalHotkeyManager>.fromOpaque(userData).takeUnretainedValue()
 

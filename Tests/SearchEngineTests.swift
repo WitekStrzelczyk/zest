@@ -197,4 +197,43 @@ final class SearchEngineTests: XCTestCase {
         XCTAssertEqual(results.count, 1, "Fast search should detect shell commands")
         XCTAssertEqual(results.first?.subtitle, "Shell Command", "Result should be shell command")
     }
+
+    // MARK: - User Commands Tests (Story: Commands Search Section)
+
+    func test_search_findsGCRCommand() {
+        let engine = SearchEngine.shared
+
+        let results = engine.search(query: "gcr")
+
+        let hasGCR = results.contains { $0.title == "gcr" }
+        XCTAssertTrue(hasGCR, "Should find 'gcr' command when searching for 'gcr'")
+    }
+
+    func test_search_findsGCRCommand_withPartialMatch() {
+        let engine = SearchEngine.shared
+
+        let results = engine.search(query: "gc")
+
+        let hasGCR = results.contains { $0.title == "gcr" }
+        XCTAssertTrue(hasGCR, "Should find 'gcr' command with partial match 'gc'")
+    }
+
+    func test_searchFast_findsGCRCommand() {
+        let engine = SearchEngine.shared
+
+        let results = engine.searchFast(query: "gcr")
+
+        let hasGCR = results.contains { $0.title == "gcr" }
+        XCTAssertTrue(hasGCR, "Fast search should find 'gcr' command")
+    }
+
+    func test_search_gcrCommand_opensURL() {
+        let engine = SearchEngine.shared
+
+        let results = engine.search(query: "gcr")
+
+        let gcrResult = results.first { $0.title == "gcr" }
+        XCTAssertNotNil(gcrResult, "Should find GCR command")
+        XCTAssertEqual(gcrResult?.subtitle, "Google Cloud Registry", "Should have description as subtitle")
+    }
 }

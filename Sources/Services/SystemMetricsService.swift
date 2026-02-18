@@ -25,7 +25,7 @@ final class SystemMetricsService {
             &numCPUInfo
         )
 
-        guard result == KERN_SUCCESS, let cpuInfo = cpuInfo else {
+        guard result == KERN_SUCCESS, let cpuInfo else {
             logger.error("Failed to get CPU info: \(result)")
             return 0.0
         }
@@ -84,7 +84,7 @@ final class SystemMetricsService {
 
         let totalMemory = ProcessInfo.processInfo.physicalMemory
         let usedMemory = active + wired + compressed
-        let appMemory = usedMemory + inactive  // What Activity Monitor shows as "Memory Used"
+        let appMemory = usedMemory + inactive // What Activity Monitor shows as "Memory Used"
 
         return Double(appMemory) / Double(totalMemory) * 100.0
     }

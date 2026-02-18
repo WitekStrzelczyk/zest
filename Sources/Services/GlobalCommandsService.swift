@@ -40,7 +40,7 @@ final class GlobalCommandsService {
                 description: "Maximizes the current window"
             ) { [weak self] in
                 _ = self?.maximizeWindow()
-            }
+            },
         ]
     }
 
@@ -83,7 +83,7 @@ final class GlobalCommandsService {
         // Try common Spotify installation locations
         let possiblePaths = [
             "/Applications/Spotify.app",
-            NSHomeDirectory() + "/Applications/Spotify.app"
+            NSHomeDirectory() + "/Applications/Spotify.app",
         ]
 
         for path in possiblePaths {

@@ -135,7 +135,7 @@ final class ContactsService {
             CNContactGivenNameKey as CNKeyDescriptor,
             CNContactFamilyNameKey as CNKeyDescriptor,
             CNContactEmailAddressesKey as CNKeyDescriptor,
-            CNContactPhoneNumbersKey as CNKeyDescriptor
+            CNContactPhoneNumbersKey as CNKeyDescriptor,
         ]
 
         let request = CNContactFetchRequest(keysToFetch: keys)
@@ -150,7 +150,7 @@ final class ContactsService {
                     givenName: cnContact.givenName,
                     familyName: cnContact.familyName,
                     emails: cnContact.emailAddresses.map { $0.value as String },
-                    phones: cnContact.phoneNumbers.map { $0.value.stringValue }
+                    phones: cnContact.phoneNumbers.map(\.value.stringValue)
                 )
                 contacts.append(contact)
             }

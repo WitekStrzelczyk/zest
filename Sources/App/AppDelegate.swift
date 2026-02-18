@@ -6,7 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var commandPaletteWindow: CommandPaletteWindow?
     private var hotKeyRef: EventHotKeyRef?
 
-    // Global hotkey identifiers for cleanup
+    /// Global hotkey identifiers for cleanup
     private var registeredHotkeyIds: [HotkeyIdentifier] = []
 
     func applicationDidFinishLaunching(_: Notification) {

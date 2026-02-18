@@ -68,6 +68,10 @@ final class SearchEngine {
         let contactResults = ContactsService.shared.search(query: query)
         results.append(contentsOf: contactResults)
 
+        // Search user commands
+        let commandResults = UserCommandsService.shared.search(query: query)
+        results.append(contentsOf: commandResults)
+
         // Fuzzy search with scoring through installed apps
         let appResults = installedApps
             .compactMap { app -> (app: InstalledApp, score: Int)? in
@@ -82,11 +86,10 @@ final class SearchEngine {
                 seenBundleIDs.insert(item.app.bundleID)
 
                 // Check if this is Activity Monitor - show CPU/Memory metrics
-                let subtitle: String
-                if item.app.name == "Activity Monitor" {
-                    subtitle = SystemMetricsService.shared.getCurrentMetrics()
+                let subtitle: String = if item.app.name == "Activity Monitor" {
+                    SystemMetricsService.shared.getCurrentMetrics()
                 } else {
-                    subtitle = "Application"
+                    "Application"
                 }
 
                 return SearchResult(
@@ -162,7 +165,7 @@ final class SearchEngine {
             "/Applications",
             "/Applications/Utilities",
             "/System/Applications",
-            "/System/Applications/Utilities"
+            "/System/Applications/Utilities",
         ]
 
         for path in applicationPaths {
@@ -228,6 +231,10 @@ final class SearchEngine {
         let contactResults = ContactsService.shared.search(query: query)
         results.append(contentsOf: contactResults)
 
+        // Search user commands
+        let commandResults = UserCommandsService.shared.search(query: query)
+        results.append(contentsOf: commandResults)
+
         // Fuzzy search with scoring through installed apps
         let appResults = installedApps
             .compactMap { app -> (app: InstalledApp, score: Int)? in
@@ -242,11 +249,10 @@ final class SearchEngine {
                 seenBundleIDs.insert(item.app.bundleID)
 
                 // Check if this is Activity Monitor - show CPU/Memory metrics
-                let subtitle: String
-                if item.app.name == "Activity Monitor" {
-                    subtitle = SystemMetricsService.shared.getCurrentMetrics()
+                let subtitle: String = if item.app.name == "Activity Monitor" {
+                    SystemMetricsService.shared.getCurrentMetrics()
                 } else {
-                    subtitle = "Application"
+                    "Application"
                 }
 
                 return SearchResult(

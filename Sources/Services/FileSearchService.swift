@@ -16,7 +16,7 @@ final class FileSearchService {
         ".git",
         "node_modules",
         "build",
-        ".build"
+        ".build",
     ]
 
     /// Maximum time to wait for query (in seconds)
@@ -230,7 +230,6 @@ private class NSMetadataQueryState {
 }
 
 extension FileSearchService {
-
     /// Perform search using mdfind command-line tool (fallback)
     private func performMdfindQuery(query: String, maxResults: Int) -> [String] {
         var paths: [String] = []

@@ -38,7 +38,7 @@ final class ResultRowView: NSTableRowView {
         super.draw(dirtyRect)
     }
 
-    override func drawSelection(in dirtyRect: NSRect) {
+    override func drawSelection(in _: NSRect) {
         // We handle selection drawing ourselves in draw(_:)
         // This prevents the default blue selection highlight
     }
@@ -113,7 +113,7 @@ final class ResultsTableView: NSTableView {
         }
     }
 
-    override func mouseExited(with event: NSEvent) {
+    override func mouseExited(with _: NSEvent) {
         clearHover()
     }
 
@@ -125,7 +125,7 @@ final class ResultsTableView: NSTableView {
             .mouseMoved,
             .mouseEnteredAndExited,
             .activeInActiveApp,
-            .inVisibleRect
+            .inVisibleRect,
         ]
 
         // Remove existing custom tracking areas and add new one
@@ -256,7 +256,7 @@ final class CommandPaletteWindow: NSPanel {
         resultsTableView.headerView = nil
         resultsTableView.backgroundColor = .clear
         resultsTableView.intercellSpacing = NSSize(width: 0, height: 0)
-        resultsTableView.selectionHighlightStyle = .none  // Custom drawing in ResultRowView
+        resultsTableView.selectionHighlightStyle = .none // Custom drawing in ResultRowView
         resultsTableView.delegate = self
         resultsTableView.dataSource = self
         resultsTableView.commandPalette = self
@@ -693,7 +693,7 @@ extension CommandPaletteWindow: NSTableViewDelegate, NSTableViewDataSource {
         searchResults.count
     }
 
-    func tableView(_: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+    func tableView(_: NSTableView, rowViewForRow _: Int) -> NSTableRowView? {
         // Return custom row view with dual-state highlighting
         let rowView = ResultRowView()
         rowView.identifier = NSUserInterfaceItemIdentifier("ResultRow")
