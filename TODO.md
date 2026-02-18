@@ -1492,3 +1492,232 @@ The current mdfind implementation has known issues:
 4. Ensure all tests still pass
 
 **Verification:** SwiftLint should no longer warn about type_body_length
+
+---
+
+## Custom Commands (User-Definable Actions)
+
+### [ ] Story 26: Custom Commands Management
+
+**As a** power user who wants to personalize my workflow
+**I want** to create, manage, and execute custom commands with URL actions
+**So that** I can trigger frequently-used actions with a simple search or hotkey
+
+### Use Case Context
+Part of: "Extensibility" use case
+- Follows: "Command Palette Activation" story (Story 1)
+- Related to: "Quicklinks" story (Story 13) - extends with more action types
+- Related to: "Enhanced Shell Integration" story (Story 24) - commands can run scripts
+
+This story transforms Zest from a launcher with hardcoded commands to a customizable productivity tool where users define their own shortcuts.
+
+### Research Summary (Raycast Analysis)
+
+**Raycast Script Commands Pattern:**
+- Scripts stored in `~/.raycast/scripts/`
+- Metadata via shebang comments (`# @raycast.title`, `# @raycast.icon`, etc.)
+- Support for shell scripts, AppleScript, Swift
+- Modes: compact, fullOutput, silent
+- Parameters via `@raycast.argument1` syntax
+- Fuzzy searchable in command palette
+- Optional keyboard shortcuts per command
+
+**What Users Love:**
+- Instant searchability of all commands
+- Custom keyboard shortcuts per command
+- Quick feedback via Toast/HUD
+- URL scheme support (e.g., `raycast://extensions/...`)
+- Import/export capabilities
+
+### Verification Strategy
+
+Commands must be fully discoverable, editable, and executable from the command palette. The configuration must persist across app restarts.
+
+#### Test Cases (Acceptance Criteria)
+
+**Command Discovery:**
+- **Given** custom commands are configured, **When** I open the palette and type a command name, **Then** matching commands appear in search results
+- **Given** I have 20+ custom commands, **When** I search, **Then** fuzzy matching finds relevant commands
+- **Given** a command has keywords defined, **When** I search by keyword, **Then** the command appears
+
+**Command Execution:**
+- **Given** a URL command "Open Jira" pointing to "https://jira.company.com", **When** I select it, **Then** the URL opens in my default browser
+- **Given** a shell command "Git Status" with script "git status", **When** I select it, **Then** the script executes and output displays
+- **Given** an AppleScript command "Toggle Dark Mode", **When** I select it, **Then** the AppleScript runs
+- **Given** a command with a global hotkey "Cmd+Shift+J", **When** I press the hotkey (palette closed), **Then** the command executes immediately
+
+**Command Management:**
+- **Given** the palette is open, **When** I type "new command", **Then** a command creation interface appears
+- **Given** a command exists, **When** I search for "edit [command name]", **Then** an edit interface opens with current values
+- **Given** a command exists, **When** I delete it, **Then** it no longer appears in search results
+- **Given** I have commands configured, **When** I export them, **Then** a JSON file is created with all command definitions
+
+**Command Configuration:**
+- **Given** I create a new command, **When** I set name "Open PRs", URL "https://github.com/pulls", icon "🔗", **Then** the command is saved with all properties
+- **Given** I create a command with parameter `{repo}`, **When** I execute it, **Then** I'm prompted to enter the repo name before execution
+- **Given** I set a keyword "pr" for "Open PRs" command, **When** I type "pr", **Then** the command appears as a top result
+
+**Error Handling:**
+- **Given** a command URL is invalid, **When** I try to save it, **Then** I see a validation error
+- **Given** a shell command fails, **When** it executes, **Then** the error output is displayed
+- **Given** a global hotkey conflicts with system shortcut, **When** I try to assign it, **Then** I see a warning
+
+### Implementation Notes
+
+**Data Model:**
+```swift
+struct UserCommand: Codable, Identifiable {
+    let id: UUID
+    var name: String
+    var keywords: [String]
+    var icon: String?          // Emoji or SF Symbol name
+    var action: CommandAction
+    var globalHotkey: String?  // e.g., "cmd+shift+j"
+    var createdAt: Date
+    var lastUsedAt: Date?
+    var useCount: Int
+}
+
+enum CommandAction: Codable {
+    case url(String)                           // Open URL in browser
+    case shellScript(String)                   // Execute shell command
+    case appleScript(String)                   // Run AppleScript
+    case openApp(bundleId: String)             // Launch application
+    case openFile(path: String)                // Open file in default app
+    case customScheme(String)                  // Custom URL scheme
+}
+```
+
+**Storage:**
+- Store commands in `~/Library/Application Support/Zest/commands.json`
+- Use Codable for easy JSON serialization
+- Include import/export functionality
+
+**UI Components Needed:**
+1. **CommandManagementView**: SwiftUI view for creating/editing commands
+2. **CommandEditorSheet**: Modal sheet with form fields
+3. **CommandImportExport**: Import/export buttons in preferences
+
+**Search Integration:**
+- Add `UserCommand` results to `SearchResult` enum
+- Include commands in `SearchService.search()` method
+- Rank commands by usage frequency (`useCount`)
+
+**Global Hotkey Support:**
+- Use Carbon HotKey API (already used for palette hotkey)
+- Register each command's hotkey on app launch
+- Allow hotkey conflicts to be detected and warned
+
+**Command Execution Flow:**
+1. User selects command from palette or presses hotkey
+2. If command has parameters, show parameter input
+3. Execute action based on type:
+   - URL: `NSWorkspace.shared.open(url)`
+   - Shell: `Process` with output capture
+   - AppleScript: `NSAppleScript`
+   - App: `NSWorkspace.shared.openApplication`
+4. Update `lastUsedAt` and `useCount`
+5. Show feedback (HUD or Toast equivalent)
+
+**Parameter Support:**
+- Use `{paramName}` syntax in URLs and scripts
+- When executing, show quick input dialog
+- Replace `{paramName}` with user input before execution
+
+**Example Commands (Pre-populated):**
+1. "Google Search" - `https://google.com/search?q={query}`
+2. "GitHub PRs" - `https://github.com/pulls`
+3. "Copy Current Path" - Shell: `pwd | pbcopy`
+4. "Toggle Hidden Files" - AppleScript for Finder
+
+**Security Considerations:**
+- Warn before executing shell scripts
+- Validate URLs before opening
+- Don't allow commands to modify system files without confirmation
+
+---
+
+### [ ] Story 27: Custom Commands Configuration UI
+
+**As a** user who manages many custom commands
+**I want** a dedicated preferences interface for organizing commands
+**So that** I can easily create, edit, delete, and reorder my commands
+
+### Use Case Context
+Part of: "Configuration" use case
+- Follows: "Custom Commands Management" story (Story 26)
+- Follows: "Preferences Window" story (Story 19)
+
+### Verification Strategy
+
+The configuration UI must provide full CRUD operations and be intuitive for non-technical users.
+
+#### Test Cases (Acceptance Criteria)
+
+**Command List View:**
+- **Given** the preferences window is open on Commands tab, **When** I view the list, **Then** all commands are shown with name, icon, and type
+- **Given** I have many commands, **When** I scroll, **Then** the list scrolls smoothly
+- **Given** I click a command, **When** the editor opens, **Then** all fields are populated
+
+**Create/Edit Flow:**
+- **Given** I click "Add Command", **When** the editor opens, **Then** I see fields for name, icon, action type, and action value
+- **Given** I'm editing a command, **When** I change the action type dropdown, **Then** the appropriate input field appears (URL field, script editor, etc.)
+- **Given** I'm editing, **When** I click Save, **Then** changes are persisted immediately
+- **Given** I'm editing, **When** I click Cancel, **Then** changes are discarded
+
+**Keyboard Shortcuts Management:**
+- **Given** I'm editing a command, **When** I click the hotkey field and press Cmd+Shift+P, **Then** "Cmd+Shift+P" is recorded
+- **Given** a hotkey is already assigned to another command, **When** I try to assign it, **Then** I see a conflict warning
+- **Given** I clear the hotkey field, **When** I save, **Then** the global hotkey is removed
+
+**Import/Export:**
+- **Given** I click "Export Commands", **When** the save dialog appears, **Then** I can save a JSON file with all commands
+- **Given** I click "Import Commands" and select a valid JSON file, **When** import completes, **Then** commands are added (with duplicate handling)
+- **Given** imported commands have conflicting IDs, **When** import occurs, **Then** new IDs are generated
+
+### Implementation Notes
+
+- Create SwiftUI `CommandsPreferencesView` as a tab in Preferences
+- Use `Form` and `TextField` components following macOS design guidelines
+- Hotkey recorder using `KeyboardShortcuts` library or custom NSEvent monitoring
+- Drag-to-reorder using `onMove` modifier
+- Support light/dark mode
+
+---
+
+### [ ] Story 28: Fallback Commands
+
+**As a** user who searches for things not found locally
+**I want** fallback commands to appear when no results match
+**So that** I can search the web or perform actions on my query
+
+### Use Case Context
+Part of: "Search Enhancement" use case
+- Follows: "Custom Commands Management" story (Story 26)
+- Inspired by Raycast fallback commands feature
+
+### Verification Strategy
+
+Fallback commands should appear when local search returns no results, providing useful actions on the search query.
+
+#### Test Cases (Acceptance Criteria)
+
+**Fallback Display:**
+- **Given** I search for "xyznonexistent", **When** no local results match, **Then** fallback commands appear (e.g., "Search Google for 'xyznonexistent'")
+- **Given** I have custom fallback commands, **When** no results match, **Then** my fallbacks appear alongside default ones
+- **Given** local results exist but are poor matches, **When** I view results, **Then** fallbacks appear at the bottom
+
+**Fallback Execution:**
+- **Given** "Search Google" fallback is shown, **When** I select it, **Then** Google opens with my search query
+- **Given** a custom fallback "Search Jira for '{query}'", **When** I execute it, **Then** Jira opens with the query
+
+**Fallback Configuration:**
+- **Given** preferences is open, **When** I view Fallback Commands section, **Then** I can add/remove/reorder fallbacks
+- **Given** I disable all fallbacks, **When** search has no results, **Then** "No results found" message appears
+
+### Implementation Notes
+
+- Default fallbacks: Google Search, DuckDuckGo, Wikipedia
+- Store fallback commands separately from regular commands
+- Pass search query to fallback as `{query}` parameter
+- Show fallbacks with distinct visual style (dimmed or with globe icon)
