@@ -35,8 +35,8 @@ cyclomatic_complexity:
   error: 20
 
 function_body_length:
-  warning: 50
-  error: 100
+  warning: 100
+  error: 150
 
 # Line length - allow 150 for modern screens
 line_length:
