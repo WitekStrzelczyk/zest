@@ -238,13 +238,15 @@ final class ResultsTableView: NSTableView {
 // MARK: - Command Palette Window
 
 final class CommandPaletteWindow: NSPanel {
-    private var searchField: NSTextField!
+    /// Exposed for testing
+    private(set) var searchField: NSTextField!
     private var searchIcon: NSImageView!
     private var resultsTableView: ResultsTableView!
     private var scrollView: NSScrollView!
     private(set) var hintLabel: NSTextField!
     private var noResultsLabel: NSTextField!
-    private var searchResults: [SearchResult] = []
+    /// Exposed for testing
+    private(set) var searchResults: [SearchResult] = []
 
     /// Tracks whether focus is on results table (vs search field)
     /// This is used because makeFirstResponder only works when window is key
@@ -254,7 +256,8 @@ final class CommandPaletteWindow: NSPanel {
     private var isQuickLookOpen: Bool = false
 
     /// Tracks whether we're in settings mode (quicklink creation)
-    private var isSettingsMode: Bool = false {
+    /// Exposed for testing
+    private(set) var isSettingsMode: Bool = false {
         didSet {
             if isSettingsMode != oldValue {
                 handleModeChange()
