@@ -9,6 +9,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var registeredHotkeyIds: [HotkeyIdentifier] = []
 
     func applicationDidFinishLaunching(_: Notification) {
+        // Apply saved awake preference if system is not already caffeinated
+        AwakeService.shared.applySavedPreference()
+        
         setupMainMenu()
         setupMenuBar()
         setupGlobalCommandHotkeys()

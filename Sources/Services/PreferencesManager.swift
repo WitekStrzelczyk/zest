@@ -42,6 +42,7 @@ final class PreferencesManager: ObservableObject {
         static let launchAtLogin = "launchAtLogin"
         static let indexedDirectories = "indexedDirectories"
         static let theme = "theme"
+        static let savedAwakeMode = "savedAwakeMode"
     }
 
     // MARK: - Properties
@@ -70,11 +71,17 @@ final class PreferencesManager: ObservableObject {
         }
     }
 
-    @Published var theme: AppTheme {
+    @Published var theme: AppTheme = .system {
         didSet {
             if let rawValue = theme.rawValue as String? {
                 defaults.set(rawValue, forKey: Keys.theme)
             }
+        }
+    }
+    
+    @Published var savedAwakeMode: AwakeMode = .disabled {
+        didSet {
+            defaults.set(savedAwakeMode.rawValue, forKey: Keys.savedAwakeMode)
         }
     }
 
@@ -120,8 +127,13 @@ final class PreferencesManager: ObservableObject {
            let themeValue = AppTheme(rawValue: themeRaw)
         {
             theme = themeValue
-        } else {
-            theme = .system
+        }
+        
+        // Load saved awake mode
+        if let modeRaw = defaults.string(forKey: Keys.savedAwakeMode),
+           let modeValue = AwakeMode(rawValue: modeRaw)
+        {
+            savedAwakeMode = modeValue
         }
     }
 
