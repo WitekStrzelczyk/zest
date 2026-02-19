@@ -798,7 +798,7 @@ final class CommandPaletteWindow: NSPanel {
             // Store current query for race condition handling
             currentSearchQuery = query
 
-            // PHASE 1: Show fast results immediately (apps, calculator, clipboard, emojis)
+            // PHASE 1: Show fast results immediately (apps, calculator, clipboard)
             let fastResults = SearchEngine.shared.searchFast(query: query)
             updateSearchResults(fastResults, topY: topY, screen: screen)
 

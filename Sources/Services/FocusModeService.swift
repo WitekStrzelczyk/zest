@@ -57,16 +57,7 @@ final class FocusModeService {
 
     /// Turn off all focus modes
     func turnOffAllFocusModes() -> Bool {
-        // Use AppleScript to turn off focus mode
-        let script = """
-        tell application "System Events"
-            tell process "ControlCenter"
-                -- Click on Focus in menu bar
-            end tell
-        end tell
-        """
-
-        // Alternative: Use shortcuts command if available
+        // Use shortcuts command to turn off focus mode
         return runShortcutsCommand(focusMode: "Off")
     }
 

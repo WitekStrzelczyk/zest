@@ -20,7 +20,7 @@ struct Reminder: Identifiable, Hashable {
 }
 
 /// Manages integration with Apple Reminders
-final class RemindersService {
+final class RemindersService: @unchecked Sendable {
     static let shared: RemindersService = .init()
 
     private let eventStore = EKEventStore()
@@ -48,8 +48,8 @@ final class RemindersService {
                     if let error {
                         print("Error requesting Reminders access: \(error)")
                     }
-                    self.hasAccess = granted ?? false
-                    continuation.resume(returning: granted ?? false)
+                    self.hasAccess = granted
+                    continuation.resume(returning: granted)
                 }
             }
         }

@@ -397,7 +397,7 @@ final class WindowManager {
         }
 
         // AXUIElement is a CFType, we can use it directly
-        return window as! AXUIElement
+        return (window as! AXUIElement)
     }
 
     /// Checks if a window is in full-screen mode
