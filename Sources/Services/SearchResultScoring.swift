@@ -11,6 +11,7 @@ final class SearchResultScoring {
     ///   - query: The search query
     ///   - title: The result title to score against
     ///   - subtitle: Optional subtitle to also consider in scoring
+    ///   - category: Optional category to also consider in scoring
     /// - Returns: Score (higher = more relevant)
     ///
     /// Scoring algorithm:
@@ -21,7 +22,7 @@ final class SearchResultScoring {
     /// - Consecutive matches bonus: +10 per consecutive
     /// - Match after separator (space/-/_): +15
     /// - Substring contains: 50 points (lowest)
-    func scoreResult(query: String, title: String, subtitle: String? = nil) -> Int {
+    func scoreResult(query: String, title: String, subtitle: String? = nil, category: SearchResultCategory? = nil) -> Int {
         guard !query.isEmpty, !title.isEmpty else { return 0 }
 
         let lowercasedQuery = query.lowercased()
@@ -50,6 +51,15 @@ final class SearchResultScoring {
             let subtitleScore = scoreResult(query: query, title: subtitle)
             if subtitleScore > score {
                 score = subtitleScore
+            }
+        }
+        
+        // Also check category name if provided - give it a decent score for visibility
+        if let category, score < 800 {
+            let categoryScore = scoreResult(query: query, title: category.displayName)
+            // Category matches are important - give them a minimum boost
+            if categoryScore > 0 {
+                score = max(score, categoryScore + 200)
             }
         }
 

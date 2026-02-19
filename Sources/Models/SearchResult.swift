@@ -16,6 +16,22 @@ enum SearchResultCategory: Int, Comparable {
     static func < (lhs: SearchResultCategory, rhs: SearchResultCategory) -> Bool {
         lhs.rawValue < rhs.rawValue
     }
+    
+    /// Human-readable name for search matching
+    var displayName: String {
+        switch self {
+        case .application: return "application app"
+        case .action: return "action command shortcut"
+        case .contact: return "contact"
+        case .clipboard: return "clipboard history"
+        case .file: return "file document"
+        case .emoji: return "emoji"
+        case .globalAction: return "command shortcut hotkey"
+        case .quicklink: return "quicklink bookmark"
+        case .settings: return "settings preference"
+        case .toggle: return "toggle switch"
+        }
+    }
 }
 
 struct SearchResult {

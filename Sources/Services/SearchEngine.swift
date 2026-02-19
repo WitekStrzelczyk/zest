@@ -63,7 +63,11 @@ final class SearchEngine {
         // Fuzzy search with scoring through installed apps
         let appResults = installedApps
             .compactMap { app -> (app: InstalledApp, score: Int)? in
-                let score = SearchResultScoring.shared.scoreResult(query: lowercasedQuery, title: app.name)
+                let score = SearchResultScoring.shared.scoreResult(
+                    query: lowercasedQuery,
+                    title: app.name,
+                    category: .application
+                )
                 return score > 0 ? (app, score) : nil
             }
             .sorted { $0.score > $1.score }
@@ -293,7 +297,11 @@ final class SearchEngine {
         // Fuzzy search with scoring through installed apps
         let appResults = installedApps
             .compactMap { app -> (app: InstalledApp, score: Int)? in
-                let score = SearchResultScoring.shared.scoreResult(query: lowercasedQuery, title: app.name)
+                let score = SearchResultScoring.shared.scoreResult(
+                    query: lowercasedQuery,
+                    title: app.name,
+                    category: .application
+                )
                 return score > 0 ? (app, score) : nil
             }
             .sorted { $0.score > $1.score }
@@ -405,7 +413,11 @@ final class SearchEngine {
         var results: [SearchResult] = []
 
         // Caffeinate system - prevents system sleep but allows display to sleep
-        let systemScore = SearchResultScoring.shared.scoreResult(query: query, title: "Caffeinate System")
+        let systemScore = SearchResultScoring.shared.scoreResult(
+            query: query,
+            title: "Caffeinate System",
+            category: .toggle
+        )
         results.append(SearchResult(
             title: "Caffeinate System",
             subtitle: "Prevent system sleep (display can sleep)",
@@ -419,7 +431,11 @@ final class SearchEngine {
         ))
 
         // Caffeinate - prevents both display and system sleep
-        let fullScore = SearchResultScoring.shared.scoreResult(query: query, title: "Caffeinate")
+        let fullScore = SearchResultScoring.shared.scoreResult(
+            query: query,
+            title: "Caffeinate",
+            category: .toggle
+        )
         results.append(SearchResult(
             title: "Caffeinate",
             subtitle: "Prevent display and system sleep",
@@ -474,7 +490,11 @@ final class SearchEngine {
         var results: [SearchResult] = []
 
         // "Add Quicklink" - first item in settings
-        let addQuicklinkScore = query.isEmpty ? 0 : SearchResultScoring.shared.scoreResult(query: query, title: "Add Quicklink")
+        let addQuicklinkScore = query.isEmpty ? 0 : SearchResultScoring.shared.scoreResult(
+            query: query,
+            title: "Add Quicklink",
+            category: .settings
+        )
         
         results.append(SearchResult(
             title: "Add Quicklink",
