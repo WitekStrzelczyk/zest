@@ -25,7 +25,7 @@ final class SearchEngine {
         currentSearchTask = nil
     }
 
-    /// Fast search - returns apps, calculator, clipboard, emojis immediately (no file search)
+    /// Fast search - returns apps, calculator, clipboard immediately (no file search)
     /// Use this for instant feedback while file search runs in background
     func searchFast(query: String) -> [SearchResult] {
         let lowercasedQuery = query.lowercased()
@@ -103,9 +103,9 @@ final class SearchEngine {
         let clipboardResults = ClipboardManager.shared.search(query: query)
         results.append(contentsOf: clipboardResults)
 
-        // Emojis (last)
-        let emojiResults = EmojiSearchService.shared.search(query: query)
-        results.append(contentsOf: emojiResults)
+        // Emojis disabled - users can use Cmd+Ctrl+Space system picker instead
+        // let emojiResults = EmojiSearchService.shared.search(query: query)
+        // results.append(contentsOf: emojiResults)
 
         // Global commands (lowest priority)
         let globalCommandResults = GlobalCommandsService.shared.search(query: query)
@@ -173,8 +173,10 @@ final class SearchEngine {
     }
 
     func refreshInstalledApps() {
-        let workspace = NSWorkspace.shared
-        var apps = workspace.runningApplications
+        var apps: [InstalledApp] = []
+        
+        // First add running apps
+        let runningApps = NSWorkspace.shared.runningApplications
             .filter { $0.activationPolicy == .regular }
             .compactMap { app -> InstalledApp? in
                 guard let name = app.localizedName,
@@ -183,13 +185,59 @@ final class SearchEngine {
                 let icon = app.icon ?? NSImage(systemSymbolName: "app", accessibilityDescription: nil)
                 return InstalledApp(name: name, bundleID: bundleID, icon: icon)
             }
+        apps.append(contentsOf: runningApps)
+        
+        // Use Spotlight to find all app bundles - much faster and always up-to-date
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/mdfind")
+        process.arguments = ["kMDItemContentType == 'com.apple.application-bundle'"]
+        
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        
+        do {
+            try process.run()
+            process.waitUntilExit()
+            
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if let output = String(data: data, encoding: .utf8) {
+                let appPaths = output.components(separatedBy: "\n").filter { !$0.isEmpty }
+                
+                for appPath in appPaths {
+                    let appURL = URL(fileURLWithPath: appPath)
+                    let name = appURL.deletingPathExtension().lastPathComponent
+                    
+                    // Skip if already added (from running apps)
+                    if apps.contains(where: { $0.name == name }) {
+                        continue
+                    }
+                    
+                    // Skip system apps in /System and /Library
+                    if appPath.hasPrefix("/System") || appPath.hasPrefix("/Library") {
+                        continue
+                    }
+                    
+                    let icon = NSWorkspace.shared.icon(forFile: appPath)
+                    apps.append(InstalledApp(name: name, bundleID: appPath, icon: icon))
+                }
+            }
+        } catch {
+            print("Failed to use Spotlight: \(error)")
+            // Fallback to manual scanning
+            scanApplicationDirectories(into: &apps)
+        }
 
-        // Scan all application directories
+        installedApps = apps.sorted { $0.name.lowercased() < $1.name.lowercased() }
+        
+        print("Indexed \(installedApps.count) applications via Spotlight")
+    }
+    
+    /// Fallback manual scanning if Spotlight fails
+    private func scanApplicationDirectories(into apps: inout [InstalledApp]) {
         let applicationPaths = [
             "/Applications",
             "/Applications/Utilities",
-            "/System/Applications",
-            "/System/Applications/Utilities",
+            NSHomeDirectory() + "/Applications",
         ]
 
         for path in applicationPaths {
@@ -207,8 +255,6 @@ final class SearchEngine {
                 }
             }
         }
-
-        installedApps = apps.sorted { $0.name.lowercased() < $1.name.lowercased() }
     }
 
     func search(query: String) -> [SearchResult] {
@@ -302,9 +348,9 @@ final class SearchEngine {
             results.append(contentsOf: fileResults)
         }
 
-        // Emojis (last)
-        let emojiResults = EmojiSearchService.shared.search(query: query)
-        results.append(contentsOf: emojiResults)
+        // Emojis disabled - users can use Cmd+Ctrl+Space system picker instead
+        // let emojiResults = EmojiSearchService.shared.search(query: query)
+        // results.append(contentsOf: emojiResults)
 
         // Global commands (lowest priority)
         let globalCommandResults = GlobalCommandsService.shared.search(query: query)
