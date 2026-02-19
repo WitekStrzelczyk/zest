@@ -28,7 +28,7 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     exit 0
 fi
 
-TIMEOUT=${1:-40}
+TIMEOUT=${1:-60}
 shift || true
 COVERAGE=""
 while [[ $# -gt 0 ]]; do

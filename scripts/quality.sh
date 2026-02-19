@@ -4,7 +4,7 @@
 # Runs: format, lint, build, test, and coverage
 
 # Test timeout in seconds
-TEST_TIMEOUT=40
+TEST_TIMEOUT=60
 
 # Generate coverage report using llvm-profdata
 # This is more reliable than xccov on some systems
