@@ -239,6 +239,7 @@ final class ResultsTableView: NSTableView {
 
 final class CommandPaletteWindow: NSPanel {
     private var searchField: NSTextField!
+    private var searchIcon: NSImageView!
     private var resultsTableView: ResultsTableView!
     private var scrollView: NSScrollView!
     private(set) var hintLabel: NSTextField!
@@ -274,6 +275,7 @@ final class CommandPaletteWindow: NSPanel {
             
             // 3. Hide search and results UI
             searchField.isHidden = true
+            searchIcon.isHidden = true
             scrollView.isHidden = true
             noResultsLabel.isHidden = true
             hintLabel.isHidden = true
@@ -289,6 +291,7 @@ final class CommandPaletteWindow: NSPanel {
             
             // 2. Show search UI
             searchField.isHidden = false
+            searchIcon.isHidden = false
             searchField.stringValue = preservedSearchQuery
             hintLabel.isHidden = false
             
@@ -403,7 +406,7 @@ final class CommandPaletteWindow: NSPanel {
         contentView.layer?.masksToBounds = true
 
         // Search icon
-        let searchIcon = NSImageView()
+        searchIcon = NSImageView()
         searchIcon.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Search")
         searchIcon.contentTintColor = .secondaryLabelColor
         searchIcon.translatesAutoresizingMaskIntoConstraints = false
@@ -569,13 +572,22 @@ final class CommandPaletteWindow: NSPanel {
     }
 
     private func showSettingsUI() {
-        guard let contentView = contentView, let screen = NSScreen.main else { return }
+        guard let contentView = contentView else { return }
         
-        let settingsView = NSView(frame: contentView.bounds)
+        // Compact settings panel height
+        let settingsHeight: CGFloat = 180
+        
+        // Step 1: Resize window FIRST - make it taller while keeping same Y position
+        var currentFrame = frame
+        currentFrame.size.height = settingsHeight
+        // Adjust origin to keep bottom in same place (grow upward)
+        currentFrame.origin.y -= (settingsHeight - frame.height)
+        setFrame(currentFrame, display: true, animate: true)
+        
+        // Step 2: NOW create settings view with the NEW window bounds
+        // Use window frame, not contentView.bounds (which hasn't resized yet)
+        let settingsView = NSView(frame: NSRect(x: 0, y: 0, width: currentFrame.width, height: currentFrame.height))
         settingsView.wantsLayer = true
-        
-        // Settings panel height - use 50% of screen for full form
-        let settingsHeight = screen.visibleFrame.height * 0.5
         
         // Back button
         let backBtn = NSButton(title: "← Back", target: self, action: #selector(backButtonClicked))
@@ -587,46 +599,14 @@ final class CommandPaletteWindow: NSPanel {
         settingsView.addSubview(backBtn)
         self.backButton = backBtn
         
-        // Title label
+        // Compact title
         let titleLabel = NSTextField(labelWithString: "Add Quicklink")
-        titleLabel.font = NSFont.systemFont(ofSize: 18, weight: .semibold)
+        titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
         titleLabel.textColor = .labelColor
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         settingsView.addSubview(titleLabel)
         
-        // Name field label
-        let nameLabel = NSTextField(labelWithString: "Name:")
-        nameLabel.font = NSFont.systemFont(ofSize: 13)
-        nameLabel.textColor = .secondaryLabelColor
-        nameLabel.translatesAutoresizingMaskIntoConstraints = false
-        settingsView.addSubview(nameLabel)
-        
-        // Name text field
-        let nameField = NSTextField()
-        nameField.placeholderString = "e.g., My Website"
-        nameField.font = NSFont.systemFont(ofSize: 14)
-        nameField.delegate = self
-        nameField.translatesAutoresizingMaskIntoConstraints = false
-        settingsView.addSubview(nameField)
-        self.quicklinkNameField = nameField
-        
-        // URL field label
-        let urlLabel = NSTextField(labelWithString: "URL:")
-        urlLabel.font = NSFont.systemFont(ofSize: 13)
-        urlLabel.textColor = .secondaryLabelColor
-        urlLabel.translatesAutoresizingMaskIntoConstraints = false
-        settingsView.addSubview(urlLabel)
-        
-        // URL text field
-        let urlField = NSTextField()
-        urlField.placeholderString = "e.g., https://example.com"
-        urlField.font = NSFont.systemFont(ofSize: 14)
-        urlField.delegate = self
-        urlField.translatesAutoresizingMaskIntoConstraints = false
-        settingsView.addSubview(urlField)
-        self.quicklinkURLField = urlField
-        
-        // Create button
+        // Create button first (needed for nextKeyView)
         let createBtn = NSButton(title: "Create", target: self, action: #selector(createQuicklinkClicked))
         createBtn.bezelStyle = .rounded
         createBtn.keyEquivalent = "\r"
@@ -634,56 +614,65 @@ final class CommandPaletteWindow: NSPanel {
         settingsView.addSubview(createBtn)
         self.createQuicklinkButton = createBtn
         
-        // Constraints
+        // URL text field (needs to be before nameField for nextKeyView)
+        let urlField = NSTextField()
+        urlField.placeholderString = "URL (e.g., https://github.com)"
+        urlField.font = NSFont.systemFont(ofSize: 14)
+        urlField.delegate = self
+        urlField.nextKeyView = createBtn  // Tab from URL goes to Create button
+        urlField.translatesAutoresizingMaskIntoConstraints = false
+        settingsView.addSubview(urlField)
+        self.quicklinkURLField = urlField
+        
+        // Name text field (first responder)
+        let nameField = NSTextField()
+        nameField.placeholderString = "Name (e.g., GitHub)"
+        nameField.font = NSFont.systemFont(ofSize: 14)
+        nameField.delegate = self
+        nameField.nextKeyView = urlField  // Tab from name goes to URL
+        nameField.translatesAutoresizingMaskIntoConstraints = false
+        settingsView.addSubview(nameField)
+        self.quicklinkNameField = nameField
+        
+        // Constraints - compact layout
         NSLayoutConstraint.activate([
             // Back button - top left
             backBtn.leadingAnchor.constraint(equalTo: settingsView.leadingAnchor, constant: 16),
-            backBtn.topAnchor.constraint(equalTo: settingsView.topAnchor, constant: 16),
+            backBtn.topAnchor.constraint(equalTo: settingsView.topAnchor, constant: 12),
             
             // Title - centered
             titleLabel.centerXAnchor.constraint(equalTo: settingsView.centerXAnchor),
-            titleLabel.topAnchor.constraint(equalTo: settingsView.topAnchor, constant: 16),
-            
-            // Name label
-            nameLabel.leadingAnchor.constraint(equalTo: settingsView.leadingAnchor, constant: 16),
-            nameLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 20),
+            titleLabel.topAnchor.constraint(equalTo: settingsView.topAnchor, constant: 12),
             
             // Name field
             nameField.leadingAnchor.constraint(equalTo: settingsView.leadingAnchor, constant: 16),
             nameField.trailingAnchor.constraint(equalTo: settingsView.trailingAnchor, constant: -16),
-            nameField.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 4),
+            nameField.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 16),
             nameField.heightAnchor.constraint(equalToConstant: 28),
-            
-            // URL label
-            urlLabel.leadingAnchor.constraint(equalTo: settingsView.leadingAnchor, constant: 16),
-            urlLabel.topAnchor.constraint(equalTo: nameField.bottomAnchor, constant: 16),
             
             // URL field
             urlField.leadingAnchor.constraint(equalTo: settingsView.leadingAnchor, constant: 16),
             urlField.trailingAnchor.constraint(equalTo: settingsView.trailingAnchor, constant: -16),
-            urlField.topAnchor.constraint(equalTo: urlLabel.bottomAnchor, constant: 4),
+            urlField.topAnchor.constraint(equalTo: nameField.bottomAnchor, constant: 8),
             urlField.heightAnchor.constraint(equalToConstant: 28),
             
-            // Create button
-            createBtn.trailingAnchor.constraint(equalTo: settingsView.trailingAnchor, constant: -16),
-            createBtn.topAnchor.constraint(equalTo: urlField.bottomAnchor, constant: 20),
+            // Create button - center below URL field
+            createBtn.centerXAnchor.constraint(equalTo: settingsView.centerXAnchor),
+            createBtn.topAnchor.constraint(equalTo: urlField.bottomAnchor, constant: 16),
         ])
         
         contentView.addSubview(settingsView)
         settingsContainerView = settingsView
         
-        // Resize window to show settings - use 50% of screen
-        if let topY = initialWindowTop {
-            let newHeight = settingsHeight
-            let newY = topY - newHeight
-            let currentFrame = frame
-            animateFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: newHeight))
-        }
+        // KEY: Tell AppKit to rebuild key view loop for the new fields
+        // This enables proper Tab navigation between form fields
+        recalculateKeyViewLoop()
         
-        // Focus on name field
+        // Focus on name field and make it the first in key loop
+        nameField.window?.initialFirstResponder = nameField
         makeFirstResponder(nameField)
     }
-
+    
     @objc private func backButtonClicked() {
         exitSettingsMode()
     }
@@ -1047,6 +1036,16 @@ extension CommandPaletteWindow: NSTextFieldDelegate {
         if commandSelector == #selector(NSResponder.insertNewline(_:)) {
             selectCurrentResult()
             return true
+        }
+        
+        // Allow Tab to move between fields (default behavior)
+        if commandSelector == #selector(NSResponder.insertTab(_:)) {
+            return false // Let system handle Tab
+        }
+        
+        // Allow Shift+Tab to move backwards
+        if commandSelector == #selector(NSResponder.insertBacktab(_:)) {
+            return false // Let system handle Shift+Tab
         }
 
         if commandSelector == #selector(NSResponder.moveDown(_:)) {
