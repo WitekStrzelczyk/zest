@@ -20,6 +20,7 @@ let package = Package(
             exclude: ["Info.plist", "Zest.entitlements"],
             linkerSettings: [
                 .linkedFramework("QuickLook"),
+                .linkedFramework("IOKit"),
                 .unsafeFlags(["-L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/lib/darwin"]),
                 .linkedLibrary("clang_rt.profile_osx")
             ]

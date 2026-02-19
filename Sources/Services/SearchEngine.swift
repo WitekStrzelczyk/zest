@@ -12,6 +12,9 @@ final class SearchEngine {
     /// Search task for cancellation
     private var currentSearchTask: Task<[SearchResult], Never>?
 
+    private let quicklinkManager = QuicklinkManager.shared
+    private let awakeService = AwakeService.shared
+
     private init() {
         refreshInstalledApps()
     }
@@ -60,7 +63,7 @@ final class SearchEngine {
         // Fuzzy search with scoring through installed apps
         let appResults = installedApps
             .compactMap { app -> (app: InstalledApp, score: Int)? in
-                let score = fuzzyScore(query: lowercasedQuery, target: app.name.lowercased())
+                let score = SearchResultScoring.shared.scoreResult(query: lowercasedQuery, title: app.name)
                 return score > 0 ? (app, score) : nil
             }
             .sorted { $0.score > $1.score }
@@ -82,7 +85,8 @@ final class SearchEngine {
                     category: .application,
                     action: { [weak self] in
                         self?.launchApp(bundleID: item.app.bundleID)
-                    }
+                    },
+                    score: item.score
                 )
             }
         results.append(contentsOf: appResults)
@@ -103,7 +107,28 @@ final class SearchEngine {
         let emojiResults = EmojiSearchService.shared.search(query: query)
         results.append(contentsOf: emojiResults)
 
-        return results.sorted { $0.category < $1.category }
+        // Global commands (lowest priority)
+        let globalCommandResults = GlobalCommandsService.shared.search(query: query)
+        results.append(contentsOf: globalCommandResults)
+
+        // Toggles (low priority - below apps)
+        let toggleResults = searchToggles(query: lowercasedQuery)
+        results.append(contentsOf: toggleResults)
+
+        // Quicklinks - searchable by name, URL, keyword "quicklink"
+        let quicklinkResults = searchQuicklinks(query: lowercasedQuery)
+        results.append(contentsOf: quicklinkResults)
+
+        // Settings category - "Add Quicklink" as first item
+        if lowercasedQuery.contains("add") || lowercasedQuery.isEmpty {
+            let settingsResults = createSettingsResults(query: lowercasedQuery)
+            results.append(contentsOf: settingsResults)
+        }
+
+        return results.sorted { (a, b) -> Bool in
+            if a.score != b.score { return a.score > b.score }
+            return a.category < b.category
+        }
     }
 
     /// File search only - returns file results (can be slow, run async)
@@ -222,7 +247,7 @@ final class SearchEngine {
         // Fuzzy search with scoring through installed apps
         let appResults = installedApps
             .compactMap { app -> (app: InstalledApp, score: Int)? in
-                let score = fuzzyScore(query: lowercasedQuery, target: app.name.lowercased())
+                let score = SearchResultScoring.shared.scoreResult(query: lowercasedQuery, title: app.name)
                 return score > 0 ? (app, score) : nil
             }
             .sorted { $0.score > $1.score }
@@ -244,7 +269,8 @@ final class SearchEngine {
                     category: .application,
                     action: { [weak self] in
                         self?.launchApp(bundleID: item.app.bundleID)
-                    }
+                    },
+                    score: item.score
                 )
             }
         results.append(contentsOf: appResults)
@@ -280,6 +306,24 @@ final class SearchEngine {
         let emojiResults = EmojiSearchService.shared.search(query: query)
         results.append(contentsOf: emojiResults)
 
+        // Global commands (lowest priority)
+        let globalCommandResults = GlobalCommandsService.shared.search(query: query)
+        results.append(contentsOf: globalCommandResults)
+
+        // Toggles (low priority - below apps)
+        let toggleResults = searchToggles(query: lowercasedQuery)
+        results.append(contentsOf: toggleResults)
+
+        // Quicklinks - searchable by name, URL, keyword "quicklink"
+        let quicklinkResults = searchQuicklinks(query: lowercasedQuery)
+        results.append(contentsOf: quicklinkResults)
+
+        // Settings category - "Add Quicklink" as first item
+        if lowercasedQuery.contains("add") || lowercasedQuery.isEmpty {
+            let settingsResults = createSettingsResults(query: lowercasedQuery)
+            results.append(contentsOf: settingsResults)
+        }
+
         // Deduplicate and sort by category
         var finalResults: [SearchResult] = []
         var seenTitles: Set<String> = []
@@ -290,44 +334,114 @@ final class SearchEngine {
             }
         }
 
-        return Array(finalResults.sorted { $0.category < $1.category }.prefix(10))
+        // Sort by score (descending), then category (ascending for priority)
+        return Array(finalResults.sorted { (a, b) -> Bool in
+            if a.score != b.score { return a.score > b.score }
+            return a.category < b.category
+        }.prefix(10))
     }
 
-    /// Returns score > 0 if query matches target (higher = better match)
-    private func fuzzyScore(query: String, target: String) -> Int {
-        var queryIndex = query.startIndex
-        var targetIndex = target.startIndex
-        var score = 0
-        var consecutiveMatches = 0
+    // MARK: - Toggles
 
-        while queryIndex < query.endIndex, targetIndex < target.endIndex {
-            if query[queryIndex] == target[targetIndex] {
-                // Bonus for consecutive matches
-                consecutiveMatches += 1
-                score += 10 + (consecutiveMatches * 5)
+    private func searchToggles(query: String) -> [SearchResult] {
+        // If query is empty, don't return toggles
+        guard !query.isEmpty else { return [] }
 
-                // Bonus for match at start
-                if targetIndex == target.startIndex {
-                    score += 20
-                }
+        // Search keywords for toggles
+        let toggleKeywords = ["caffeinate", "awake", "sleep prevention", "keep awake"]
+        let matchesQuery = toggleKeywords.contains { $0.contains(query) } || 
+                           query.contains("caffeinate") || 
+                           query.contains("awake") ||
+                           query.contains("sleep")
 
-                // Bonus for match after space or underscore
-                if targetIndex != target.startIndex {
-                    let prevChar = target[target.index(before: targetIndex)]
-                    if prevChar == " " || prevChar == "-" || prevChar == "_" {
-                        score += 15
-                    }
-                }
+        guard matchesQuery else { return [] }
 
-                queryIndex = query.index(after: queryIndex)
-            } else {
-                consecutiveMatches = 0
-            }
-            targetIndex = target.index(after: targetIndex)
+        var results: [SearchResult] = []
+
+        // Caffeinate system - prevents system sleep but allows display to sleep
+        let systemScore = SearchResultScoring.shared.scoreResult(query: query, title: "Caffeinate System")
+        results.append(SearchResult(
+            title: "Caffeinate System",
+            subtitle: "Prevent system sleep (display can sleep)",
+            icon: NSImage(systemSymbolName: "moon.zzz", accessibilityDescription: "System Awake"),
+            category: .toggle,
+            action: { [weak self] in
+                self?.awakeService.toggle(mode: .system)
+            },
+            score: systemScore > 0 ? systemScore : 40,
+            isActive: awakeService.isActive(mode: .system)
+        ))
+
+        // Caffeinate - prevents both display and system sleep
+        let fullScore = SearchResultScoring.shared.scoreResult(query: query, title: "Caffeinate")
+        results.append(SearchResult(
+            title: "Caffeinate",
+            subtitle: "Prevent display and system sleep",
+            icon: NSImage(systemSymbolName: "sun.max", accessibilityDescription: "Full Awake"),
+            category: .toggle,
+            action: { [weak self] in
+                self?.awakeService.toggle(mode: .full)
+            },
+            score: fullScore > 0 ? fullScore : 40,
+            isActive: awakeService.isActive(mode: .full)
+        ))
+
+        return results
+    }
+
+    // MARK: - Quicklinks
+
+    private func searchQuicklinks(query: String) -> [SearchResult] {
+        // If query is empty, don't return quicklinks
+        guard !query.isEmpty else { return [] }
+
+        // If query contains "quicklink" keyword, show all quicklinks
+        let showAllQuicklinks = query.contains("quicklink")
+        
+        // Get quicklinks - either filtered by query or all if "quicklink" keyword
+        let quicklinks: [Quicklink]
+        if showAllQuicklinks {
+            quicklinks = quicklinkManager.getAllQuicklinks()
+        } else {
+            quicklinks = quicklinkManager.searchQuicklinks(query: query)
         }
 
-        // Only return score if all query chars were matched
-        return queryIndex == query.endIndex ? score : 0
+        return quicklinks.map { quicklink in
+            SearchResult(
+                title: quicklink.name,
+                subtitle: quicklink.url,
+                icon: NSImage(systemSymbolName: "link", accessibilityDescription: "Quicklink"),
+                category: .quicklink,
+                action: { [weak self] in
+                    _ = self?.quicklinkManager.openQuicklink(id: quicklink.id)
+                },
+                // Use very high score to ensure quicklinks appear in top 10
+                // Apps typically score 10-50, so 1000 ensures quicklinks are always visible
+                score: showAllQuicklinks ? 2000 : 1000
+            )
+        }
+    }
+
+    // MARK: - Settings
+
+    private func createSettingsResults(query: String) -> [SearchResult] {
+        var results: [SearchResult] = []
+
+        // "Add Quicklink" - first item in settings
+        let addQuicklinkScore = query.isEmpty ? 0 : SearchResultScoring.shared.scoreResult(query: query, title: "Add Quicklink")
+        
+        results.append(SearchResult(
+            title: "Add Quicklink",
+            subtitle: "Create a new quicklink",
+            icon: NSImage(systemSymbolName: "plus.circle", accessibilityDescription: "Add Quicklink"),
+            category: .settings,
+            action: {
+                NotificationCenter.default.post(name: .showAddQuicklink, object: nil)
+            },
+            score: addQuicklinkScore
+        ))
+
+        return results
     }
 
     private func launchApp(bundleID: String) {

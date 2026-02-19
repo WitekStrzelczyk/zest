@@ -252,6 +252,79 @@ final class CommandPaletteWindow: NSPanel {
     /// Tracks whether Quick Look preview is currently showing
     private var isQuickLookOpen: Bool = false
 
+    /// Tracks whether we're in settings mode (quicklink creation)
+    private var isSettingsMode: Bool = false {
+        didSet {
+            if isSettingsMode != oldValue {
+                handleModeChange()
+            }
+        }
+    }
+
+    /// Centralized mode handling - called whenever mode changes
+    private func handleModeChange() {
+        if isSettingsMode {
+            // ENTERING SETTINGS MODE
+            // 1. Cancel any pending file search
+            fileSearchTask?.cancel()
+            fileSearchTask = nil
+            
+            // 2. Cancel in-progress search engine search
+            SearchEngine.shared.cancelCurrentSearch()
+            
+            // 3. Hide search and results UI
+            searchField.isHidden = true
+            scrollView.isHidden = true
+            noResultsLabel.isHidden = true
+            hintLabel.isHidden = true
+            
+            // 4. Show settings UI
+            showSettingsUI()
+        } else {
+            // EXITING SETTINGS MODE (entering normal mode)
+            // 1. Hide settings UI
+            settingsContainerView?.isHidden = true
+            settingsContainerView?.removeFromSuperview()
+            settingsContainerView = nil
+            
+            // 2. Show search UI
+            searchField.isHidden = false
+            searchField.stringValue = preservedSearchQuery
+            hintLabel.isHidden = false
+            
+            // 3. Show results if we have any
+            if !searchResults.isEmpty {
+                scrollView.isHidden = false
+            }
+            
+            // 4. Restore window size
+            if let topY = initialWindowTop {
+                let newHeight = searchFieldHeight + hintHeight
+                let newY = topY - newHeight
+                let currentFrame = frame
+                animateFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: newHeight))
+            }
+            
+            // 5. Re-run search with preserved query
+            if !preservedSearchQuery.isEmpty {
+                performSearchInternal(preservedSearchQuery)
+            }
+            
+            // 6. Focus on search field
+            makeFirstResponder(searchField)
+        }
+    }
+
+    /// Quicklink creation UI elements
+    private var settingsContainerView: NSView?
+    private var quicklinkNameField: NSTextField?
+    private var quicklinkURLField: NSTextField?
+    private var createQuicklinkButton: NSButton?
+    private var backButton: NSButton?
+
+    /// Preserved search query when entering settings mode
+    private var preservedSearchQuery: String = ""
+
     /// Global event monitor to catch keys when app isn't frontmost (e.g. launched from terminal)
     private var quickLookGlobalMonitor: Any?
     /// Local event monitor for when app IS frontmost
@@ -288,6 +361,24 @@ final class CommandPaletteWindow: NSPanel {
 
         setupWindow()
         setupUI()
+        setupNotifications()
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    private func setupNotifications() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleShowAddQuicklink),
+            name: .showAddQuicklink,
+            object: nil
+        )
+    }
+
+    @objc private func handleShowAddQuicklink() {
+        enterSettingsMode()
     }
 
     private func setupWindow() {
@@ -409,7 +500,7 @@ final class CommandPaletteWindow: NSPanel {
 
     // MARK: - Show/Hide
 
-    func show() {
+    func show(previousApp: NSRunningApplication? = nil) {
         searchField.stringValue = ""
         searchResults = []
         resultsTableView.reloadData()
@@ -439,7 +530,207 @@ final class CommandPaletteWindow: NSPanel {
             QLPreviewPanel.shared().orderOut(nil)
             isQuickLookOpen = false
         }
+        // Clear search results to ensure clean state on reopen
+        searchResults = []
+        resultsTableView.reloadData()
+        // Reset settings mode when closing
+        isSettingsMode = false
         orderOut(nil)
+    }
+
+    // MARK: - Settings Mode (Quicklink Creation)
+
+    /// Enter settings mode to create a new quicklink
+    /// All mode switching logic is centralized in handleModeChange() via isSettingsMode.didSet
+    func enterSettingsMode() {
+        guard !isSettingsMode else { return }
+        
+        // Preserve current search query before switching mode
+        preservedSearchQuery = searchField.stringValue
+        
+        // Clear results when entering settings mode - prevents stale results from showing
+        searchResults = []
+        resultsTableView.reloadData()
+        
+        // Switch mode - handleModeChange() will do all the UI work
+        isSettingsMode = true
+    }
+
+    /// Exit settings mode and return to normal search
+    func exitSettingsMode() {
+        guard isSettingsMode else { return }
+        
+        // Clear results when exiting to start fresh
+        searchResults = []
+        resultsTableView.reloadData()
+        
+        // Switch mode - handleModeChange() will do all the UI work
+        isSettingsMode = false
+    }
+
+    private func showSettingsUI() {
+        guard let contentView = contentView, let screen = NSScreen.main else { return }
+        
+        let settingsView = NSView(frame: contentView.bounds)
+        settingsView.wantsLayer = true
+        
+        // Settings panel height - use 50% of screen for full form
+        let settingsHeight = screen.visibleFrame.height * 0.5
+        
+        // Back button
+        let backBtn = NSButton(title: "← Back", target: self, action: #selector(backButtonClicked))
+        backBtn.bezelStyle = .inline
+        backBtn.isBordered = false
+        backBtn.contentTintColor = .secondaryLabelColor
+        backBtn.font = NSFont.systemFont(ofSize: 13)
+        backBtn.translatesAutoresizingMaskIntoConstraints = false
+        settingsView.addSubview(backBtn)
+        self.backButton = backBtn
+        
+        // Title label
+        let titleLabel = NSTextField(labelWithString: "Add Quicklink")
+        titleLabel.font = NSFont.systemFont(ofSize: 18, weight: .semibold)
+        titleLabel.textColor = .labelColor
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        settingsView.addSubview(titleLabel)
+        
+        // Name field label
+        let nameLabel = NSTextField(labelWithString: "Name:")
+        nameLabel.font = NSFont.systemFont(ofSize: 13)
+        nameLabel.textColor = .secondaryLabelColor
+        nameLabel.translatesAutoresizingMaskIntoConstraints = false
+        settingsView.addSubview(nameLabel)
+        
+        // Name text field
+        let nameField = NSTextField()
+        nameField.placeholderString = "e.g., My Website"
+        nameField.font = NSFont.systemFont(ofSize: 14)
+        nameField.delegate = self
+        nameField.translatesAutoresizingMaskIntoConstraints = false
+        settingsView.addSubview(nameField)
+        self.quicklinkNameField = nameField
+        
+        // URL field label
+        let urlLabel = NSTextField(labelWithString: "URL:")
+        urlLabel.font = NSFont.systemFont(ofSize: 13)
+        urlLabel.textColor = .secondaryLabelColor
+        urlLabel.translatesAutoresizingMaskIntoConstraints = false
+        settingsView.addSubview(urlLabel)
+        
+        // URL text field
+        let urlField = NSTextField()
+        urlField.placeholderString = "e.g., https://example.com"
+        urlField.font = NSFont.systemFont(ofSize: 14)
+        urlField.delegate = self
+        urlField.translatesAutoresizingMaskIntoConstraints = false
+        settingsView.addSubview(urlField)
+        self.quicklinkURLField = urlField
+        
+        // Create button
+        let createBtn = NSButton(title: "Create", target: self, action: #selector(createQuicklinkClicked))
+        createBtn.bezelStyle = .rounded
+        createBtn.keyEquivalent = "\r"
+        createBtn.translatesAutoresizingMaskIntoConstraints = false
+        settingsView.addSubview(createBtn)
+        self.createQuicklinkButton = createBtn
+        
+        // Constraints
+        NSLayoutConstraint.activate([
+            // Back button - top left
+            backBtn.leadingAnchor.constraint(equalTo: settingsView.leadingAnchor, constant: 16),
+            backBtn.topAnchor.constraint(equalTo: settingsView.topAnchor, constant: 16),
+            
+            // Title - centered
+            titleLabel.centerXAnchor.constraint(equalTo: settingsView.centerXAnchor),
+            titleLabel.topAnchor.constraint(equalTo: settingsView.topAnchor, constant: 16),
+            
+            // Name label
+            nameLabel.leadingAnchor.constraint(equalTo: settingsView.leadingAnchor, constant: 16),
+            nameLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 20),
+            
+            // Name field
+            nameField.leadingAnchor.constraint(equalTo: settingsView.leadingAnchor, constant: 16),
+            nameField.trailingAnchor.constraint(equalTo: settingsView.trailingAnchor, constant: -16),
+            nameField.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 4),
+            nameField.heightAnchor.constraint(equalToConstant: 28),
+            
+            // URL label
+            urlLabel.leadingAnchor.constraint(equalTo: settingsView.leadingAnchor, constant: 16),
+            urlLabel.topAnchor.constraint(equalTo: nameField.bottomAnchor, constant: 16),
+            
+            // URL field
+            urlField.leadingAnchor.constraint(equalTo: settingsView.leadingAnchor, constant: 16),
+            urlField.trailingAnchor.constraint(equalTo: settingsView.trailingAnchor, constant: -16),
+            urlField.topAnchor.constraint(equalTo: urlLabel.bottomAnchor, constant: 4),
+            urlField.heightAnchor.constraint(equalToConstant: 28),
+            
+            // Create button
+            createBtn.trailingAnchor.constraint(equalTo: settingsView.trailingAnchor, constant: -16),
+            createBtn.topAnchor.constraint(equalTo: urlField.bottomAnchor, constant: 20),
+        ])
+        
+        contentView.addSubview(settingsView)
+        settingsContainerView = settingsView
+        
+        // Resize window to show settings - use 50% of screen
+        if let topY = initialWindowTop {
+            let newHeight = settingsHeight
+            let newY = topY - newHeight
+            let currentFrame = frame
+            animateFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: newHeight))
+        }
+        
+        // Focus on name field
+        makeFirstResponder(nameField)
+    }
+
+    @objc private func backButtonClicked() {
+        exitSettingsMode()
+    }
+
+    @objc private func createQuicklinkClicked() {
+        guard let nameField = quicklinkNameField,
+              let urlField = quicklinkURLField else { return }
+        
+        let name = nameField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let url = urlField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard !name.isEmpty else {
+            showAlert(message: "Please enter a name for the quicklink.")
+            return
+        }
+        
+        guard !url.isEmpty else {
+            showAlert(message: "Please enter a URL for the quicklink.")
+            return
+        }
+        
+        // Validate URL
+        let quicklink = Quicklink(name: name, url: url)
+        guard quicklink.isValidURL else {
+            showAlert(message: "Please enter a valid URL (http:// or https://)")
+            return
+        }
+        
+        // Add quicklink
+        QuicklinkManager.shared.addQuicklink(quicklink)
+        
+        // Exit settings mode
+        exitSettingsMode()
+        
+        // Re-run search to show new quicklink
+        if !preservedSearchQuery.isEmpty {
+            performSearch(preservedSearchQuery)
+        }
+    }
+
+    private func showAlert(message: String) {
+        let alert = NSAlert()
+        alert.messageText = "Invalid Input"
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
 
     // MARK: - Focus Management
@@ -482,7 +773,15 @@ final class CommandPaletteWindow: NSPanel {
     /// Current search query to avoid race conditions
     private var currentSearchQuery: String = ""
 
+    /// Perform search - only runs in normal mode
     private func performSearch(_ query: String) {
+        // Don't search when in settings mode
+        guard !isSettingsMode else { return }
+        performSearchInternal(query)
+    }
+
+    /// Internal search implementation - always runs regardless of mode
+    private func performSearchInternal(_ query: String) {
         // Cancel previous file search
         fileSearchTask?.cancel()
 
@@ -531,14 +830,17 @@ final class CommandPaletteWindow: NSPanel {
                 // Check if query still matches (prevent race condition)
                 guard currentSearchQuery == query else { return }
 
-                // Merge results: fast results + file results, sorted by category
+                // Merge results: fast results + file results, sorted by score (highest first) then category
                 var combinedResults = fastResults
                 for fileResult in fileResults {
                     if !combinedResults.contains(where: { $0.title == fileResult.title }) {
                         combinedResults.append(fileResult)
                     }
                 }
-                combinedResults.sort { $0.category < $1.category }
+                combinedResults.sort { (a, b) -> Bool in
+                    if a.score != b.score { return a.score > b.score }
+                    return a.category < b.category
+                }
 
                 // Update UI on main thread
                 await MainActor.run {
@@ -550,6 +852,9 @@ final class CommandPaletteWindow: NSPanel {
     }
 
     private func updateSearchResults(_ results: [SearchResult], topY: CGFloat, screen: NSScreen) {
+        // Don't update results when in settings mode
+        guard !isSettingsMode else { return }
+        
         let currentFrame = frame
 
         // Preserve current selection across reloads (e.g. when Phase 2 file results arrive)
@@ -618,6 +923,9 @@ final class CommandPaletteWindow: NSPanel {
     func handleEscape() {
         if isQuickLookOpen {
             closeQuickLook()
+        } else if isSettingsMode {
+            // In settings mode, escape exits settings and returns to normal mode
+            exitSettingsMode()
         } else {
             close()
         }
@@ -634,6 +942,13 @@ final class CommandPaletteWindow: NSPanel {
         guard selectedRow >= 0, selectedRow < searchResults.count else { return }
 
         let result = searchResults[selectedRow]
+        
+        // Handle settings category specially - don't close window, enter settings mode
+        if result.category == .settings {
+            enterSettingsMode()
+            return
+        }
+        
         result.execute()
         close()
     }
@@ -795,24 +1110,57 @@ extension CommandPaletteWindow: NSTableViewDelegate, NSTableViewDataSource {
         cellView.addSubview(titleLabel)
         cellView.addSubview(badgeContainer)
 
-        NSLayoutConstraint.activate([
-            imageView.leadingAnchor.constraint(equalTo: cellView.leadingAnchor, constant: 2),
-            imageView.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
-            imageView.widthAnchor.constraint(equalToConstant: 28),
-            imageView.heightAnchor.constraint(equalToConstant: 28),
+        // Add checkmark for active toggles
+        if result.isActive {
+            let checkmarkView = NSImageView()
+            checkmarkView.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: "Active")
+            checkmarkView.contentTintColor = .systemGreen
+            checkmarkView.translatesAutoresizingMaskIntoConstraints = false
+            cellView.addSubview(checkmarkView)
 
-            titleLabel.leadingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: 10),
-            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: badgeContainer.leadingAnchor, constant: -8),
-            titleLabel.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
+            NSLayoutConstraint.activate([
+                imageView.leadingAnchor.constraint(equalTo: cellView.leadingAnchor, constant: 2),
+                imageView.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
+                imageView.widthAnchor.constraint(equalToConstant: 28),
+                imageView.heightAnchor.constraint(equalToConstant: 28),
 
-            badgeContainer.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -8),
-            badgeContainer.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
+                titleLabel.leadingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: 10),
+                titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: checkmarkView.leadingAnchor, constant: -8),
+                titleLabel.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
 
-            badgeLabel.leadingAnchor.constraint(equalTo: badgeContainer.leadingAnchor, constant: 6),
-            badgeLabel.trailingAnchor.constraint(equalTo: badgeContainer.trailingAnchor, constant: -6),
-            badgeLabel.topAnchor.constraint(equalTo: badgeContainer.topAnchor, constant: 2),
-            badgeLabel.bottomAnchor.constraint(equalTo: badgeContainer.bottomAnchor, constant: -2),
-        ])
+                checkmarkView.trailingAnchor.constraint(equalTo: badgeContainer.leadingAnchor, constant: -8),
+                checkmarkView.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
+                checkmarkView.widthAnchor.constraint(equalToConstant: 18),
+                checkmarkView.heightAnchor.constraint(equalToConstant: 18),
+
+                badgeContainer.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -8),
+                badgeContainer.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
+
+                badgeLabel.leadingAnchor.constraint(equalTo: badgeContainer.leadingAnchor, constant: 6),
+                badgeLabel.trailingAnchor.constraint(equalTo: badgeContainer.trailingAnchor, constant: -6),
+                badgeLabel.topAnchor.constraint(equalTo: badgeContainer.topAnchor, constant: 2),
+                badgeLabel.bottomAnchor.constraint(equalTo: badgeContainer.bottomAnchor, constant: -2),
+            ])
+        } else {
+            NSLayoutConstraint.activate([
+                imageView.leadingAnchor.constraint(equalTo: cellView.leadingAnchor, constant: 2),
+                imageView.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
+                imageView.widthAnchor.constraint(equalToConstant: 28),
+                imageView.heightAnchor.constraint(equalToConstant: 28),
+
+                titleLabel.leadingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: 10),
+                titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: badgeContainer.leadingAnchor, constant: -8),
+                titleLabel.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
+
+                badgeContainer.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -8),
+                badgeContainer.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
+
+                badgeLabel.leadingAnchor.constraint(equalTo: badgeContainer.leadingAnchor, constant: 6),
+                badgeLabel.trailingAnchor.constraint(equalTo: badgeContainer.trailingAnchor, constant: -6),
+                badgeLabel.topAnchor.constraint(equalTo: badgeContainer.topAnchor, constant: 2),
+                badgeLabel.bottomAnchor.constraint(equalTo: badgeContainer.bottomAnchor, constant: -2),
+            ])
+        }
 
         return cellView
     }

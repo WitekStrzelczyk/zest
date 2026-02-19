@@ -8,6 +8,10 @@ enum SearchResultCategory: Int, Comparable {
     case clipboard = 3
     case file = 4
     case emoji = 5
+    case globalAction = 6
+    case quicklink = 7
+    case settings = 8
+    case toggle = 9
 
     static func < (lhs: SearchResultCategory, rhs: SearchResultCategory) -> Bool {
         lhs.rawValue < rhs.rawValue
@@ -25,6 +29,12 @@ struct SearchResult {
     /// File path for Quick Look preview (nil for non-file results)
     let filePath: String?
 
+    /// Search relevance score (higher = more relevant)
+    let score: Int
+
+    /// Whether this result is currently active (for toggles)
+    let isActive: Bool
+
     init(
         title: String,
         subtitle: String,
@@ -32,7 +42,9 @@ struct SearchResult {
         category: SearchResultCategory = .action,
         action: @escaping () -> Void,
         revealAction: (() -> Void)? = nil,
-        filePath: String? = nil
+        filePath: String? = nil,
+        score: Int = 0,
+        isActive: Bool = false
     ) {
         self.title = title
         self.subtitle = subtitle
@@ -41,6 +53,8 @@ struct SearchResult {
         self.action = action
         self.revealAction = revealAction
         self.filePath = filePath
+        self.score = score
+        self.isActive = isActive
     }
 
     /// Returns true if this result represents a file that can be previewed with Quick Look
@@ -67,4 +81,14 @@ struct InstalledApp {
     let name: String
     let bundleID: String
     let icon: NSImage?
+}
+
+// MARK: - Notification Names
+
+extension Notification.Name {
+    /// Posted when user selects "Add Quicklink" from settings
+    static let showAddQuicklink = Notification.Name("showAddQuicklink")
+    
+    /// Posted when user navigates back from quicklink creation
+    static let hideAddQuicklink = Notification.Name("hideAddQuicklink")
 }
