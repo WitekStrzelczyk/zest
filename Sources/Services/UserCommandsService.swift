@@ -39,29 +39,35 @@ final class UserCommandsService {
         // If empty query, return all commands
         if lowercasedQuery.isEmpty {
             return commands.map { command in
-                createSearchResult(for: command)
+                createSearchResult(for: command, score: 0)
             }
         }
 
-        // Filter commands where name contains the query
-        let matchingCommands = commands.filter { command in
-            command.name.lowercased().contains(lowercasedQuery) ||
-                command.description.lowercased().contains(lowercasedQuery)
+        // Score and filter commands where name or description matches the query
+        let matchingCommands = commands.compactMap { command -> (command: UserCommand, score: Int)? in
+            let score = SearchResultScoring.shared.scoreResult(
+                query: lowercasedQuery,
+                title: command.name,
+                subtitle: command.description
+            )
+            return score > 0 ? (command, score) : nil
         }
+        .sorted { $0.score > $1.score }
 
-        return matchingCommands.map { command in
-            createSearchResult(for: command)
+        return matchingCommands.map { item in
+            createSearchResult(for: item.command, score: item.score)
         }
     }
 
-    private func createSearchResult(for command: UserCommand) -> SearchResult {
+    private func createSearchResult(for command: UserCommand, score: Int) -> SearchResult {
         SearchResult(
             title: command.name,
             subtitle: command.description,
             icon: NSImage(systemSymbolName: "terminal", accessibilityDescription: "Command"),
             action: {
                 NSWorkspace.shared.open(command.url)
-            }
+            },
+            score: score
         )
     }
 }

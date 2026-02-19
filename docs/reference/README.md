@@ -13,13 +13,48 @@ final class SearchEngine {
     static let shared = SearchEngine()
 
     func search(query: String) -> [SearchResult]
+    func searchFilesOnly(query: String) -> [SearchResult]
     func launchApp(bundleID: String)
 }
 ```
 
+**Features:**
+- Unified search across apps, emojis, files, and commands
+- Uses `SearchResultScoring` for relevance scoring
+- Results sorted by score (descending), then by category
+
 **Files:**
 - Sources/Services/SearchEngine.swift
+- Sources/Services/SearchResultScoring.swift
 - Tests/SearchEngineTests.swift
+- Tests/SearchScoringTests.swift
+
+---
+
+### SearchResultScoring
+
+Centralized service for calculating search result relevance scores.
+
+```swift
+final class SearchResultScoring {
+    static let shared: SearchResultScoring
+
+    func scoreResult(query: String, title: String, subtitle: String? = nil) -> Int
+}
+```
+
+**Scoring Algorithm:**
+- Exact match (case-insensitive): 1000 points
+- Exact prefix match: 800 points
+- All query chars in order (fuzzy): 100-500 points based on quality
+- Substring contains: 50 points
+- Consecutive matches bonus: +10 per consecutive
+- Match after separator (space/-/_): +15
+- Match at start: +20
+
+**Files:**
+- Sources/Services/SearchResultScoring.swift
+- Tests/SearchScoringTests.swift
 
 ---
 
@@ -58,7 +93,7 @@ final class WindowManager {
 
 ### ClipboardManager
 
-Clipboard monitoring and history.
+Clipboard monitoring and history with relevance scoring.
 
 ```swift
 final class ClipboardManager {
@@ -67,7 +102,7 @@ final class ClipboardManager {
     var history: [ClipboardItem] { get }
     func startMonitoring()
     func stopMonitoring()
-    func search(query: String) -> [ClipboardItem]
+    func search(query: String) -> [SearchResult]
 }
 ```
 
@@ -75,9 +110,11 @@ final class ClipboardManager {
 - Timer-based polling (0.5s interval)
 - Privacy filtering for password managers
 - 100 item limit
+- Uses `SearchResultScoring` for relevance ranking
 
 **Files:**
 - Sources/Services/ClipboardManager.swift
+- Sources/Services/SearchResultScoring.swift
 
 ---
 
@@ -166,6 +203,78 @@ final class SnippetManager {
 **Files:**
 - Sources/Services/SnippetManager.swift
 - Sources/Models/Snippet.swift
+
+---
+
+### EmojiSearchService
+
+Emoji search with relevance scoring.
+
+```swift
+final class EmojiSearchService {
+    static let shared = EmojiSearchService()
+
+    func search(query: String, maxResults: Int = 20) -> [SearchResult]
+}
+```
+
+**Features:**
+- Uses `SearchResultScoring` for keyword matching
+- Supports multi-word queries
+- Sorts by relevance score
+
+**Files:**
+- Sources/Services/EmojiSearchService.swift
+- Sources/Services/SearchResultScoring.swift
+
+---
+
+### UserCommandsService
+
+User-defined command execution.
+
+```swift
+final class UserCommandsService {
+    static let shared = UserCommandsService()
+
+    var commands: [UserCommand] { get }
+
+    func search(query: String) -> [SearchResult]
+    func addCommand(_ command: UserCommand)
+    func removeCommand(id: UUID)
+}
+```
+
+**Features:**
+- Loads commands from `~/.zest/commands.json`
+- Uses `SearchResultScoring` for name/description matching
+
+**Files:**
+- Sources/Services/UserCommandsService.swift
+- Sources/Services/SearchResultScoring.swift
+
+---
+
+### ContactsService
+
+Contacts search via Contacts framework.
+
+```swift
+final class ContactsService {
+    static let shared = ContactsService()
+
+    func requestAccess() async -> Bool
+    func search(query: String) -> [SearchResult]
+}
+```
+
+**Features:**
+- Uses `SearchResultScoring` for name matching
+- Returns both email and phone action results
+
+**Files:**
+- Sources/Services/ContactsService.swift
+- Sources/Services/SearchResultScoring.swift
 
 ---
 
@@ -271,15 +380,31 @@ struct SearchResult: Identifiable, Hashable {
     let title: String
     let subtitle: String
     let icon: NSImage?
+    let category: SearchResultCategory
     let action: () -> Void
+    let revealAction: (() -> Void)?
+    let filePath: String?
 
-    enum ResultType {
-        case app, clipboard, file, snippet, quicklink, command
-    }
+    /// Search relevance score (higher = more relevant)
+    let score: Int
+}
 
-    let resultType: ResultType
+enum SearchResultCategory: Int, Comparable {
+    case application = 0
+    case file = 1
+    case emoji = 2
+    case command = 3
+    case clipboard = 4
+    case action = 5
+    case snippet = 6
+    case contact = 7
+    case reminder = 8
+    case note = 9
+    case quickLink = 10
 }
 ```
+
+**Note:** Results are sorted by `score` (descending) first, then by `category`.
 
 ### ClipboardItem
 
@@ -305,4 +430,4 @@ struct ClipboardItem: Identifiable, Codable {
 
 ---
 
-*Last reviewed: 2026-02-14*
+*Last reviewed: 2026-02-19*

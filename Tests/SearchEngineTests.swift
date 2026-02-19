@@ -236,4 +236,60 @@ final class SearchEngineTests: XCTestCase {
         XCTAssertNotNil(gcrResult, "Should find GCR command")
         XCTAssertEqual(gcrResult?.subtitle, "Google Cloud Registry", "Should have description as subtitle")
     }
+
+    // MARK: - Quicklink Tests (Story: Quicklinks Feature)
+
+    func test_search_returnsQuicklinks_whenSearchingByName() {
+        let engine = SearchEngine.shared
+
+        let results = engine.search(query: "google")
+
+        let hasGoogleQuicklink = results.contains { $0.title == "Google" && $0.category == .quicklink }
+        XCTAssertTrue(hasGoogleQuicklink, "Should find Google quicklink when searching for 'google'")
+    }
+
+    func test_search_returnsQuicklinks_whenSearchingByURL() {
+        let engine = SearchEngine.shared
+
+        let results = engine.search(query: "github.com")
+
+        let hasGitHubQuicklink = results.contains { $0.title == "GitHub" && $0.category == .quicklink }
+        XCTAssertTrue(hasGitHubQuicklink, "Should find GitHub quicklink when searching for 'github.com'")
+    }
+
+    func test_search_returnsQuicklinks_whenSearchingByKeyword() {
+        let engine = SearchEngine.shared
+
+        let results = engine.search(query: "search")
+
+        let hasGoogleQuicklink = results.contains { $0.title == "Google" && $0.category == .quicklink }
+        XCTAssertTrue(hasGoogleQuicklink, "Should find Google quicklink when searching for 'search' keyword")
+    }
+
+    func test_search_returnsQuicklinks_whenSearchingQuicklinkKeyword() {
+        let engine = SearchEngine.shared
+
+        let results = engine.search(query: "quicklink")
+
+        let hasQuicklinks = results.contains { $0.category == .quicklink }
+        XCTAssertTrue(hasQuicklinks, "Should find quicklinks when searching for 'quicklink' keyword")
+    }
+
+    func test_search_settingsCategory_hasAddQuicklink() {
+        let engine = SearchEngine.shared
+
+        let results = engine.search(query: "add")
+
+        let hasAddQuicklink = results.contains { $0.title == "Add Quicklink" && $0.category == .settings }
+        XCTAssertTrue(hasAddQuicklink, "Should find 'Add Quicklink' in settings category")
+    }
+
+    func test_searchFast_returnsQuicklinks() {
+        let engine = SearchEngine.shared
+
+        let results = engine.searchFast(query: "github")
+
+        let hasGitHubQuicklink = results.contains { $0.title == "GitHub" && $0.category == .quicklink }
+        XCTAssertTrue(hasGitHubQuicklink, "Fast search should find GitHub quicklink")
+    }
 }

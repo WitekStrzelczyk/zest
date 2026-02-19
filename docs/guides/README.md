@@ -9,6 +9,7 @@ How-to documentation for building and extending Zest.
 | Guide | Summary |
 |-------|---------|
 | [TDD Guidelines](/Users/witek/projects/copies/zest/docs/TDD_GUIDELINES.md) | Test-driven development workflow and patterns |
+| [Configuration Storage](/Users/witek/projects/copies/zest/docs/guides/CONFIGURATION_STORAGE.md) | UserDefaults vs App Support - when to use each |
 
 ### Feature Implementation
 

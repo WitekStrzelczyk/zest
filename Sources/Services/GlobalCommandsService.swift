@@ -8,6 +8,7 @@ struct GlobalCommand {
     let keyCode: UInt32
     let modifiers: UInt32
     let description: String
+    let shortcutDisplay: String
     let action: () -> Void
 }
 
@@ -28,16 +29,18 @@ final class GlobalCommandsService {
             GlobalCommand(
                 name: "Open Spotify",
                 keyCode: UInt32(kVK_ANSI_M),
-                modifiers: UInt32(controlKey | cmdKey),
-                description: "Opens the Spotify application"
+                modifiers: UInt32(optionKey | cmdKey),
+                description: "Opens the Spotify application",
+                shortcutDisplay: "⌥⌘M"
             ) { [weak self] in
                 _ = self?.openSpotify()
             },
             GlobalCommand(
                 name: "Maximize Window",
                 keyCode: UInt32(kVK_UpArrow),
-                modifiers: UInt32(controlKey | cmdKey),
-                description: "Maximizes the current window"
+                modifiers: UInt32(optionKey | cmdKey),
+                description: "Maximizes the current window",
+                shortcutDisplay: "⌥⌘↑"
             ) { [weak self] in
                 _ = self?.maximizeWindow()
             },
@@ -49,6 +52,26 @@ final class GlobalCommandsService {
     private init() {}
 
     // MARK: - Public API
+
+    /// Search global commands by query
+    func search(query: String) -> [SearchResult] {
+        let lowercasedQuery = query.lowercased()
+
+        return availableCommands.compactMap { command -> SearchResult? in
+            let score = SearchResultScoring.shared.scoreResult(query: lowercasedQuery, title: command.name)
+
+            guard score > 0 || lowercasedQuery.isEmpty else { return nil }
+
+            return SearchResult(
+                title: command.name,
+                subtitle: command.shortcutDisplay,
+                icon: NSImage(systemSymbolName: "keyboard", accessibilityDescription: "Global Shortcut"),
+                category: .globalAction,
+                action: command.action,
+                score: score
+            )
+        }
+    }
 
     /// Opens the Spotify application
     /// - Returns: True if Spotify was launched successfully

@@ -76,7 +76,8 @@ final class GlobalCommandsServiceTests: XCTestCase {
             name: "Test Command",
             keyCode: 46,
             modifiers: UInt32(optionKey | cmdKey),
-            description: "A test command"
+            description: "A test command",
+            shortcutDisplay: "⌥⌘P"
         ) {}
 
         // Then

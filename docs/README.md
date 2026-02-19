@@ -16,6 +16,7 @@ A native macOS command palette application (Raycast alternative) providing quick
 3. **Visual feedback** - Users must always know what's happening
 4. **TDD enforced** - Coverage gate catches missing tests
 5. **40-second timeout** - Prevents development freezes
+6. **Unified scoring** - Centralized relevance algorithm for all search results
 
 ## Getting Started
 
@@ -48,6 +49,7 @@ The quality pipeline includes:
 |---------|-------|--------|
 | Global Command Palette | 1 | Complete |
 | Fuzzy Search | 2 | Complete |
+| Unified Scoring | 2a | Complete |
 | Window Tiling | 4 | Complete |
 | Clipboard History | 6 | Complete |
 | Script Execution | 7 | Complete |
@@ -77,4 +79,4 @@ The quality pipeline includes:
 
 ---
 
-*Last reviewed: 2026-02-14*
+*Last reviewed: 2026-02-19*

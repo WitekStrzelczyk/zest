@@ -25,23 +25,24 @@ final class ClipboardManager {
         let lowercasedQuery = query.lowercased()
 
         return history
-            .filter { item in
-                if let text = item.text {
-                    return text.lowercased().contains(lowercasedQuery)
-                }
-                return false
+            .compactMap { item -> (item: ClipboardItem, score: Int)? in
+                guard let text = item.text else { return nil }
+                let score = SearchResultScoring.shared.scoreResult(query: lowercasedQuery, title: text)
+                return score > 0 ? (item, score) : nil
             }
+            .sorted { $0.score > $1.score }
             .prefix(10)
             .map { item -> SearchResult in
-                let preview = item.text.map { String($0.prefix(50)) } ?? "Image"
+                let preview = item.item.text.map { String($0.prefix(50)) } ?? "Image"
                 return SearchResult(
                     title: preview,
-                    subtitle: item.isImage ? "Image" : "Text",
-                    icon: item.icon,
+                    subtitle: item.item.isImage ? "Image" : "Text",
+                    icon: item.item.icon,
                     category: .clipboard,
                     action: { [weak self] in
-                        self?.copyToClipboard(item)
-                    }
+                        self?.copyToClipboard(item.item)
+                    },
+                    score: item.score
                 )
             }
     }

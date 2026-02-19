@@ -121,9 +121,32 @@ final class ContactsService {
         }
 
         let contacts = fetchContacts(matchingName: trimmedQuery)
-        return contacts.compactMap { contact -> [SearchResult] in
-            buildSearchResults(for: contact)
-        }.flatMap { $0 }
+
+        // Score each contact's search results
+        let scoredResults = contacts.flatMap { contact -> [SearchResult] in
+            let results = buildSearchResults(for: contact)
+            return results.map { result -> SearchResult in
+                let score = SearchResultScoring.shared.scoreResult(
+                    query: trimmedQuery,
+                    title: result.title,
+                    subtitle: result.subtitle
+                )
+                // Create new result with score
+                return SearchResult(
+                    title: result.title,
+                    subtitle: result.subtitle,
+                    icon: result.icon,
+                    category: result.category,
+                    action: result.action,
+                    revealAction: result.revealAction,
+                    filePath: result.filePath,
+                    score: score
+                )
+            }
+        }
+
+        // Sort by score
+        return scoredResults.sorted { $0.score > $1.score }
     }
 
     /// Fetch contacts matching a name

@@ -108,14 +108,14 @@ Run `./scripts/quality.sh` to execute:
 # Use the project's test script (recommended)
 ./scripts/run_tests.sh 40
 
-# Or use perl alarm directly
-perl -e 'alarm 40; exec @ARGV' swift test
+# Or use the timeout script directly
+./scripts/timeout.sh 30 swift test
 ```
 
 ### For Background Tasks
 ```bash
 # Any command that could hang
-perl -e 'alarm 40; exec @ARGV' <command>
+./scripts/timeout.sh 60 <command>
 ```
 
 ### In Scripts

@@ -15,53 +15,29 @@ final class EmojiSearchService {
         guard !query.isEmpty else { return [] }
 
         let lowercasedQuery = query.lowercased()
-        let queryWords = lowercasedQuery.components(separatedBy: " ").filter { !$0.isEmpty }
 
-        // Score and sort emojis by match quality
+        // Score and sort emojis by match quality using unified scoring
         let matchedEmojis = EmojiData.emojis.compactMap { (emoji: String, keywords: [String]) -> (String, Int)? in
-            var score = 0
+            var bestScore = 0
 
-            // Check if query matches any keyword
+            // Check each keyword for matches
             for keyword in keywords {
-                if keyword == lowercasedQuery {
-                    // Exact match - highest score
-                    score = 1000
-                    break
-                } else if keyword.hasPrefix(lowercasedQuery) {
-                    // Prefix match
-                    score = max(score, 500 - keyword.count)
-                } else if keyword.contains(lowercasedQuery) {
-                    // Contains match
-                    score = max(score, 100)
-                }
-            }
-
-            // Handle multi-word queries like "flag us" - check if all query words are in keywords
-            if queryWords.count > 1 {
-                let matchingWords = queryWords.filter { queryWord in
-                    keywords.contains { $0 == queryWord || $0.contains(queryWord) }
-                }
-                if matchingWords.count == queryWords.count {
-                    // All words match - give high score
-                    score = max(score, 300)
-                } else if !matchingWords.isEmpty {
-                    // Some words match - give partial score
-                    score = max(score, matchingWords.count * 50)
-                }
+                let score = SearchResultScoring.shared.scoreResult(query: lowercasedQuery, title: keyword)
+                bestScore = max(bestScore, score)
             }
 
             // Also check if the query is a single character that might be the emoji itself
             if emoji.contains(lowercasedQuery) {
-                score = max(score, 50)
+                bestScore = max(bestScore, 50)
             }
 
-            return score > 0 ? (emoji, score) : nil
+            return bestScore > 0 ? (emoji, bestScore) : nil
         }
         .sorted { $0.1 > $1.1 }
         .prefix(maxResults)
 
         // Convert to SearchResults
-        return matchedEmojis.map { emoji, _ in
+        return matchedEmojis.map { emoji, score in
             let emojiString = emoji
 
             return SearchResult(
@@ -71,7 +47,8 @@ final class EmojiSearchService {
                 category: .emoji,
                 action: { [weak self] in
                     self?.pasteEmoji(emojiString)
-                }
+                },
+                score: score
             )
         }
     }

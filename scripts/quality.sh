@@ -167,60 +167,12 @@ run_tests_with_timeout() {
 
     echo -e "${YELLOW}  Running tests with ${timeout_seconds}s timeout...${NC}"
 
-    # Run with perl timeout wrapper
+    # Run with timeout script (replaces perl hack)
     local output
     local exit_code
 
-    output=$(perl -e '
-        use strict;
-        use warnings;
-        use POSIX qw(strftime WNOHANG);
-
-        my $timeout = $ARGV[0];
-        shift @ARGV;
-        my @cmd = @ARGV;
-
-        # Fork to run command
-        my $pid = fork();
-        if ($pid == 0) {
-            # Child process - run the command
-            open(STDOUT, ">&STDOUT") or die "dup stdout failed: $!";
-            open(STDERR, ">&STDOUT") or die "dup stderr failed: $!";
-            exec(@cmd) or die "exec failed: $!";
-        } elsif (defined $pid) {
-            # Parent process - wait with timeout
-            my $start_time = time();
-            my $done = 0;
-            my $exit_status = 0;
-
-            while (!$done && (time() - $start_time) < $timeout) {
-                sleep 1;
-                my $ret = waitpid($pid, WNOHANG);
-                if ($ret == $pid) {
-                    $exit_status = $? >> 8;
-                    $done = 1;
-                } elsif ($ret == -1) {
-                    $exit_status = 1;
-                    $done = 1;
-                }
-            }
-
-            if (!$done) {
-                # Timeout reached - kill the process
-                kill("TERM", $pid) if kill(0, $pid);
-                sleep 1;
-                kill("KILL", $pid) if kill(0, $pid);
-                waitpid($pid, 0);
-                print STDERR "\n[TIMEOUT] Tests exceeded ${timeout_seconds}s limit - possible deadlock/lock\n";
-                exit(124);  # Standard timeout exit code
-            }
-
-            exit($exit_status);
-        } else {
-            die "fork failed: $!";
-        }
-    ' "$timeout_seconds" sh -c "$test_cmd" 2>&1)
-
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    output=$("$SCRIPT_DIR/timeout.sh" "$timeout_seconds" sh -c "$test_cmd" 2>&1)
     exit_code=$?
 
     # Print output
