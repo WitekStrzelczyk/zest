@@ -29,7 +29,6 @@ Zest is a native macOS command palette application (Raycast alternative) that pr
 ### Rule: Mode Detection for Built-in Tools
 - Calculator: Detect mathematical expressions (e.g., "2+2", "sqrt(16)")
 - Emoji: Use prefix ":" for disambiguation (e.g., ":smile")
-- AI: Use prefix "ai:" for commands (e.g., "ai: explain Swift")
 - If ambiguous, prioritize by user history/context
 
 **Why:** Single search bar must handle multiple input types without confusing users.
@@ -290,7 +289,6 @@ System Integration
 18. Menu Bar Presence
 19. Preferences Window
 20. Launch at Login
-21. AI Command Integration
 
 ---
 

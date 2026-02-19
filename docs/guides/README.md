@@ -33,7 +33,6 @@ The following guides are consolidated from OBSERVATIONS files:
 | Notes | [OBSERVATIONS_integration_14_15.md](/Users/witek/projects/copies/zest/docs/retrospections/OBSERVATIONS_integration_14_15.md) | AppleScript fallback |
 | Focus Mode | [OBSERVATIONS_focus_extensions_16_17.md](/Users/witek/projects/copies/zest/docs/retrospections/OBSERVATIONS_focus_extensions_16_17.md) | AppleScript shortcuts |
 | Extensions | [OBSERVATIONS_focus_extensions_16_17.md](/Users/witek/projects/copies/zest/docs/retrospections/OBSERVATIONS_focus_extensions_16_17.md) | NSBundle loading |
-| AI Integration | [OBSERVATIONS_ai_21.md](/Users/witek/projects/copies/zest/docs/retrospections/OBSERVATIONS_ai_21.md) | URLSession, async/await |
 
 ### Quality Assurance
 

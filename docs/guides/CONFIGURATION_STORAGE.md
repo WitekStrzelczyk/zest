@@ -356,5 +356,4 @@ When using PreferencesManager, prefer `@Published` properties so SwiftUI views a
 - `Sources/Services/PreferencesManager.swift` - UserDefaults preferences
 - `Sources/Services/QuicklinkManager.swift` - JSON-based storage example
 - `Sources/Services/ClipboardManager.swift` - Clipboard history (UserDefaults)
-- `Sources/Services/AIService.swift` - AI provider setting (UserDefaults)
 - `Sources/Services/ExtensionManager.swift` - App Support directory usage

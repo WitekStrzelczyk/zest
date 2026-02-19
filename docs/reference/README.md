@@ -347,29 +347,6 @@ final class FocusModeService {
 
 ---
 
-### AIService
-
-AI command integration.
-
-```swift
-final class AIService {
-    static let shared = AIService()
-
-    enum Provider {
-        case openAI, anthropic, local
-    }
-
-    func chat(prompt: String, provider: Provider) async throws -> String
-    func streamChat(prompt: String, provider: Provider, onChunk: @escaping (String) -> Void) async throws
-}
-```
-
-**Files:**
-- Sources/Services/AIService.swift
-- Tests/AIServiceTests.swift
-
----
-
 ## Models
 
 ### SearchResult

@@ -613,30 +613,7 @@ Launch at login should work correctly across system restarts.
 
 ---
 
-### [x] Story 21: AI Command Integration
-
-**As a** developer who uses AI assistance frequently
-**I want** to execute AI commands from the command palette
-**So that** I can get AI assistance without leaving my current workflow
-
-### Use Case Context
-Part of: "AI Integration" use case
-- Follows: Foundation features
-
-### Verification Strategy
-AI commands should provide fast responses and handle errors gracefully.
-
-#### Test Cases (Acceptance Criteria)
-- **Given** I have an AI provider configured, **When** I type "ai: explain what is Swift", **Then** an AI explanation appears in the results
-- **Given** I use an AI command, **When** it completes, **Then** I can copy the response to clipboard
-- **Given** the AI provider has an error, **When** I use an AI command, **Then** a clear error message is shown
-
 ### Implementation Notes
-- Support multiple AI providers (OpenAI, Anthropic, local models)
-- Store API keys securely in Keychain
-- Provide streaming responses for long outputs
-
----
 
 ## Story Dependencies Summary
 

@@ -62,7 +62,6 @@ Implementation learnings and observations from agent work.
 | 14 | Reminders | [OBSERVATIONS_integration_14_15.md](/Users/witek/projects/copies/zest/docs/retrospections/OBSERVATIONS_integration_14_15.md) |
 | 15 | Notes | [OBSERVATIONS_integration_14_15.md](/Users/witek/projects/copies/zest/docs/retrospections/OBSERVATIONS_integration_14_15.md) |
 | 16 | Focus Mode | [OBSERVATIONS_focus_extensions_16_17.md](/Users/witek/projects/copies/zest/docs/retrospections/OBSERVATIONS_focus_extensions_16_17.md) |
-| 21 | AI Integration | [OBSERVATIONS_ai_21.md](/Users/witek/projects/copies/zest/docs/retrospections/OBSERVATIONS_ai_21.md) |
 
 ## Quick Access
 
