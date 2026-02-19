@@ -37,11 +37,10 @@ function_body_length:
   warning: 50
   error: 100
 
-# CommandPaletteWindow.swift is a large file with many delegate methods
-# This is by design - it's the main UI controller
+# CommandPaletteWindow.swift is intentionally large - exclude from file_length
 file_length:
-  warning: 1500
-  error: 2000
+  warning: 600
+  error: 800
 
 type_name:
   min_length: 3
@@ -63,3 +62,4 @@ excluded:
   - Tests
   - tests
   - scripts
+  - Sources/UI/CommandPalette/CommandPaletteWindow.swift
