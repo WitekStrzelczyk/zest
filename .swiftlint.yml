@@ -3,6 +3,7 @@
 # Disabled rules
 disabled_rules:
   - trailing_whitespace
+  - trailing_comma
   # WindowManager requires force casts for macOS Accessibility API (AXUIElement, AXValue)
   # These casts are safe as confirmed by Swift compiler (conditional casts always succeed)
   - force_cast
