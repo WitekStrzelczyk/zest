@@ -1,0 +1,41 @@
+Analysis Date: 2026-02-19
+
+Score/Metrics: 73/100 (gap to 100: 27)
+Previous Score: N/A (first analysis snapshot)
+
+Problem Status:
+- NEW: 75 problems
+- RECURRING: 0 problems (first snapshot)
+- PERSISTENT: 0 problems (first snapshot)
+- RESOLVED: 0 problems (first snapshot)
+
+Top Problems:
+1. [NEW] Code Quality - File Length: CommandPaletteWindow.swift (1352 lines, limit: 1000) - SERIOUS
+2. [NEW] Code Quality - Line Length: ~20 violations (exceeds 120 chars)
+3. [NEW] Code Quality - Trailing Comma: ~20 violations in collection literals
+4. [NEW] Code Quality - File Length: 4 additional files exceed 400 line limit
+5. [NEW] Code Quality - Function Body Length: 5 functions exceed 50 lines
+6. [NEW] Code Quality - Cyclomatic Complexity: 2 functions exceed complexity 10
+7. [NEW] Code Quality - Opening Brace Spacing: 7 violations
+8. [NEW] Code Quality - For-Where: 5 violations (prefer where clause in for loops)
+9. [NEW] Config Issue - Invalid rule identifiers in .swiftlint.yml (variable_name, unused_code)
+10. [NEW] Test Reliability - Tests timeout after 40 seconds
+
+SwiftLint Summary:
+- Total violations: 75 warnings + 1 serious error
+- Files analyzed: 36
+- Error rate: 2.1 violations/file
+
+Files with Most Violations:
+1. CommandPaletteWindow.swift: ~25 violations + 1 serious error
+2. AIService.swift: ~12 violations
+3. PerformanceMetrics.swift: 7 violations
+4. SearchEngine.swift: 7 violations
+5. WindowManager.swift: 3 violations
+
+Build Status: SUCCESS (0 warnings in build output)
+Test Status: TIMEOUT (exceeded 40 second limit)
+
+Screenshots Captured:
+- main-20260219-125026.png (menu bar app)
+- command-palette-20260219-125049.png (command palette open)

@@ -13,7 +13,6 @@ disabled_rules:
 opt_in_rules:
   # QA-3: Unused Code Detection
   - unused_declaration
-  - unused_code
 
   # QA-4: Code Complexity
   - cyclomatic_complexity
@@ -23,11 +22,11 @@ opt_in_rules:
 
   # QA-6: Naming Conventions
   - type_name
-  - variable_name
+  - identifier_name
 
   # QA-7: Security Issues
   - force_try
-  - explicitly_unwrapped_optional
+  - implicitly_unwrapped_optional
 
 # Rule configurations
 cyclomatic_complexity:
@@ -42,13 +41,13 @@ type_name:
   min_length: 3
   max_length: 50
 
-variable_name:
+identifier_name:
   min_length: 1
   max_length: 50
 
 # Analyzer rules (run with --analyze)
 analyzer_rules:
-  - unused_declaration
+  # Note: unused_declaration is in opt_in_rules above
 
 included:
   - Sources
