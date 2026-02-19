@@ -13,44 +13,16 @@
 | NEW problems | 75 | First snapshot |
 | File length violations | 5 files | 1 SERIOUS |
 | Line length violations | ~20 | Medium |
-| Trailing comma violations | ~20 | Low |
+| Trailing comma violations | 20 | Low |
 | Function body length violations | 5 | Medium |
 | SwiftLint config issues | 3 | Medium |
 | Test timeout | 1 | High |
 
 ---
 
-## [ ] Story R1: Fix SwiftLint Configuration
+## [x] Story R1: Fix SwiftLint Configuration
 
-**As a** maintainer  
-**I want** valid SwiftLint configuration so that the linter runs without warnings about invalid rules
-
-**So that** CI/CD pipelines are reliable and new team members have accurate rule documentation
-
-### Baseline
-- `variable_name` rule is deprecated (renamed to `identifier_name`)
-- `unused_code` is not a valid rule identifier
-- `unused_declaration` listed twice in config
-
-### Measurable Target
-- SwiftLint runs with 0 config warnings
-
-### Acceptance Criteria
-
-- [ ] **Given** `.swiftlint.yml` file, **When** it contains `variable_name`, **Then** it should be replaced with `identifier_name`
-- [ ] **Given** `.swiftlint.yml` file, **When** it contains `unused_code`, **Then** it should be removed (not a valid rule)
-- [ ] **Given** `.swiftlint.yml` file, **When** `unused_declaration` appears twice, **Then** duplicate should be removed
-- [ ] **Given** SwiftLint runs, **When** executed with `--config-warning`, **Then** no warnings about invalid rules appear
-
-### Verification Command
-```bash
-swiftlint 2>&1 | grep -E "warning.*valid rule|not a valid rule" | wc -l
-# Expected: 0
-```
-
----
-
-## [ ] Story R2: Reduce CommandPaletteWindow File Length
+**Status:** DONE
 
 **As a** maintainer  
 **I want** CommandPaletteWindow.swift under 1000 lines so that the code is easier to navigate and maintain
@@ -89,7 +61,7 @@ wc -l Sources/UI/CommandPalette/CommandPaletteWindow.swift
 
 ---
 
-## [ ] Story R3: Fix Line Length Violations
+## [x] Story R3: Fix Line Length Violations
 
 **As a** maintainer  
 **I want** all code lines under 120 characters so that code is readable in narrow editor windows
@@ -120,7 +92,7 @@ swiftlint 2>&1 | grep "Line should be 120" | wc -l
 
 ---
 
-## [ ] Story R4: Fix Trailing Comma Violations
+## [x] Story R4: Fix Trailing Comma Violations
 
 **As a** maintainer  
 **I want** consistent code style without trailing commas so that diffs are cleaner
@@ -145,7 +117,7 @@ swiftlint 2>&1 | grep "trailing comma" | wc -l
 
 ---
 
-## [ ] Story R5: Reduce Function Body Length
+## [x] Story R5: Reduce Function Body Length
 
 **As a** maintainer  
 **I want** functions under 50 lines so that each function has a single clear purpose
@@ -182,7 +154,7 @@ swiftlint 2>&1 | grep "Function body should span" | wc -l
 
 ---
 
-## [ ] Story R6: Fix Test Timeout Issue
+## [x] Story R6: Fix Test Timeout Issue
 
 **As a** developer  
 **I want** tests to complete reliably so that I can verify my changes quickly
