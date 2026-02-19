@@ -161,7 +161,8 @@ final class AIService {
         let body: [String: Any] = [
             "model": currentModel ?? "gpt-4",
             "messages": [
-                ["role": "system", "content": "You are a helpful assistant in the Zest command palette. Provide concise, actionable responses."],
+                ["role": "system", 
+                 "content": "You are a helpful assistant in the Zest command palette. Provide concise, actionable responses."],
                 ["role": "user", "content": prompt],
             ],
             "temperature": 0.7,
@@ -176,14 +177,16 @@ final class AIService {
                let firstChoice = choices.first,
                let message = firstChoice["message"] as? [String: Any],
                let content = message["content"] as? String
-            {
-                return AIResponse(content: content, provider: .openAI, model: currentModel ?? "gpt-4", tokensUsed: json["usage"] as? Int)
+             {
+                let tokens = json["usage"] as? Int
+                return AIResponse(content: content, provider: .openAI, model: currentModel ?? "gpt-4", tokensUsed: tokens)
             }
         } catch {
             print("OpenAI API error: \(error)")
         }
 
-        return AIResponse(content: "Error: Could not get response from OpenAI", provider: .openAI, model: currentModel ?? "gpt-4", tokensUsed: nil)
+        let errorMsg = "Error: Could not get response from OpenAI"
+        return AIResponse(content: errorMsg, provider: .openAI, model: currentModel ?? "gpt-4", tokensUsed: nil)
     }
 
     private func executeOpenAIStreaming(prompt: String, apiKey: String, onChunk: @escaping (String) -> Void) async -> AIResponse? {
@@ -225,14 +228,16 @@ final class AIService {
                let content = json["content"] as? [[String: Any]],
                let firstContent = content.first,
                let text = firstContent["text"] as? String
-            {
-                return AIResponse(content: text, provider: .anthropic, model: currentModel ?? "claude-3-opus", tokensUsed: json["usage"] as? Int)
+             {
+                let tokens = json["usage"] as? Int
+                return AIResponse(content: text, provider: .anthropic, model: currentModel ?? "claude-3-opus", tokensUsed: tokens)
             }
         } catch {
             print("Anthropic API error: \(error)")
         }
 
-        return AIResponse(content: "Error: Could not get response from Anthropic", provider: .anthropic, model: currentModel ?? "claude-3-opus", tokensUsed: nil)
+        let errorMsg = "Error: Could not get response from Anthropic"
+        return AIResponse(content: errorMsg, provider: .anthropic, model: currentModel ?? "claude-3-opus", tokensUsed: nil)
     }
 
     private func executeAnthropicStreaming(prompt: String, apiKey: String, onChunk: @escaping (String) -> Void) async -> AIResponse? {

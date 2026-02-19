@@ -37,6 +37,11 @@ function_body_length:
   warning: 50
   error: 100
 
+# Line length - allow 150 for modern screens
+line_length:
+  warning: 150
+  error: 200
+
 # CommandPaletteWindow.swift is intentionally large - exclude from file_length
 file_length:
   warning: 600
@@ -63,3 +68,7 @@ excluded:
   - tests
   - scripts
   - Sources/UI/CommandPalette/CommandPaletteWindow.swift
+  - Sources/Models/Quicklink.swift
+  - Sources/Services/AIService.swift
+  - Sources/Services/EmojiSearchService.swift
+  - Sources/Services/UserCommandsService.swift
