@@ -1,9 +1,12 @@
 import Foundation
 import ServiceManagement
+import OSLog
 
 /// Service for managing launch at login functionality
 final class LaunchAtLoginService {
     static let shared: LaunchAtLoginService = .init()
+    
+    private let logger = Logger(subsystem: "com.zestapp.launchAtLogin", category: "Service")
 
     private init() {}
 
@@ -29,7 +32,7 @@ final class LaunchAtLoginService {
                         try SMAppService.mainApp.unregister()
                     }
                 } catch {
-                    print("Failed to \(newValue ? "enable" : "disable") launch at login: \(error)")
+                    logger.error("Failed to \(newValue ? "enable" : "disable") launch at login: \(error.localizedDescription)")
                 }
             } else {
                 // Fallback for older macOS versions

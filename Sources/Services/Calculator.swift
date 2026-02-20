@@ -14,7 +14,7 @@ final class Calculator {
         let hasOperator = operators.contains { trimmed.contains($0) }
 
         // Must not contain letters (except for function names)
-        let letters = trimmed.filter(\.isLetter)
+        let letters = trimmed.filter { $0.isLetter }
         let validFunctions = ["sqrt", "sin", "cos", "tan", "pi", "e"]
         let hasOnlyValidLetters = validFunctions.contains { letters.lowercased().contains($0) } || letters.isEmpty
 
@@ -25,6 +25,16 @@ final class Calculator {
 
         // Must not end with an operator (except closing paren)
         let endsWithOperator = ["+", "-", "*", "/", "^", "%", "("].contains { trimmed.last == $0 }
+
+        // Reject inputs that look like unit conversions (e.g., "100 km to miles")
+        // These have the pattern: <number> <unit> to <unit>
+        let conversionIndicators = ["to ", " in ", "->"]
+        let hasConversionIndicator = conversionIndicators.contains { trimmed.lowercased().contains($0) }
+        
+        // If it looks like a conversion, it's not a math expression
+        if hasConversionIndicator {
+            return false
+        }
 
         return hasOperator && hasOnlyValidLetters && !hasInvalidPattern && !endsWithOperator
     }

@@ -73,6 +73,23 @@ final class SearchEngine {
             }
         }
 
+        // Check for unit conversion expression (high priority)
+        if UnitConverter.shared.isConversionExpression(query) {
+            if let result = UnitConverter.shared.convert(query) {
+                results.append(SearchResult(
+                    title: result,
+                    subtitle: "Conversion",
+                    icon: NSImage(systemSymbolName: "arrow.left.arrow.right", accessibilityDescription: "Unit Converter"),
+                    category: .conversion,
+                    action: {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(result, forType: .string)
+                    },
+                    score: 2000 // Very high score to ensure conversion is always first
+                ))
+            }
+        }
+
         // Fuzzy search with scoring through installed apps
         let appResults = installedApps
             .compactMap { app -> (app: InstalledApp, score: Int)? in
@@ -356,6 +373,23 @@ final class SearchEngine {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(result, forType: .string)
                     }
+                ))
+            }
+        }
+
+        // Check for unit conversion expression (high priority)
+        if UnitConverter.shared.isConversionExpression(query) {
+            if let result = UnitConverter.shared.convert(query) {
+                results.append(SearchResult(
+                    title: result,
+                    subtitle: "Conversion",
+                    icon: NSImage(systemSymbolName: "arrow.left.arrow.right", accessibilityDescription: "Unit Converter"),
+                    category: .conversion,
+                    action: {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(result, forType: .string)
+                    },
+                    score: 2000 // Very high score to ensure conversion is always first
                 ))
             }
         }

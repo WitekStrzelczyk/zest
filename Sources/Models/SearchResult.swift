@@ -3,16 +3,17 @@ import AppKit
 /// Display priority: lower rawValue appears higher in results
 enum SearchResultCategory: Int, Comparable {
     case application = 0
-    case process = 1
-    case action = 2
-    case contact = 3
-    case clipboard = 4
-    case file = 5
-    case emoji = 6
-    case globalAction = 7
-    case quicklink = 8
-    case settings = 9
-    case toggle = 10
+    case conversion = 1  // Unit conversions - high priority
+    case process = 2
+    case action = 3
+    case contact = 4
+    case clipboard = 5
+    case file = 6
+    case emoji = 7
+    case globalAction = 8
+    case quicklink = 9
+    case settings = 10
+    case toggle = 11
 
     static func < (lhs: SearchResultCategory, rhs: SearchResultCategory) -> Bool {
         lhs.rawValue < rhs.rawValue
@@ -22,6 +23,7 @@ enum SearchResultCategory: Int, Comparable {
     var displayName: String {
         switch self {
         case .application: return "application app"
+        case .conversion: return "conversion unit"
         case .process: return "process system monitor"
         case .action: return "action command shortcut"
         case .contact: return "contact"

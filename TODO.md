@@ -37,7 +37,7 @@ Global hotkey must work regardless of which application is currently focused. Th
 
 **As a** developer who frequently switches between many applications
 **I want** to fuzzy search and launch applications by typing partial names
-**So that** I can find and open apps faster than using Spotlight or the Dock
+**So that** I can find and open apps faster than Spotlight or the Dock
 
 ### Use Case Context
 Part of: "Quick Launch" use case
@@ -239,7 +239,7 @@ Scripts must execute safely with proper output capture and error handling.
 
 **As a** knowledge worker who needs to find documents quickly
 **I want** to search for files by name across my system
-**So that** I can locate and open files faster than using Finder
+**So that** I can locate and open files faster than Finder
 
 ### Use Case Context
 Part of: "Find Files" use case
@@ -333,6 +333,46 @@ Calculator should handle standard mathematical expressions accurately.
 
 ---
 
+### [ ] Story 23: Unit Conversion Function
+
+**As a** developer and knowledge worker who frequently needs to convert units while working
+**I want** to type natural language conversions like "100 km to miles" in the command palette
+**So that** I can quickly get conversions without opening a separate app or website
+
+### Use Case Context
+Part of: "Built-in Tools" use case
+- Follows: "Calculator Function" story (Story 9)
+- Integrates with: "Quick Emoji Picker" and other built-in tools
+
+### Verification Strategy
+Unit conversion must handle common cases accurately and provide results instantly.
+
+#### Test Cases (Acceptance Criteria)
+- **Given** the command palette is open, **When** I type "100 km to miles", **Then** "62.14 miles" appears as the top result
+- **Given** the command palette is open, **When** I type "50 kg to lbs", **Then** "110.23 lbs" appears as the top result
+- **Given** the command palette is open, **When** I type "72 f to c", **Then** "22.22°C" appears as the top result
+- **Given** the command palette is open, **When** I type "1 gallon to liters", **Then** "3.79 liters" appears
+- **Given** the command palette is open, **When** I type "1000 mb to gb", **Then** "0.98 GB" appears (binary)
+- **Given** the command palette is open, **When** I type an invalid conversion like "100 km to apples", **Then** no conversion result appears
+- **Given** I have a conversion result, **When** I press Enter, **Then** the result is copied to clipboard and palette closes
+- **Given** the command palette is open, **When** I type "convert", **Then** unit conversion hints appear
+- **Given** a very large number, **When** I type "1e9 km to miles", **Then** scientific notation result appears
+
+### Implementation Notes
+- Create UnitConverter service with conversion logic for: Length, Weight, Temperature, Volume, Area, Speed, Time, Data
+- Support abbreviations: km, mi, kg, lb, f, c, g, l, gal, mb, gb, etc.
+- Copy numeric result to clipboard on selection (with visual feedback)
+- Integrate into search flow similar to Calculator (Story 9)
+- Use same result display mechanism as Calculator
+
+### Differentiators
+- Built-in (not requiring extension installation like Raycast)
+- Tight Calculator integration (future: allow calculations with converted values)
+- Conversion history (future enhancement)
+- Smart abbreviation parsing ("100k" → "100000 km")
+
+---
+
 ### [x] Story 10: Quick Emoji Picker
 
 **As a** messaging user who frequently uses emojis
@@ -356,6 +396,92 @@ Emoji search should be fast and comprehensive.
 - Use emoji data from Unicode CLDR
 - Store recently used emojis for quick access
 - Use Accessibility API to insert emoji at cursor position in active app
+
+---
+
+## System Monitoring
+
+### [ ] Story 21: Process Monitoring
+
+**As a** developer and system administrator who needs to monitor system resources
+**I want** to see a list of running processes with their memory and CPU usage in the command palette
+**So that** I can quickly identify resource-heavy processes without opening Activity Monitor
+
+### Use Case Context
+Part of: "System Monitoring" use case
+- Follows: "Command Palette Activation" story
+- This feature provides quick access to process information as part of the broader "System Integration" capability
+- Related: "System Control" story (Story 12) - both provide system-level visibility
+
+### Verification Strategy
+Process information must be accurate, updated in real-time, and display without significant performance impact on the system.
+
+#### Test Cases (Acceptance Criteria)
+- **Given** the command palette is open, **When** I type "processes", **Then** a list of running processes appears with each showing process name, memory usage (MB), and CPU usage (%)
+- **Given** the command palette is open, **When** I type "Safari", **Then** only processes matching "Safari" appear with their resource usage
+- **Given** process results are displayed, **When** I view each result, **Then** memory is shown in human-readable format (e.g., "256 MB", "1.2 GB")
+- **Given** process results are displayed, **When** I view each result, **Then** CPU percentage is shown as a whole number or decimal (e.g., "5%", "12.3%")
+- **Given** no processes match the search, **When** I type a non-existent process name, **Then** "No matching processes found" message appears
+- **Given** the command palette is open, **When** I press Enter on a process result, **Then** the application comes to the foreground (if it's a user application)
+- **Given** the command palette is open with process results, **When** I press Cmd+Enter, **Then** the process is Force Quit (with confirmation for system processes)
+- **Given** process list is displayed, **When** I refresh or re-search, **Then** the CPU/memory values are updated to current values
+- **Given** many processes are running (100+), **When** I search for processes, **Then** results are limited to top 20-50 by resource usage
+- **Given** the command palette is open, **When** I type "processes", **Then** system processes (kernel_task, WindowServer) are included in results
+
+### Implementation Notes
+- Use NSWorkspace.shared.runningApplications for basic process information (name, bundle identifier, icon)
+- For detailed CPU and memory usage, use libproc (proc_listpids, proc_pidinfo) or sysctl (kern.proc.all)
+- Consider using mach_task_info for accurate memory reporting
+- Update process data every 2-3 seconds when results are displayed
+- Sort results by CPU usage descending by default (or allow sorting options)
+- Differentiate between user apps (NSRunningApplication) and system processes
+- Consider adding process filtering: show all, user apps only, system processes only
+- Privacy consideration: Do not expose processes running in other user's sessions
+
+### Technical Approach Options
+
+**Option A: NSWorkspace (Simpler, Limited)**
+- Pros: Simple API, includes app icons automatically
+- Cons: Limited to user-facing apps, no CPU/memory by default
+
+**Option B: libproc (Recommended)**
+- Pros: Full process list, memory and CPU available, native macOS API
+- Cons: Requires more code, need to map PIDs to app names
+
+**Option C: ps aux via Process**
+- Pros: Simple to implement, familiar output
+- Cons: Spawning processes is slow, not real-time
+
+**Recommended: Option B (libproc)** for best performance and accuracy
+
+---
+
+### [ ] Story 22: Process Force Quit
+
+**As a** power user who needs to terminate unresponsive applications
+**I want** to force quit a process directly from the command palette
+**So that** I can kill frozen apps without using Force Quit menu or Activity Monitor
+
+### Use Case Context
+Part of: "System Monitoring" use case
+- Follows: "Process Monitoring" story (Story 21)
+- Enables quick recovery from frozen applications
+
+### Verification Strategy
+Force quit must work reliably with appropriate safety measures.
+
+#### Test Cases (Acceptance Criteria)
+- **Given** a user application (e.g., Safari) is selected in process list, **When** I press Cmd+Enter, **Then** a confirmation appears asking to force quit
+- **Given** I confirm the force quit, **When** the command executes, **Then** the application terminates immediately
+- **Given** a system process is selected, **When** I attempt to force quit, **Then** a warning appears explaining this may be unsafe
+- **Given** force quit succeeds, **When** I search for "processes" again, **Then** the terminated app no longer appears in the list
+- **Given** force quit fails, **When** the command executes, **Then** an error message explains why it failed
+
+### Implementation Notes
+- Use NSRunningApplication.forceTerminate() for user apps
+- For system processes, use kill(pid, SIGKILL) via Darwin API
+- Add confirmation dialog for force quit (can be disabled in preferences)
+- Log force quit events for user reference
 
 ---
 
@@ -627,6 +753,7 @@ Command Palette Activation (Foundation)
 │   └── Window Movement and Resize
 ├── Built-in Tools
 │   ├── Calculator Function
+│   ├── Unit Conversion Function
 │   ├── Quick Emoji Picker
 │   ├── Snippets Management
 │   ├── Quicklinks
@@ -642,6 +769,9 @@ Command Palette Activation (Foundation)
 │   ├── System Control
 │   ├── Focus Mode Control
 │   └── Menu Bar Presence
+├── System Monitoring
+│   ├── Process Monitoring
+│   └── Process Force Quit
 ├── Configuration
 │   ├── Preferences Window
 │   └── Launch at Login
@@ -659,7 +789,10 @@ Command palette is the core of the entire application. Without it, nothing else 
 ### Phase 2: Core Features (Stories 6-10)
 Clipboard, scripts, file search, calculator, and emoji picker provide high-value daily utilities.
 
-### Phase 3: Advanced Features (Stories 11-21)
+### Phase 3: System Monitoring (Stories 21-22)
+Process monitoring and force quit provide system visibility - valuable for power users.
+
+### Phase 4: Advanced Features (Stories 11-21)
 Snippets, system controls, integrations, extensions, and AI add depth but require foundation first.
 
 ---
@@ -1253,595 +1386,3 @@ Part of: "Accessibility" use case
 - This is a cross-cutting concern that affects every feature
 
 ### Verification Strategy
-Every action possible with a mouse must have an equivalent keyboard action. Focus must be automatic and predictable.
-
-#### Test Cases (Acceptance Criteria)
-
-**App Launch/Activation:**
-- **Given** any application is focused, **When** I press the global hotkey (Cmd+Space), **Then** the command palette appears
-- **Given** the command palette appears, **When** I start typing immediately (no click), **Then** my input appears in the search field
-- **Given** the command palette appears, **When** I observe the window state, **Then** the search field has keyboard focus automatically
-
-**Search & Results Navigation:**
-- **Given** the command palette is open, **When** I type "saf", **Then** results appear with Safari or matching apps
-- **Given** search results are displayed, **When** I press Down Arrow, **Then** the next result is selected (visual highlight moves down)
-- **Given** the first result is not selected, **When** I press Up Arrow, **Then** the previous result is selected
-- **Given** the first result is selected, **When** I press Up Arrow, **Then** selection stays on the first result (no wrap)
-- **Given** the last result is selected, **When** I press Down Arrow, **Then** selection stays on the last result (no wrap)
-- **Given** results extend beyond visible area, **When** I navigate with arrows, **Then** the list scrolls to keep the selected item visible
-
-**Actions:**
-- **Given** a result is selected, **When** I press Enter, **Then** the action executes and the palette closes
-- **Given** no result is selected but results exist, **When** I press Enter, **Then** the first result executes (default behavior)
-- **Given** the palette is open, **When** I press Escape, **Then** the palette closes and focus returns to the previous application
-- **Given** the palette is open, **When** I press Cmd+Space (the global hotkey again), **Then** the palette closes
-- **Given** a file search result is selected, **When** I press Cmd+Enter, **Then** the file is revealed in Finder
-
-**Edge Cases:**
-- **Given** no results match my search, **When** I press Enter, **Then** nothing happens (palette stays open)
-- **Given** no results match my search, **When** I press Down/Up Arrow, **Then** nothing happens (no navigation)
-- **Given** the search field is empty, **When** I observe the palette, **Then** no results are displayed
-
-### Keyboard Shortcuts Reference Table
-
-| Action | Shortcut | Context |
-|--------|----------|---------|
-| Open/Close Palette | `Cmd+Space` | Global (any app) |
-| Close Palette | `Escape` | Palette open |
-| Navigate Down | `Down Arrow` | Results visible |
-| Navigate Up | `Up Arrow` | Results visible |
-| Execute Default Action | `Enter` | Result selected or results exist |
-| Reveal in Finder | `Cmd+Enter` | File result selected |
-| Type to Search | (any character) | Palette open (search field focused) |
-
-### Implementation Notes
-
-**Current State Analysis:**
-The implementation already supports most keyboard navigation:
-- Global hotkey (Cmd+Space) works via Carbon API
-- Search field receives automatic focus via `searchField.becomeFirstResponder()` in `show()`
-- Down/Up arrow navigation implemented in `keyDown(with:)`
-- Enter executes selected result
-- Escape closes palette
-- Cmd+Enter reveals in Finder (for applicable results)
-
-**Required Enhancements:**
-1. **Default selection on first result:** When results appear, automatically select the first result (row 0) to ensure Enter works without explicit arrow key navigation first
-2. **Enter on no selection:** When Enter is pressed with no selection but results exist, execute the first result
-3. **Cmd+Space toggle:** When palette is open and Cmd+Space is pressed, close it (currently implemented via toggle in AppDelegate)
-4. **Hint label accuracy:** Update hint label to reflect actual keyboard shortcuts (currently shows correct shortcuts)
-
-**Accessibility Considerations:**
-- VoiceOver should announce the selected result when navigating with arrows
-- High contrast selection highlight for visibility
-- Keyboard focus ring should be visible on the search field
-
----
-
-## New Features from Competitor Analysis
-
-### [x] Story 22: Quick Look Preview
-
-**As a** user who needs to verify file contents before opening
-**I want** to preview files directly in the command palette
-**So that** I can quickly check file contents without opening the application
-
-### Use Case Context
-Part of: "File Management" use case
-- Follows: "File Search" story (Story 8)
-
-### Verification Strategy
-Quick Look should display file previews instantly without launching the full application.
-
-#### Test Cases (Acceptance Criteria)
-- **Given** a file search result is selected, **When** I press Space, **Then** a Quick Look preview appears
-- **Given** a PDF file is selected, **When** I press Space, **Then** the PDF preview shows the first page
-- **Given** an image is selected, **When** I press Space, **Then** the image preview displays
-- **Given** Quick Look is open, **When** I press Space again or Escape, **Then** the preview closes
-
-### Implementation Notes
-- Use QLPreviewPanel for native Quick Look integration
-- Support common file types: PDF, images, text, documents
-- Integrate with file search results seamlessly
-
----
-
-### [x] Story 23: Contacts Integration
-
-**As a** user who frequently needs contact information
-**I want** to search contacts from the command palette
-**So that** I can quickly copy email addresses or phone numbers
-
-### Use Case Context
-Part of: "Built-in Tools" use case
-- Follows: "Command Palette Activation" story
-
-### Verification Strategy
-Contacts should be searchable and display key information.
-
-#### Test Cases (Acceptance Criteria)
-- **Given** contacts exist in Contacts app, **When** I search for a name, **Then** matching contacts appear in results
-- **Given** a contact is selected, **When** I press Enter, **Then** contact details are copied to clipboard
-- **Given** a contact has multiple email addresses, **When** I select the contact, **Then** options to copy specific fields appear
-
-### Implementation Notes
-- Use Contacts framework for accessing contacts
-- Request permission on first use
-- Display name, email, phone in search results
-
----
-
-### [x] Story 24: Enhanced Shell Integration
-
-**As a** developer who frequently runs terminal commands
-**I want** to execute shell commands directly from the command palette
-**So that** I can run quick commands without opening Terminal
-
-### Use Case Context
-Part of: "Automation" use case
-- Follows: "Script Command Execution" story (Story 7)
-
-### Verification Strategy
-Shell commands should execute with proper environment and display output.
-
-#### Test Cases (Acceptance Criteria)
-- **Given** I type a command starting with ">", **When** I press Enter, **Then** the command executes in a shell
-- **Given** a command is running, **When** output is produced, **Then** it displays in the results panel
-- **Given** a command has errors, **When** it completes, **Then** error output is shown in red
-- **Given** I type ">", **When** I press Tab, **Then** shell completion suggestions appear
-
-### Implementation Notes
-- Use /bin/zsh or /bin/bash for command execution
-- Support common aliases and functions from user shell config
-- Remember command history for quick re-execution
-
----
-
-### [ ] Story 25: Enhanced Clipboard Features
-
-**As a** power user who manages clipboard history
-**I want** to pin important items and control storage duration
-**So that** I can keep frequently used clips available
-
-### Use Case Context
-Part of: "Clipboard Management" use case
-- Follows: "Clipboard History Access" story (Story 6)
-
-### Verification Strategy
-Clipboard features should provide fine-grained control over history.
-
-#### Test Cases (Acceptance Criteria)
-- **Given** a clipboard item, **When** I press Cmd+P, **Then** the item is pinned and stays at the top
-- **Given** I search for pinned items, **When** I type "pinned", **Then** only pinned items appear
-- **Given** storage is set to 30 days, **When** an item exceeds this age, **Then** it is automatically removed
-- **Given** I want to delete an item, **When** I press Delete, **Then** the item is removed from history
-
-### Implementation Notes
-- Store pinned status in clipboard history database
-- Add storage duration setting in preferences
-- Support configurable history size (100, 500, 1000 items)
-
----
-
-## Infrastructure Improvements
-
-**Note:** CI/CD is not used in this project. All quality checks (format, lint, build, test, coverage) run locally using `./scripts/quality.sh`.
-
----
-
-## Technical Debt Items
-
-### DEBT-4: mdfind to NSMetadataQuery Migration
-
-**Status:** Pending
-**Priority:** High
-**Description:** Replace mdfind shell command with NSMetadataQuery API for file search
-
-The current mdfind implementation has known issues:
-- Can hang with certain queries
-- Limited control over search behavior
-- Harder to handle async operations
-
-**Implementation Approach:**
-1. Rewrite FileSearchService to use NSMetadataQuery
-2. Set up proper search scopes (Documents, Downloads, Desktop)
-3. Use kMDItemDisplayName for name search
-4. Handle real-time notifications for index changes
-5. Verify all existing acceptance criteria still pass
-
-**Verification:** Run Story 8 tests to ensure file search still works correctly
-
----
-
-### DEBT-5: EmojiSearchService Refactoring
-
-**Status:** Pending
-**Priority:** Medium
-**Description:** Split large EmojiSearchService.swift into smaller focused types
-
-**Location:** Sources/Services/EmojiSearchService.swift
-**Current Size:** ~646 lines
-
-**Implementation Approach:**
-1. Extract emoji data loading into separate EmojiDataLoader
-2. Create separate EmojiMatcher for search logic
-3. Keep main service as thin coordinator
-4. Ensure all tests still pass
-
-**Verification:** SwiftLint should no longer warn about type_body_length
-
----
-
-## Custom Commands (User-Definable Actions)
-
-### [ ] Story 26: Custom Commands Management
-
-**As a** power user who wants to personalize my workflow
-**I want** to create, manage, and execute custom commands with URL actions
-**So that** I can trigger frequently-used actions with a simple search or hotkey
-
-### Use Case Context
-Part of: "Extensibility" use case
-- Follows: "Command Palette Activation" story (Story 1)
-- Related to: "Quicklinks" story (Story 13) - extends with more action types
-- Related to: "Enhanced Shell Integration" story (Story 24) - commands can run scripts
-
-This story transforms Zest from a launcher with hardcoded commands to a customizable productivity tool where users define their own shortcuts.
-
-### Research Summary (Raycast Analysis)
-
-**Raycast Script Commands Pattern:**
-- Scripts stored in `~/.raycast/scripts/`
-- Metadata via shebang comments (`# @raycast.title`, `# @raycast.icon`, etc.)
-- Support for shell scripts, AppleScript, Swift
-- Modes: compact, fullOutput, silent
-- Parameters via `@raycast.argument1` syntax
-- Fuzzy searchable in command palette
-- Optional keyboard shortcuts per command
-
-**What Users Love:**
-- Instant searchability of all commands
-- Custom keyboard shortcuts per command
-- Quick feedback via Toast/HUD
-- URL scheme support (e.g., `raycast://extensions/...`)
-- Import/export capabilities
-
-### Verification Strategy
-
-Commands must be fully discoverable, editable, and executable from the command palette. The configuration must persist across app restarts.
-
-#### Test Cases (Acceptance Criteria)
-
-**Command Discovery:**
-- **Given** custom commands are configured, **When** I open the palette and type a command name, **Then** matching commands appear in search results
-- **Given** I have 20+ custom commands, **When** I search, **Then** fuzzy matching finds relevant commands
-- **Given** a command has keywords defined, **When** I search by keyword, **Then** the command appears
-
-**Command Execution:**
-- **Given** a URL command "Open Jira" pointing to "https://jira.company.com", **When** I select it, **Then** the URL opens in my default browser
-- **Given** a shell command "Git Status" with script "git status", **When** I select it, **Then** the script executes and output displays
-- **Given** an AppleScript command "Toggle Dark Mode", **When** I select it, **Then** the AppleScript runs
-- **Given** a command with a global hotkey "Cmd+Shift+J", **When** I press the hotkey (palette closed), **Then** the command executes immediately
-
-**Command Management:**
-- **Given** the palette is open, **When** I type "new command", **Then** a command creation interface appears
-- **Given** a command exists, **When** I search for "edit [command name]", **Then** an edit interface opens with current values
-- **Given** a command exists, **When** I delete it, **Then** it no longer appears in search results
-- **Given** I have commands configured, **When** I export them, **Then** a JSON file is created with all command definitions
-
-**Command Configuration:**
-- **Given** I create a new command, **When** I set name "Open PRs", URL "https://github.com/pulls", icon "🔗", **Then** the command is saved with all properties
-- **Given** I create a command with parameter `{repo}`, **When** I execute it, **Then** I'm prompted to enter the repo name before execution
-- **Given** I set a keyword "pr" for "Open PRs" command, **When** I type "pr", **Then** the command appears as a top result
-
-**Error Handling:**
-- **Given** a command URL is invalid, **When** I try to save it, **Then** I see a validation error
-- **Given** a shell command fails, **When** it executes, **Then** the error output is displayed
-- **Given** a global hotkey conflicts with system shortcut, **When** I try to assign it, **Then** I see a warning
-
-### Implementation Notes
-
-**Data Model:**
-```swift
-struct UserCommand: Codable, Identifiable {
-    let id: UUID
-    var name: String
-    var keywords: [String]
-    var icon: String?          // Emoji or SF Symbol name
-    var action: CommandAction
-    var globalHotkey: String?  // e.g., "cmd+shift+j"
-    var createdAt: Date
-    var lastUsedAt: Date?
-    var useCount: Int
-}
-
-enum CommandAction: Codable {
-    case url(String)                           // Open URL in browser
-    case shellScript(String)                   // Execute shell command
-    case appleScript(String)                   // Run AppleScript
-    case openApp(bundleId: String)             // Launch application
-    case openFile(path: String)                // Open file in default app
-    case customScheme(String)                  // Custom URL scheme
-}
-```
-
-**Storage:**
-- Store commands in `~/Library/Application Support/Zest/commands.json`
-- Use Codable for easy JSON serialization
-- Include import/export functionality
-
-**UI Components Needed:**
-1. **CommandManagementView**: SwiftUI view for creating/editing commands
-2. **CommandEditorSheet**: Modal sheet with form fields
-3. **CommandImportExport**: Import/export buttons in preferences
-
-**Search Integration:**
-- Add `UserCommand` results to `SearchResult` enum
-- Include commands in `SearchService.search()` method
-- Rank commands by usage frequency (`useCount`)
-
-**Global Hotkey Support:**
-- Use Carbon HotKey API (already used for palette hotkey)
-- Register each command's hotkey on app launch
-- Allow hotkey conflicts to be detected and warned
-
-**Command Execution Flow:**
-1. User selects command from palette or presses hotkey
-2. If command has parameters, show parameter input
-3. Execute action based on type:
-   - URL: `NSWorkspace.shared.open(url)`
-   - Shell: `Process` with output capture
-   - AppleScript: `NSAppleScript`
-   - App: `NSWorkspace.shared.openApplication`
-4. Update `lastUsedAt` and `useCount`
-5. Show feedback (HUD or Toast equivalent)
-
-**Parameter Support:**
-- Use `{paramName}` syntax in URLs and scripts
-- When executing, show quick input dialog
-- Replace `{paramName}` with user input before execution
-
-**Example Commands (Pre-populated):**
-1. "Google Search" - `https://google.com/search?q={query}`
-2. "GitHub PRs" - `https://github.com/pulls`
-3. "Copy Current Path" - Shell: `pwd | pbcopy`
-4. "Toggle Hidden Files" - AppleScript for Finder
-
-**Security Considerations:**
-- Warn before executing shell scripts
-- Validate URLs before opening
-- Don't allow commands to modify system files without confirmation
-
----
-
-### [ ] Story 27: Custom Commands Configuration UI
-
-**As a** user who manages many custom commands
-**I want** a dedicated preferences interface for organizing commands
-**So that** I can easily create, edit, delete, and reorder my commands
-
-### Use Case Context
-Part of: "Configuration" use case
-- Follows: "Custom Commands Management" story (Story 26)
-- Follows: "Preferences Window" story (Story 19)
-
-### Verification Strategy
-
-The configuration UI must provide full CRUD operations and be intuitive for non-technical users.
-
-#### Test Cases (Acceptance Criteria)
-
-**Command List View:**
-- **Given** the preferences window is open on Commands tab, **When** I view the list, **Then** all commands are shown with name, icon, and type
-- **Given** I have many commands, **When** I scroll, **Then** the list scrolls smoothly
-- **Given** I click a command, **When** the editor opens, **Then** all fields are populated
-
-**Create/Edit Flow:**
-- **Given** I click "Add Command", **When** the editor opens, **Then** I see fields for name, icon, action type, and action value
-- **Given** I'm editing a command, **When** I change the action type dropdown, **Then** the appropriate input field appears (URL field, script editor, etc.)
-- **Given** I'm editing, **When** I click Save, **Then** changes are persisted immediately
-- **Given** I'm editing, **When** I click Cancel, **Then** changes are discarded
-
-**Keyboard Shortcuts Management:**
-- **Given** I'm editing a command, **When** I click the hotkey field and press Cmd+Shift+P, **Then** "Cmd+Shift+P" is recorded
-- **Given** a hotkey is already assigned to another command, **When** I try to assign it, **Then** I see a conflict warning
-- **Given** I clear the hotkey field, **When** I save, **Then** the global hotkey is removed
-
-**Import/Export:**
-- **Given** I click "Export Commands", **When** the save dialog appears, **Then** I can save a JSON file with all commands
-- **Given** I click "Import Commands" and select a valid JSON file, **When** import completes, **Then** commands are added (with duplicate handling)
-- **Given** imported commands have conflicting IDs, **When** import occurs, **Then** new IDs are generated
-
-### Implementation Notes
-
-- Create SwiftUI `CommandsPreferencesView` as a tab in Preferences
-- Use `Form` and `TextField` components following macOS design guidelines
-- Hotkey recorder using `KeyboardShortcuts` library or custom NSEvent monitoring
-- Drag-to-reorder using `onMove` modifier
-- Support light/dark mode
-
----
-
-### [ ] Story 28: Fallback Commands
-
-**As a** user who searches for things not found locally
-**I want** fallback commands to appear when no results match
-**So that** I can search the web or perform actions on my query
-
-### Use Case Context
-Part of: "Search Enhancement" use case
-- Follows: "Custom Commands Management" story (Story 26)
-- Inspired by Raycast fallback commands feature
-
-### Verification Strategy
-
-Fallback commands should appear when local search returns no results, providing useful actions on the search query.
-
-#### Test Cases (Acceptance Criteria)
-
-**Fallback Display:**
-- **Given** I search for "xyznonexistent", **When** no local results match, **Then** fallback commands appear (e.g., "Search Google for 'xyznonexistent'")
-- **Given** I have custom fallback commands, **When** no results match, **Then** my fallbacks appear alongside default ones
-- **Given** local results exist but are poor matches, **When** I view results, **Then** fallbacks appear at the bottom
-
-**Fallback Execution:**
-- **Given** "Search Google" fallback is shown, **When** I select it, **Then** Google opens with my search query
-- **Given** a custom fallback "Search Jira for '{query}'", **When** I execute it, **Then** Jira opens with the query
-
-**Fallback Configuration:**
-- **Given** preferences is open, **When** I view Fallback Commands section, **Then** I can add/remove/reorder fallbacks
-- **Given** I disable all fallbacks, **When** search has no results, **Then** "No results found" message appears
-
-### Implementation Notes
-
-- Default fallbacks: Google Search, DuckDuckGo, Wikipedia
-- Store fallback commands separately from regular commands
-- Pass search query to fallback as `{query}` parameter
-- Show fallbacks with distinct visual style (dimmed or with globe icon)
-
----
-
-### [ ] Story 29: Quick Unit Conversion
-
-**As a** user who frequently works across imperial and metric systems
-**I want** to convert units instantly by typing natural language expressions
-**So that** I can quickly translate measurements without opening a browser or calculator app
-
-### Use Case Context
-Part of: "Built-in Tools" use case
-- Follows: "Calculator Function" story (Story 9)
-- Similar UX pattern: instant calculation as you type
-- Complements: Quick emoji picker and calculator features
-
-### Business Value
-- Saves 10-15 seconds per conversion vs. opening a browser
-- Reduces context switching during international collaboration
-- Supports users working with international recipes, travel planning, engineering specs, and fitness tracking
-- High-frequency need: temperature, distance, and weight conversions are daily tasks for many users
-
-### Research Summary
-
-**Most Common Conversions (Imperial ↔ Metric):**
-
-| Category | Conversion | Formula | Example Input |
-|----------|------------|---------|---------------|
-| Temperature | Fahrenheit ↔ Celsius | C = (F-32) × 5/9 | `72f to c` |
-| Distance | Miles ↔ Kilometers | 1 mi = 1.609 km | `10km to miles` |
-| Distance | Feet ↔ Meters | 1 ft = 0.3048 m | `6ft in meters` |
-| Distance | Inches ↔ Centimeters | 1 in = 2.54 cm | `5 inches to cm` |
-| Weight | Pounds ↔ Kilograms | 1 lb = 0.4536 kg | `150lbs to kg` |
-| Weight | Ounces ↔ Grams | 1 oz = 28.35 g | `8oz in grams` |
-| Volume | Gallons ↔ Liters | 1 gal = 3.785 L | `2 gallons to liters` |
-| Volume | Fluid Oz ↔ Milliliters | 1 fl oz = 29.57 mL | `12fl oz to ml` |
-
-**Competitor Analysis (Raycast/Alfred Patterns):**
-- Raycast: Built-in calculator handles conversions with natural syntax (`100 km to miles`)
-- Alfred: Requires workflow extension; popular "Convert" workflow by Dean Jackson
-- Both support: instant feedback, flexible syntax, clipboard copy on Enter
-- UX pattern: Results appear inline as user types, no separate UI needed
-
-### Verification Strategy
-
-Unit conversion must work instantly with natural language input, supporting common abbreviations and full names.
-
-#### Test Cases (Acceptance Criteria)
-
-**Temperature Conversions:**
-- **Given** the command palette is open, **When** I type "72f to c", **Then** "22.22 C" appears as the result
-- **Given** the command palette is open, **When** I type "0c in fahrenheit", **Then** "32 F" appears as the result
-- **Given** the command palette is open, **When** I type "100 celsius to f", **Then** "212 F" appears as the result
-- **Given** the command palette is open, **When** I type "-40f to c", **Then** "-40 C" appears (the crossover point)
-
-**Distance Conversions:**
-- **Given** the command palette is open, **When** I type "10km to miles", **Then** "6.21 miles" appears as the result
-- **Given** the command palette is open, **When** I type "5 miles in km", **Then** "8.05 km" appears as the result
-- **Given** the command palette is open, **When** I type "6ft to meters", **Then** "1.83 m" appears as the result
-- **Given** the command palette is open, **When** I type "30cm to inches", **Then** "11.81 in" appears as the result
-
-**Weight Conversions:**
-- **Given** the command palette is open, **When** I type "150lbs to kg", **Then** "68.04 kg" appears as the result
-- **Given** the command palette is open, **When** I type "100kg in pounds", **Then** "220.46 lbs" appears as the result
-- **Given** the command palette is open, **When** I type "8oz to grams", **Then** "226.80 g" appears as the result
-
-**Volume Conversions:**
-- **Given** the command palette is open, **When** I type "1 gallon to liters", **Then** "3.79 L" appears as the result
-- **Given** the command palette is open, **When** I type "500ml to fl oz", **Then** "16.91 fl oz" appears as the result
-
-**Flexible Input Syntax:**
-- **Given** the command palette is open, **When** I type "5km>miles", **Then** conversion works (supports ">" separator)
-- **Given** the command palette is open, **When** I type "5km = miles", **Then** conversion works (supports "=" separator)
-- **Given** the command palette is open, **When** I type "convert 5kg to pounds", **Then** conversion works (supports "convert" prefix)
-
-**Clipboard Integration:**
-- **Given** a conversion result is displayed, **When** I press Enter, **Then** the numeric result is copied to clipboard
-- **Given** I copy a conversion result, **When** I paste elsewhere, **Then** only the number appears (e.g., "22.22" not "22.22 C")
-
-**Error Handling:**
-- **Given** the command palette is open, **When** I type "5xyz to abc", **Then** no conversion result appears (unrecognized units)
-- **Given** the command palette is open, **When** I type "5kg to", **Then** no conversion appears until target unit is specified
-- **Given** incompatible units, **When** I type "5kg to celsius", **Then** no conversion appears (cannot convert weight to temperature)
-
-**Edge Cases:**
-- **Given** the command palette is open, **When** I type "0f to c", **Then** "-17.78 C" appears correctly
-- **Given** the command palette is open, **When** I type "1.609 km to miles", **Then** "1.00 mile" appears (handles decimal input)
-- **Given** very large numbers, **When** I type "1000000 km to miles", **Then** result displays with appropriate formatting
-
-### Implementation Notes
-
-**Architecture:**
-- Create `UnitConversionService.swift` similar to existing `CalculatorService.swift`
-- Integrate with `SearchService` to detect conversion patterns
-- Add conversion results to `SearchResult` enum
-
-**Input Pattern Detection:**
-```swift
-// Regex patterns to detect conversion expressions
-// Examples: "72f to c", "10km>miles", "5kg in pounds"
-let conversionPattern = #"(\d+(?:\.\d+)?)\s*(\w+)\s*(?:to|in|>|=)\s*(\w+)"#
-```
-
-**Supported Units (Phase 1 - MVP):**
-- Temperature: f, c, fahrenheit, celsius, k, kelvin
-- Length: km, mi, kilometer, mile, m, ft, meter, foot, feet, cm, in, inch, inches
-- Weight: kg, lb, lbs, kilogram, pound, g, oz, gram, ounce
-- Volume: l, gal, liter, litre, gallon, ml, fl oz, milliliter
-
-**Conversion Formulas:**
-- Store conversion factors in a lookup table
-- Temperature requires special formula (not just multiplication)
-- Consider using Foundation's `UnitConverter` and `Dimension` classes for accuracy
-
-**Result Formatting:**
-- Round to 2 decimal places for most conversions
-- Show appropriate precision (e.g., 1.00 for exact conversions)
-- Include unit symbol in display but copy only numeric value
-
-**Performance:**
-- Conversion should be instant (<10ms)
-- No network calls required (all calculations local)
-- Cache recent conversions for potential autocomplete
-
-**Future Enhancements (Not in MVP):**
-- Currency conversion (requires API)
-- Cooking measurements (cups, tablespoons)
-- Area conversions (sq ft to sq m)
-- Speed conversions (mph to km/h)
-
-### Technical Approach
-
-1. **Pattern Matching:** Use regex to detect conversion expressions in search input
-2. **Unit Parsing:** Create unit abbreviation map for flexible matching
-3. **Conversion Engine:** Implement conversion logic for each unit category
-4. **Integration:** Hook into existing calculator detection in SearchService
-5. **Display:** Show as special SearchResult type with conversion icon
-
-**Code Structure:**
-```
-Sources/
-├── Services/
-│   └── UnitConversionService.swift
-├── Models/
-│   └── UnitConverter.swift
-└── Extensions/
-    └── String+UnitParsing.swift
-```

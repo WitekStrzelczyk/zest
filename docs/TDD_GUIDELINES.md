@@ -2,6 +2,98 @@
 
 This document outlines the Test-Driven Development workflow and mandatory timeout rules for the Zest project.
 
+## The RED-GREEN-REFACTOR Cycle
+
+TDD follows a strict cycle:
+
+1. **RED** - Write a failing test first
+2. **GREEN** - Write minimal code to make the test pass
+3. **REFACTOR** - Clean up code while keeping tests green
+
+### 1. RED - Write a Failing Test
+
+**This is the most important phase.** The test defines the API and expected behavior BEFORE implementation.
+
+```bash
+# Run tests to see them fail
+./scripts/run_tests.sh
+```
+
+During RED phase:
+- Write tests that describe desired behavior
+- Tests should FAIL because the implementation doesn't exist yet
+- Use tests to plan the interface and API
+- Test names should describe the expected behavior (e.g., `test_convertsNegativeNumbersCorrectly`)
+
+Example of RED phase test:
+```swift
+func test_convertsNegativeNumbersCorrectly() {
+    // Given - setup
+    let converter = UnitConverter.shared
+    
+    // When - action being tested
+    let result = converter.convert("-100 km to miles")
+    
+    // Then - assertion (this will FAIL in RED)
+    XCTAssertEqual(result, "-62.14 miles", "Negative numbers should convert correctly")
+}
+```
+
+### 2. GREEN - Make the Test Pass
+
+Implement the minimal code needed to make the test pass:
+
+```bash
+# Build to check your implementation
+swift build
+
+# Run tests to verify they pass
+./scripts/run_tests.sh
+```
+
+**Key principle:** Write only enough code to pass the test. Don't over-engineer.
+
+### 3. REFACTOR - Improve Code
+
+Once tests pass, improve the code while keeping tests green:
+
+```bash
+# Run tests to ensure refactoring didn't break anything
+./scripts/run_tests.sh
+```
+
+## Planning Interfaces in RED Phase
+
+The RED phase is where you design the API. Use tests to answer:
+
+1. **What is the public interface?**
+   - What methods should be public?
+   - What parameters do they take?
+   - What do they return?
+
+2. **What are the edge cases?**
+   - Empty input?
+   - Invalid input?
+   - Boundary conditions?
+
+3. **What is the expected behavior?**
+   - What should happen on success?
+   - What should happen on failure?
+
+Example of API design via tests:
+```swift
+// These tests define the API during RED phase
+
+// Public interface
+func convert(_ input: String) -> String?
+
+// Detection of conversion expressions  
+func isConversionExpression(_ input: String) -> Bool
+
+// Providing hints to users
+func getHints() -> [String]
+```
+
 ## Mandatory Timeout Rule
 
 **ALWAYS use a 40-second timeout** for any test execution or background task that could hang or timeout.
