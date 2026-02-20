@@ -44,6 +44,19 @@ final class SearchEngine {
             return results // Return early - shell commands take priority
         }
 
+        // Check for process search (type "processes" to see running processes)
+        if lowercasedQuery.contains("process") {
+            let processResults = performProcessSearch(query: lowercasedQuery)
+            if !processResults.isEmpty {
+                results.append(contentsOf: processResults)
+                // Return early if process search matched - processes take priority
+                return results.sorted { (a, b) -> Bool in
+                    if a.score != b.score { return a.score > b.score }
+                    return a.category < b.category
+                }
+            }
+        }
+
         // Check for calculator expression (high priority)
         if Calculator.shared.isMathExpression(query) {
             if let result = Calculator.shared.evaluate(query) {
@@ -135,6 +148,40 @@ final class SearchEngine {
         }
     }
 
+    // MARK: - Process Search
+
+    /// Performs process search - shows running processes when user types "processes"
+    private func performProcessSearch(query: String) -> [SearchResult] {
+        // If query is just "process" or "processes", show top processes
+        let isProcessKeywordOnly = query == "process" || query == "processes"
+
+        if isProcessKeywordOnly {
+            // Show all top processes
+            let processes = ProcessSearchService.shared.fetchRunningProcesses()
+            return ProcessSearchService.shared.createSearchResults(from: processes)
+        } else {
+            // Search for specific process by name
+            let searchQuery = query.replacingOccurrences(of: "process", with: "").trimmingCharacters(in: .whitespaces)
+            if !searchQuery.isEmpty {
+                let processes = ProcessSearchService.shared.searchProcesses(query: searchQuery)
+                if processes.isEmpty {
+                    // Return no results message
+                    return [SearchResult(
+                        title: ProcessSearchService.noResultsMessage,
+                        subtitle: "Try a different search term",
+                        icon: NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Search"),
+                        category: .process,
+                        action: {},
+                        score: 0
+                    )]
+                }
+                return ProcessSearchService.shared.createSearchResults(from: processes)
+            }
+        }
+
+        return []
+    }
+
     /// File search only - returns file results (can be slow, run async)
     func searchFiles(query: String) -> [SearchResult] {
         let lowercasedQuery = query.lowercased()
@@ -216,8 +263,14 @@ final class SearchEngine {
                         continue
                     }
                     
-                    // Skip system apps in /System and /Library
-                    if appPath.hasPrefix("/System") || appPath.hasPrefix("/Library") {
+                    // Skip /Library (system libraries) but include /System/Applications (Apple's built-in apps)
+                    // /System/Applications contains Calculator, Photos, Activity Monitor, etc.
+                    if appPath.hasPrefix("/Library") {
+                        continue
+                    }
+                    
+                    // Include /System/Applications but skip nested system directories
+                    if appPath.hasPrefix("/System/Applications") == false && appPath.hasPrefix("/System") {
                         continue
                     }
                     
@@ -276,6 +329,19 @@ final class SearchEngine {
             let shellResult = ShellCommandService.shared.createShellCommandResult(for: query)
             results.append(shellResult)
             return results // Return early - shell commands take priority
+        }
+
+        // Check for process search (type "processes" to see running processes)
+        if lowercasedQuery.contains("process") {
+            let processResults = performProcessSearch(query: lowercasedQuery)
+            if !processResults.isEmpty {
+                results.append(contentsOf: processResults)
+                // Return early if process search matched - processes take priority
+                return results.sorted { (a, b) -> Bool in
+                    if a.score != b.score { return a.score > b.score }
+                    return a.category < b.category
+                }
+            }
         }
 
         // Check for calculator expression (high priority)

@@ -282,6 +282,10 @@ extension FileSearchService {
 
             let path = url.path
             if isPathInHiddenDirectory(path) { continue }
+            
+            // Skip .app bundles - they're handled by app search, not file search
+            // This prevents Activity Monitor, Calculator, etc. from appearing as "file" category
+            if path.hasSuffix(".app") { continue }
 
             let name = url.lastPathComponent
             let icon = NSWorkspace.shared.icon(forFile: path)
@@ -312,6 +316,10 @@ extension FileSearchService {
             if results.count >= maxResults { break }
 
             if isPathInHiddenDirectory(path) { continue }
+            
+            // Skip .app bundles - they're handled by app search, not file search
+            // This prevents Activity Monitor, Calculator, etc. from appearing as "file" category
+            if path.hasSuffix(".app") { continue }
 
             let url = URL(fileURLWithPath: path)
             let name = url.lastPathComponent
