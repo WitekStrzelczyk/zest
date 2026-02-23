@@ -27,7 +27,11 @@ final class ClipboardManager {
         return history
             .compactMap { item -> (item: ClipboardItem, score: Int)? in
                 guard let text = item.text else { return nil }
-                let score = SearchResultScoring.shared.scoreResult(query: lowercasedQuery, title: text)
+                let score = SearchScoreCalculator.shared.calculateScore(
+                    query: lowercasedQuery,
+                    title: text,
+                    category: .clipboard
+                )
                 return score > 0 ? (item, score) : nil
             }
             .sorted { $0.score > $1.score }

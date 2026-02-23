@@ -45,10 +45,11 @@ final class UserCommandsService {
 
         // Score and filter commands where name or description matches the query
         let matchingCommands = commands.compactMap { command -> (command: UserCommand, score: Int)? in
-            let score = SearchResultScoring.shared.scoreResult(
+            let score = SearchScoreCalculator.shared.calculateScore(
                 query: lowercasedQuery,
                 title: command.name,
-                subtitle: command.description
+                subtitle: command.description,
+                category: .action
             )
             return score > 0 ? (command, score) : nil
         }

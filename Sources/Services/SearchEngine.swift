@@ -93,7 +93,7 @@ final class SearchEngine {
         // Fuzzy search with scoring through installed apps
         let appResults = installedApps
             .compactMap { app -> (app: InstalledApp, score: Int)? in
-                let score = SearchResultScoring.shared.scoreResult(
+                let score = SearchScoreCalculator.shared.calculateScore(
                     query: lowercasedQuery,
                     title: app.name,
                     category: .application
@@ -397,7 +397,7 @@ final class SearchEngine {
         // Fuzzy search with scoring through installed apps
         let appResults = installedApps
             .compactMap { app -> (app: InstalledApp, score: Int)? in
-                let score = SearchResultScoring.shared.scoreResult(
+                let score = SearchScoreCalculator.shared.calculateScore(
                     query: lowercasedQuery,
                     title: app.name,
                     category: .application
@@ -513,7 +513,7 @@ final class SearchEngine {
         var results: [SearchResult] = []
 
         // Caffeinate system - prevents system sleep but allows display to sleep
-        let systemScore = SearchResultScoring.shared.scoreResult(
+        let systemScore = SearchScoreCalculator.shared.calculateScore(
             query: query,
             title: "Caffeinate System",
             category: .toggle
@@ -531,7 +531,7 @@ final class SearchEngine {
         ))
 
         // Caffeinate - prevents both display and system sleep
-        let fullScore = SearchResultScoring.shared.scoreResult(
+        let fullScore = SearchScoreCalculator.shared.calculateScore(
             query: query,
             title: "Caffeinate",
             category: .toggle
@@ -558,7 +558,7 @@ final class SearchEngine {
         guard !query.isEmpty else { return [] }
 
         // If query contains "quicklink" keyword, show all quicklinks
-        let showAllQuicklinks = query.contains("quicklink")
+        let showAllQuicklinks = query.lowercased().contains("quicklink")
         
         // Get quicklinks - either filtered by query or all if "quicklink" keyword
         let quicklinks: [Quicklink]
@@ -568,8 +568,24 @@ final class SearchEngine {
             quicklinks = quicklinkManager.searchQuicklinks(query: query)
         }
 
-        return quicklinks.map { quicklink in
-            SearchResult(
+        return quicklinks.compactMap { quicklink -> SearchResult? in
+            let score: Int
+            if showAllQuicklinks {
+                score = 2000 // High score when showing all quicklinks
+            } else {
+                // Use the calculator for proper scoring
+                score = SearchScoreCalculator.shared.calculateScore(
+                    query: query,
+                    title: quicklink.name,
+                    subtitle: quicklink.url,
+                    category: .quicklink,
+                    identifier: quicklink.url
+                )
+            }
+            
+            guard score > 0 || showAllQuicklinks else { return nil }
+            
+            return SearchResult(
                 title: quicklink.name,
                 subtitle: quicklink.url,
                 icon: NSImage(systemSymbolName: "link", accessibilityDescription: "Quicklink"),
@@ -577,9 +593,7 @@ final class SearchEngine {
                 action: { [weak self] in
                     _ = self?.quicklinkManager.openQuicklink(id: quicklink.id)
                 },
-                // Use very high score to ensure quicklinks appear in top 10
-                // Apps typically score 10-50, so 1000 ensures quicklinks are always visible
-                score: showAllQuicklinks ? 2000 : 1000
+                score: score
             )
         }
     }
@@ -590,7 +604,7 @@ final class SearchEngine {
         var results: [SearchResult] = []
 
         // "Add Quicklink" - first item in settings
-        let addQuicklinkScore = query.isEmpty ? 0 : SearchResultScoring.shared.scoreResult(
+        let addQuicklinkScore = query.isEmpty ? 0 : SearchScoreCalculator.shared.calculateScore(
             query: query,
             title: "Add Quicklink",
             category: .settings

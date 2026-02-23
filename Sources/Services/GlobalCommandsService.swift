@@ -58,7 +58,11 @@ final class GlobalCommandsService {
         let lowercasedQuery = query.lowercased()
 
         return availableCommands.compactMap { command -> SearchResult? in
-            let score = SearchResultScoring.shared.scoreResult(query: lowercasedQuery, title: command.name)
+            let score = SearchScoreCalculator.shared.calculateScore(
+                query: lowercasedQuery,
+                title: command.name,
+                category: .globalAction
+            )
 
             guard score > 0 || lowercasedQuery.isEmpty else { return nil }
 

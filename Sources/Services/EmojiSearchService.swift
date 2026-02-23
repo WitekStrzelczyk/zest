@@ -22,7 +22,11 @@ final class EmojiSearchService {
 
             // Check each keyword for matches
             for keyword in keywords {
-                let score = SearchResultScoring.shared.scoreResult(query: lowercasedQuery, title: keyword)
+                let score = SearchScoreCalculator.shared.calculateScore(
+                    query: lowercasedQuery,
+                    title: keyword,
+                    category: .emoji
+                )
                 bestScore = max(bestScore, score)
             }
 

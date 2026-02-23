@@ -126,10 +126,11 @@ final class ContactsService {
         let scoredResults = contacts.flatMap { contact -> [SearchResult] in
             let results = buildSearchResults(for: contact)
             return results.map { result -> SearchResult in
-                let score = SearchResultScoring.shared.scoreResult(
+                let score = SearchScoreCalculator.shared.calculateScore(
                     query: trimmedQuery,
                     title: result.title,
-                    subtitle: result.subtitle
+                    subtitle: result.subtitle,
+                    category: result.category
                 )
                 // Create new result with score
                 return SearchResult(
