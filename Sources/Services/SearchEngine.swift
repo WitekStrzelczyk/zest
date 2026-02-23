@@ -332,61 +332,22 @@ final class SearchEngine {
             }
         apps.append(contentsOf: runningApps)
 
-        // Use Spotlight to find all app bundles
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/mdfind")
-        process.arguments = ["kMDItemContentType == 'com.apple.application-bundle'"]
+        // Scan /Applications and ~/Applications directly
+        let appDirectories = [
+            "/Applications",
+            NSHomeDirectory() + "/Applications",
+        ]
 
-        let pipe = Pipe()
-        process.standardOutput = pipe
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            if let output = String(data: data, encoding: .utf8) {
-                let appPaths = output.components(separatedBy: "\n").filter { !$0.isEmpty }
-
-                for appPath in appPaths {
-                    let appURL = URL(fileURLWithPath: appPath)
-                    let name = appURL.deletingPathExtension().lastPathComponent
-
-                    // Skip if already added (from running apps)
-                    if apps.contains(where: { $0.name == name }) {
-                        continue
-                    }
-
-                    // Skip /Library (system libraries) but include /System/Applications (Apple's built-in apps)
-                    if appPath.hasPrefix("/Library") {
-                        continue
-                    }
-
-                    // Include /System/Applications but skip nested system directories
-                    if appPath.hasPrefix("/System/Applications") == false && appPath.hasPrefix("/System") {
-                        continue
-                    }
-
-                    let icon = NSWorkspace.shared.icon(forFile: appPath)
-                    apps.append(InstalledApp(name: name, bundleID: appPath, icon: icon))
-                }
-            }
-        } catch {
-            print("Failed to use Spotlight: \(error)")
+        for dirPath in appDirectories {
+            addAppsFromDirectory(dirPath, to: &apps, recursive: true)
         }
 
-        // ALSO scan /Applications directly - some apps (like Zoom.us) aren't indexed by Spotlight
-        addAppsFromDirectory("/Applications", to: &apps)
-        addAppsFromDirectory("/Applications/Utilities", to: &apps)
-        addAppsFromDirectory(NSHomeDirectory() + "/Applications", to: &apps)
-
         installedApps = apps.sorted { $0.name.lowercased() < $1.name.lowercased() }
-
         print("Indexed \(installedApps.count) applications")
     }
 
     /// Add apps from a directory, skipping duplicates
-    private func addAppsFromDirectory(_ path: String, to apps: inout [InstalledApp]) {
+    private func addAppsFromDirectory(_ path: String, to apps: inout [InstalledApp], recursive: Bool = false) {
         let url = URL(fileURLWithPath: path)
         guard let appURLs = try? FileManager.default.contentsOfDirectory(
             at: url,
@@ -394,40 +355,22 @@ final class SearchEngine {
             options: [.skipsHiddenFiles]
         ) else { return }
 
-        for appURL in appURLs where appURL.pathExtension == "app" {
-            let name = appURL.deletingPathExtension().lastPathComponent
+        for appURL in appURLs {
+            // If it's an app, add it
+            if appURL.pathExtension == "app" {
+                let name = appURL.deletingPathExtension().lastPathComponent
 
-            // Skip if already added
-            if apps.contains(where: { $0.name == name }) {
-                continue
-            }
-
-            let icon = NSWorkspace.shared.icon(forFile: appURL.path)
-            apps.append(InstalledApp(name: name, bundleID: appURL.path, icon: icon))
-        }
-    }
-    
-    /// Fallback manual scanning if Spotlight fails
-    private func scanApplicationDirectories(into apps: inout [InstalledApp]) {
-        let applicationPaths = [
-            "/Applications",
-            "/Applications/Utilities",
-            NSHomeDirectory() + "/Applications",
-        ]
-
-        for path in applicationPaths {
-            let url = URL(fileURLWithPath: path)
-            if let appURLs = try? FileManager.default.contentsOfDirectory(
-                at: url,
-                includingPropertiesForKeys: nil
-            ) {
-                for appURL in appURLs where appURL.pathExtension == "app" {
-                    let name = appURL.deletingPathExtension().lastPathComponent
-                    if !apps.contains(where: { $0.name == name }) {
-                        let icon = NSWorkspace.shared.icon(forFile: appURL.path)
-                        apps.append(InstalledApp(name: name, bundleID: appURL.path, icon: icon))
-                    }
+                // Skip if already added
+                if apps.contains(where: { $0.name == name }) {
+                    continue
                 }
+
+                let icon = NSWorkspace.shared.icon(forFile: appURL.path)
+                apps.append(InstalledApp(name: name, bundleID: appURL.path, icon: icon))
+            }
+            // If recursive and it's a directory, scan it too (for nested apps)
+            else if recursive, appURL.hasDirectoryPath {
+                addAppsFromDirectory(appURL.path, to: &apps, recursive: false)
             }
         }
     }
