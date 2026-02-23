@@ -21,6 +21,7 @@ How-to documentation for common tasks.
 |----------|---------|
 | [guides/README.md](/Users/witek/projects/copies/zest/docs/guides/README.md) | All guides index |
 | [TDD Guidelines](/Users/witek/projects/copies/zest/docs/TDD_GUIDELINES.md) | Test-driven development workflow |
+| [FAQ.md](/Users/witek/projects/copies/zest/docs/FAQ.md) | Common problems and solutions |
 
 ### Reference
 
@@ -73,4 +74,4 @@ Implementation learnings and observations from agent work.
 
 ---
 
-*Last reviewed: 2026-02-19*
+*Last reviewed: 2026-02-23*
