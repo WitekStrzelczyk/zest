@@ -9,10 +9,13 @@ final class SearchEngineTests: XCTestCase {
         // Disable contacts access during tests to avoid XPC connection issues
         // in the unit test environment
         ContactsService.isDisabled = true
+        // Disable app loading to avoid mdfind hanging in tests
+        SearchEngine.disableAppLoading = true
     }
 
     override class func tearDown() {
         ContactsService.isDisabled = false
+        SearchEngine.disableAppLoading = false
     }
 
     // MARK: - Fuzzy Search Tests

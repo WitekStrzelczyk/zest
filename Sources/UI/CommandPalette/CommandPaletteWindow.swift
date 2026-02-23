@@ -245,6 +245,21 @@ final class CommandPaletteWindow: NSPanel {
     private var scrollView: NSScrollView!
     private(set) var hintLabel: NSTextField!
     private var noResultsLabel: NSTextField!
+    
+    /// Stats label shown on hover - displays search timing metrics
+    private var statsLabel: NSTextField!
+    /// Container view for search area (used for hover detection)
+    private var searchContainerView: NSView!
+    /// Tracking area for hover detection
+    private var hoverTrackingArea: NSTrackingArea?
+    /// Last search trace for displaying stats
+    private var lastSearchTrace: SearchSpan?
+    /// Whether stats are enabled (check both tracing output and hover stats preference)
+    private var statsEnabled: Bool {
+        UserDefaults.standard.bool(forKey: "searchTracingOutput") ||
+        UserDefaults.standard.bool(forKey: "showSearchStats")
+    }
+    
     /// Exposed for testing
     private(set) var searchResults: [SearchResult] = []
 
@@ -433,6 +448,16 @@ final class CommandPaletteWindow: NSPanel {
         hintLabel.alignment = .center
         hintLabel.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(hintLabel)
+        
+        // Stats label - shows search timing on hover
+        statsLabel = NSTextField(labelWithString: "")
+        statsLabel.font = NSFont.systemFont(ofSize: 10, weight: .regular)
+        statsLabel.textColor = NSColor.systemOrange.withAlphaComponent(0.9)
+        statsLabel.alignment = .right
+        statsLabel.translatesAutoresizingMaskIntoConstraints = false
+        statsLabel.isHidden = true
+        statsLabel.toolTip = "Search timing metrics (hover to see details)"
+        contentView.addSubview(statsLabel)
 
         // Results table -- .inset style gives native rounded selection (like Spotlight)
         resultsTableView = ResultsTableView()
@@ -499,9 +524,97 @@ final class CommandPaletteWindow: NSPanel {
             hintLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             hintLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
             hintLabel.heightAnchor.constraint(equalToConstant: hintHeight),
+            
+            // Stats label - right of hint label, shown on hover
+            statsLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12),
+            statsLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -6),
+            statsLabel.heightAnchor.constraint(equalToConstant: 14),
         ])
+        
+        // Setup hover tracking for the entire content view
+        setupHoverTracking(in: contentView)
 
         self.contentView = contentView
+    }
+    
+    // MARK: - Hover Tracking for Stats
+    
+    private func setupHoverTracking(in view: NSView) {
+        // Remove old tracking area if exists
+        if let oldTracking = hoverTrackingArea {
+            view.removeTrackingArea(oldTracking)
+        }
+        
+        // Create new tracking area for the entire view
+        let trackingArea = NSTrackingArea(
+            rect: view.bounds,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        view.addTrackingArea(trackingArea)
+        hoverTrackingArea = trackingArea
+    }
+    
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        // Show stats label on hover if we have stats and they're enabled
+        if statsEnabled, let trace = lastSearchTrace {
+            updateStatsLabel(with: trace)
+            statsLabel.isHidden = false
+        }
+    }
+    
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        // Hide stats label when mouse leaves
+        statsLabel.isHidden = true
+    }
+    
+    /// Update the stats label with trace information
+    private func updateStatsLabel(with trace: SearchSpan) {
+        // Build a concise stats string
+        var stats: [String] = []
+        
+        // Total time
+        stats.append("⏱\(trace.durationMs)ms")
+        
+        // Add timing for each major category
+        for child in trace.children {
+            let name = child.operationName
+            let ms = child.durationMs
+            
+            // Only show if it took meaningful time
+            if ms > 0 {
+                let shortName: String
+                switch name {
+                case "calculator": shortName = "calc"
+                case "applications": shortName = "apps"
+                case "user_commands": shortName = "cmd"
+                case "contacts": shortName = "👤"
+                case "clipboard": shortName = "📋"
+                case "files": shortName = "📁"
+                case "global_commands": shortName = "⌨️"
+                case "toggles": shortName = "tgl"
+                case "quicklinks": shortName = "🔗"
+                case "deduplicate_sort": shortName = "sort"
+                default: shortName = name
+                }
+                stats.append("\(shortName):\(ms)ms")
+            }
+        }
+        
+        // Add results count if available
+        if let resultsCount = trace.tags["total_results"] as? Int {
+            stats.append("results:\(resultsCount)")
+        }
+        
+        statsLabel.stringValue = stats.joined(separator: " ")
+    }
+    
+    /// Store the last search trace for display on hover
+    func setSearchTrace(_ trace: SearchSpan) {
+        lastSearchTrace = trace
     }
 
     // MARK: - Show/Hide
@@ -800,6 +913,12 @@ final class CommandPaletteWindow: NSPanel {
 
             // PHASE 1: Show fast results immediately (apps, calculator, clipboard)
             let fastResults = SearchEngine.shared.searchFast(query: query)
+            
+            // Store the trace for hover stats display
+            if let trace = SearchEngine.shared.getLastTrace() {
+                setSearchTrace(trace)
+            }
+            
             updateSearchResults(fastResults, topY: topY, screen: screen)
 
             // PHASE 2: Run file search in background and append when ready

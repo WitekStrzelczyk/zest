@@ -5,6 +5,7 @@ final class SearchEngine {
     static let shared: SearchEngine = .init()
 
     private var installedApps: [InstalledApp] = []
+    private var appsLoaded = false
 
     /// File search prefix for file-specific search
     private let fileSearchPrefix = "file:"
@@ -16,7 +17,20 @@ final class SearchEngine {
     private let awakeService = AwakeService.shared
     private let tracer = SearchTracer.shared
 
+    /// Last search trace for displaying stats
+    private(set) var lastSearchTrace: SearchSpan?
+
+    /// Flag to disable app loading for tests
+    static var disableAppLoading = false
+
     private init() {
+        // Lazy load apps - don't block init with mdfind
+    }
+
+    /// Ensure apps are loaded (lazy initialization)
+    private func ensureAppsLoaded() {
+        guard !appsLoaded && !Self.disableAppLoading else { return }
+        appsLoaded = true
         refreshInstalledApps()
     }
 
@@ -25,16 +39,24 @@ final class SearchEngine {
         currentSearchTask?.cancel()
         currentSearchTask = nil
     }
+    
+    /// Get the last search trace for displaying stats
+    func getLastTrace() -> SearchSpan? {
+        lastSearchTrace
+    }
 
     /// Fast search - returns apps, calculator, clipboard immediately (no file search)
     /// Use this for instant feedback while file search runs in background
     func searchFast(query: String) -> [SearchResult] {
+        ensureAppsLoaded()
+
         let span = tracer.startSearch(query: query)
         defer {
             span.finish()
+            lastSearchTrace = span
             tracer.outputTrace(span)
         }
-        
+
         let lowercasedQuery = query.lowercased()
 
         if lowercasedQuery.isEmpty {
@@ -387,12 +409,15 @@ final class SearchEngine {
     }
 
     func search(query: String) -> [SearchResult] {
+        ensureAppsLoaded()
+
         let span = tracer.startSearch(query: query)
         defer {
             span.finish()
+            lastSearchTrace = span
             tracer.outputTrace(span)
         }
-        
+
         let lowercasedQuery = query.lowercased()
 
         if lowercasedQuery.isEmpty {
