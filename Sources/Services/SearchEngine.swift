@@ -319,7 +319,7 @@ final class SearchEngine {
 
     func refreshInstalledApps() {
         var apps: [InstalledApp] = []
-        
+
         // First add running apps
         let runningApps = NSWorkspace.shared.runningApplications
             .filter { $0.activationPolicy == .regular }
@@ -331,56 +331,80 @@ final class SearchEngine {
                 return InstalledApp(name: name, bundleID: bundleID, icon: icon)
             }
         apps.append(contentsOf: runningApps)
-        
-        // Use Spotlight to find all app bundles - much faster and always up-to-date
+
+        // Use Spotlight to find all app bundles
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/mdfind")
         process.arguments = ["kMDItemContentType == 'com.apple.application-bundle'"]
-        
+
         let pipe = Pipe()
         process.standardOutput = pipe
-        
+
         do {
             try process.run()
             process.waitUntilExit()
-            
+
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8) {
                 let appPaths = output.components(separatedBy: "\n").filter { !$0.isEmpty }
-                
+
                 for appPath in appPaths {
                     let appURL = URL(fileURLWithPath: appPath)
                     let name = appURL.deletingPathExtension().lastPathComponent
-                    
+
                     // Skip if already added (from running apps)
                     if apps.contains(where: { $0.name == name }) {
                         continue
                     }
-                    
+
                     // Skip /Library (system libraries) but include /System/Applications (Apple's built-in apps)
-                    // /System/Applications contains Calculator, Photos, Activity Monitor, etc.
                     if appPath.hasPrefix("/Library") {
                         continue
                     }
-                    
+
                     // Include /System/Applications but skip nested system directories
                     if appPath.hasPrefix("/System/Applications") == false && appPath.hasPrefix("/System") {
                         continue
                     }
-                    
+
                     let icon = NSWorkspace.shared.icon(forFile: appPath)
                     apps.append(InstalledApp(name: name, bundleID: appPath, icon: icon))
                 }
             }
         } catch {
             print("Failed to use Spotlight: \(error)")
-            // Fallback to manual scanning
-            scanApplicationDirectories(into: &apps)
         }
 
+        // ALSO scan /Applications directly - some apps (like Zoom.us) aren't indexed by Spotlight
+        addAppsFromDirectory("/Applications", to: &apps)
+        addAppsFromDirectory("/Applications/Utilities", to: &apps)
+        addAppsFromDirectory(NSHomeDirectory() + "/Applications", to: &apps)
+
         installedApps = apps.sorted { $0.name.lowercased() < $1.name.lowercased() }
-        
-        print("Indexed \(installedApps.count) applications via Spotlight")
+
+        print("Indexed \(installedApps.count) applications")
+    }
+
+    /// Add apps from a directory, skipping duplicates
+    private func addAppsFromDirectory(_ path: String, to apps: inout [InstalledApp]) {
+        let url = URL(fileURLWithPath: path)
+        guard let appURLs = try? FileManager.default.contentsOfDirectory(
+            at: url,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else { return }
+
+        for appURL in appURLs where appURL.pathExtension == "app" {
+            let name = appURL.deletingPathExtension().lastPathComponent
+
+            // Skip if already added
+            if apps.contains(where: { $0.name == name }) {
+                continue
+            }
+
+            let icon = NSWorkspace.shared.icon(forFile: appURL.path)
+            apps.append(InstalledApp(name: name, bundleID: appURL.path, icon: icon))
+        }
     }
     
     /// Fallback manual scanning if Spotlight fails
