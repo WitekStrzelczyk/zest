@@ -7,7 +7,9 @@ class SearchSpan {
     let startTime: Date
     var endTime: Date?
     var durationMs: Int { endTime.map { Int($0.timeIntervalSince(startTime) * 1000) } ?? 0 }
-    
+    /// Precise duration in milliseconds (includes sub-millisecond timing)
+    var durationMsPrecise: Double { endTime.map { $0.timeIntervalSince(startTime) * 1000 } ?? 0 }
+
     private(set) var tags: [String: Any] = [:]
     private(set) var children: [SearchSpan] = []
     private let lock = NSLock()

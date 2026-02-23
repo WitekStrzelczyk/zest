@@ -451,12 +451,12 @@ final class CommandPaletteWindow: NSPanel {
         
         // Stats label - shows search timing on hover
         statsLabel = NSTextField(labelWithString: "")
-        statsLabel.font = NSFont.systemFont(ofSize: 10, weight: .regular)
-        statsLabel.textColor = NSColor.systemOrange.withAlphaComponent(0.9)
+        statsLabel.font = NSFont.systemFont(ofSize: 10, weight: .medium)
+        statsLabel.textColor = NSColor.systemOrange.withAlphaComponent(0.85)
         statsLabel.alignment = .right
         statsLabel.translatesAutoresizingMaskIntoConstraints = false
         statsLabel.isHidden = true
-        statsLabel.toolTip = "Search timing metrics (hover to see details)"
+        statsLabel.toolTip = "Search performance metrics"
         contentView.addSubview(statsLabel)
 
         // Results table -- .inset style gives native rounded selection (like Spotlight)
@@ -575,46 +575,54 @@ final class CommandPaletteWindow: NSPanel {
     private func updateStatsLabel(with trace: SearchSpan) {
         // Build a concise stats string
         var stats: [String] = []
-        
-        // Total time
-        stats.append("⏱\(trace.durationMs)ms")
-        
+
+        // Total time with precision
+        let totalMs = trace.durationMsPrecise
+        stats.append(String(format: "⏱%.1fms", totalMs))
+
         // Add timing for each major category
         for child in trace.children {
             let name = child.operationName
-            let ms = child.durationMs
-            
-            // Only show if it took meaningful time
-            if ms > 0 {
-                let shortName: String
-                switch name {
-                case "calculator": shortName = "calc"
-                case "applications": shortName = "apps"
-                case "user_commands": shortName = "cmd"
-                case "contacts": shortName = "👤"
-                case "clipboard": shortName = "📋"
-                case "files": shortName = "📁"
-                case "global_commands": shortName = "⌨️"
-                case "toggles": shortName = "tgl"
-                case "quicklinks": shortName = "🔗"
-                case "deduplicate_sort": shortName = "sort"
-                default: shortName = name
-                }
-                stats.append("\(shortName):\(ms)ms")
+            let ms = child.durationMsPrecise
+            let resultsCount = child.tags["results"] as? Int
+
+            let shortName: String
+            switch name {
+            case "calculator": shortName = "calc"
+            case "applications": shortName = "apps"
+            case "user_commands": shortName = "cmd"
+            case "contacts": shortName = "👤"
+            case "clipboard": shortName = "📋"
+            case "files": shortName = "📁"
+            case "global_commands": shortName = "⌨️"
+            case "toggles": shortName = "tgl"
+            case "quicklinks": shortName = "🔗"
+            case "deduplicate_sort": shortName = "sort"
+            case "settings": shortName = "⚙️"
+            case "unit_conversion": shortName = "conv"
+            default: shortName = name.prefix(4).lowercased()
+            }
+
+            // Show category with timing and result count
+            if let count = resultsCount, count > 0 {
+                stats.append("\(shortName):\(String(format: "%.1f", ms))ms(\(count))")
+            } else if ms > 0.1 {
+                stats.append("\(shortName):\(String(format: "%.1f", ms))ms")
             }
         }
-        
-        // Add results count if available
-        if let resultsCount = trace.tags["total_results"] as? Int {
-            stats.append("results:\(resultsCount)")
-        }
-        
-        statsLabel.stringValue = stats.joined(separator: " ")
+
+        statsLabel.stringValue = stats.joined(separator: " | ")
     }
-    
-    /// Store the last search trace for display on hover
+
+    /// Store the last search trace and update stats display
     func setSearchTrace(_ trace: SearchSpan) {
         lastSearchTrace = trace
+
+        // Show stats immediately if enabled
+        if statsEnabled {
+            updateStatsLabel(with: trace)
+            statsLabel.isHidden = false
+        }
     }
 
     // MARK: - Show/Hide
