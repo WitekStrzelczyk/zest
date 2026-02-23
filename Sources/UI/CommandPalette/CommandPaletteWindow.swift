@@ -254,10 +254,10 @@ final class CommandPaletteWindow: NSPanel {
     private var hoverTrackingArea: NSTrackingArea?
     /// Last search trace for displaying stats
     private var lastSearchTrace: SearchSpan?
-    /// Whether stats are enabled (check both tracing output and hover stats preference)
+    /// Whether stats are enabled - enabled by default, can be disabled via preference
     private var statsEnabled: Bool {
-        UserDefaults.standard.bool(forKey: "searchTracingOutput") ||
-        UserDefaults.standard.bool(forKey: "showSearchStats")
+        // Default to true if not explicitly disabled
+        !UserDefaults.standard.bool(forKey: "hideSearchStats")
     }
     
     /// Exposed for testing
