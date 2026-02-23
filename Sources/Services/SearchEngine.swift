@@ -14,6 +14,7 @@ final class SearchEngine {
 
     private let quicklinkManager = QuicklinkManager.shared
     private let awakeService = AwakeService.shared
+    private let tracer = SearchTracer.shared
 
     private init() {
         refreshInstalledApps()
@@ -28,6 +29,12 @@ final class SearchEngine {
     /// Fast search - returns apps, calculator, clipboard immediately (no file search)
     /// Use this for instant feedback while file search runs in background
     func searchFast(query: String) -> [SearchResult] {
+        let span = tracer.startSearch(query: query)
+        defer {
+            span.finish()
+            tracer.outputTrace(span)
+        }
+        
         let lowercasedQuery = query.lowercased()
 
         if lowercasedQuery.isEmpty {
@@ -39,14 +46,20 @@ final class SearchEngine {
 
         // Check for shell command FIRST (highest priority - starts with ">")
         if ShellCommandService.shared.isShellCommand(query) {
+            let shellSpan = span.createChild(operationName: "shell_command")
             let shellResult = ShellCommandService.shared.createShellCommandResult(for: query)
             results.append(shellResult)
+            shellSpan.finish()
             return results // Return early - shell commands take priority
         }
 
         // Check for process search (type "processes" to see running processes)
         if lowercasedQuery.contains("process") {
+            let processSpan = span.createChild(operationName: "process_search")
             let processResults = performProcessSearch(query: lowercasedQuery)
+            processSpan.setTag("results", processResults.count)
+            processSpan.finish()
+            
             if !processResults.isEmpty {
                 results.append(contentsOf: processResults)
                 // Return early if process search matched - processes take priority
@@ -58,8 +71,11 @@ final class SearchEngine {
         }
 
         // Check for calculator expression (high priority)
+        let calcSpan = span.createChild(operationName: "calculator")
         if Calculator.shared.isMathExpression(query) {
             if let result = Calculator.shared.evaluate(query) {
+                calcSpan.setTag("expression", query)
+                calcSpan.setTag("result", result)
                 results.append(SearchResult(
                     title: result,
                     subtitle: "Copy to clipboard",
@@ -72,10 +88,14 @@ final class SearchEngine {
                 ))
             }
         }
+        calcSpan.finish()
 
         // Check for unit conversion expression (high priority)
+        let convSpan = span.createChild(operationName: "unit_conversion")
         if UnitConverter.shared.isConversionExpression(query) {
             if let result = UnitConverter.shared.convert(query) {
+                convSpan.setTag("expression", query)
+                convSpan.setTag("result", result)
                 results.append(SearchResult(
                     title: result,
                     subtitle: "Conversion",
@@ -89,17 +109,34 @@ final class SearchEngine {
                 ))
             }
         }
+        convSpan.finish()
 
-        // Fuzzy search with scoring through installed apps
-        let appResults = installedApps
-            .compactMap { app -> (app: InstalledApp, score: Int)? in
-                let score = SearchScoreCalculator.shared.calculateScore(
-                    query: lowercasedQuery,
-                    title: app.name,
-                    category: .application
-                )
-                return score > 0 ? (app, score) : nil
-            }
+        // Fuzzy search through installed apps
+        let appSpan = span.createChild(operationName: "applications")
+        appSpan.setTag("total_apps", installedApps.count)
+        
+        // Trace fuzzy matching
+        let fuzzyMatchSpan = appSpan.createChild(operationName: "fuzzy.match")
+        fuzzyMatchSpan.setTag("query_length", lowercasedQuery.count)
+        fuzzyMatchSpan.setTag("items_to_match", installedApps.count)
+        
+        let matchedApps = installedApps.compactMap { app -> (app: InstalledApp, score: Int)? in
+            let score = SearchScoreCalculator.shared.calculateScore(
+                query: lowercasedQuery,
+                title: app.name,
+                category: .application
+            )
+            return score > 0 ? (app, score) : nil
+        }
+        
+        fuzzyMatchSpan.setTag("matches_found", matchedApps.count)
+        fuzzyMatchSpan.finish()
+        
+        // Trace sorting
+        let sortSpan = appSpan.createChild(operationName: "sort")
+        sortSpan.setTag("items_to_sort", matchedApps.count)
+        
+        let finalAppResults = matchedApps
             .sorted { $0.score > $1.score }
             .prefix(10)
             .compactMap { item -> SearchResult? in
@@ -123,18 +160,30 @@ final class SearchEngine {
                     score: item.score
                 )
             }
-        results.append(contentsOf: appResults)
+        sortSpan.finish()
+        appSpan.setTag("results", finalAppResults.count)
+        appSpan.finish()
+        results.append(contentsOf: finalAppResults)
 
         // User commands (actions)
+        let cmdSpan = span.createChild(operationName: "user_commands")
         let commandResults = UserCommandsService.shared.search(query: query)
+        cmdSpan.setTag("results", commandResults.count)
+        cmdSpan.finish()
         results.append(contentsOf: commandResults)
 
         // Contacts
+        let contactSpan = span.createChild(operationName: "contacts")
         let contactResults = ContactsService.shared.search(query: query)
+        contactSpan.setTag("results", contactResults.count)
+        contactSpan.finish()
         results.append(contentsOf: contactResults)
 
         // Clipboard history
+        let clipSpan = span.createChild(operationName: "clipboard")
         let clipboardResults = ClipboardManager.shared.search(query: query)
+        clipSpan.setTag("results", clipboardResults.count)
+        clipSpan.finish()
         results.append(contentsOf: clipboardResults)
 
         // Emojis disabled - users can use Cmd+Ctrl+Space system picker instead
@@ -142,11 +191,17 @@ final class SearchEngine {
         // results.append(contentsOf: emojiResults)
 
         // Global commands (lowest priority)
+        let globalSpan = span.createChild(operationName: "global_commands")
         let globalCommandResults = GlobalCommandsService.shared.search(query: query)
+        globalSpan.setTag("results", globalCommandResults.count)
+        globalSpan.finish()
         results.append(contentsOf: globalCommandResults)
 
         // Toggles (low priority - below apps)
+        let toggleSpan = span.createChild(operationName: "toggles")
         let toggleResults = searchToggles(query: lowercasedQuery)
+        toggleSpan.setTag("results", toggleResults.count)
+        toggleSpan.finish()
         results.append(contentsOf: toggleResults)
 
         // Quicklinks - searchable by name, URL, keyword "quicklink"
@@ -332,6 +387,12 @@ final class SearchEngine {
     }
 
     func search(query: String) -> [SearchResult] {
+        let span = tracer.startSearch(query: query)
+        defer {
+            span.finish()
+            tracer.outputTrace(span)
+        }
+        
         let lowercasedQuery = query.lowercased()
 
         if lowercasedQuery.isEmpty {
@@ -343,14 +404,20 @@ final class SearchEngine {
 
         // Check for shell command FIRST (highest priority - starts with ">")
         if ShellCommandService.shared.isShellCommand(query) {
+            let shellSpan = span.createChild(operationName: "shell_command")
             let shellResult = ShellCommandService.shared.createShellCommandResult(for: query)
             results.append(shellResult)
+            shellSpan.finish()
             return results // Return early - shell commands take priority
         }
 
         // Check for process search (type "processes" to see running processes)
         if lowercasedQuery.contains("process") {
+            let processSpan = span.createChild(operationName: "process_search")
             let processResults = performProcessSearch(query: lowercasedQuery)
+            processSpan.setTag("results", processResults.count)
+            processSpan.finish()
+            
             if !processResults.isEmpty {
                 results.append(contentsOf: processResults)
                 // Return early if process search matched - processes take priority
@@ -362,8 +429,11 @@ final class SearchEngine {
         }
 
         // Check for calculator expression (high priority)
+        let calcSpan = span.createChild(operationName: "calculator")
         if Calculator.shared.isMathExpression(query) {
             if let result = Calculator.shared.evaluate(query) {
+                calcSpan.setTag("expression", query)
+                calcSpan.setTag("result", result)
                 results.append(SearchResult(
                     title: result,
                     subtitle: "Copy to clipboard",
@@ -376,10 +446,14 @@ final class SearchEngine {
                 ))
             }
         }
+        calcSpan.finish()
 
         // Check for unit conversion expression (high priority)
+        let convSpan = span.createChild(operationName: "unit_conversion")
         if UnitConverter.shared.isConversionExpression(query) {
             if let result = UnitConverter.shared.convert(query) {
+                convSpan.setTag("expression", query)
+                convSpan.setTag("result", result)
                 results.append(SearchResult(
                     title: result,
                     subtitle: "Conversion",
@@ -393,8 +467,12 @@ final class SearchEngine {
                 ))
             }
         }
+        convSpan.finish()
 
-        // Fuzzy search with scoring through installed apps
+        // Fuzzy search through installed apps
+        let appSpan = span.createChild(operationName: "applications")
+        appSpan.setTag("total_apps", installedApps.count)
+        
         let appResults = installedApps
             .compactMap { app -> (app: InstalledApp, score: Int)? in
                 let score = SearchScoreCalculator.shared.calculateScore(
@@ -427,58 +505,86 @@ final class SearchEngine {
                     score: item.score
                 )
             }
+        appSpan.setTag("results", appResults.count)
+        appSpan.finish()
         results.append(contentsOf: appResults)
 
         // User commands (actions)
+        let cmdSpan = span.createChild(operationName: "user_commands")
         let commandResults = UserCommandsService.shared.search(query: query)
+        cmdSpan.setTag("results", commandResults.count)
+        cmdSpan.finish()
         results.append(contentsOf: commandResults)
 
         // Contacts
+        let contactSpan = span.createChild(operationName: "contacts")
         let contactResults = ContactsService.shared.search(query: query)
+        contactSpan.setTag("results", contactResults.count)
+        contactSpan.finish()
         results.append(contentsOf: contactResults)
 
         // Clipboard history
+        let clipSpan = span.createChild(operationName: "clipboard")
         let clipboardResults = ClipboardManager.shared.search(query: query)
+        clipSpan.setTag("results", clipboardResults.count)
+        clipSpan.finish()
         results.append(contentsOf: clipboardResults)
 
         // Search for files using Spotlight
+        let fileSpan = span.createChild(operationName: "files")
         let fileSearchQuery: String
         let isFileSpecificSearch = lowercasedQuery.hasPrefix(fileSearchPrefix)
 
         if isFileSpecificSearch {
             fileSearchQuery = String(query.dropFirst(fileSearchPrefix.count))
+            fileSpan.setTag("file_specific", true)
         } else {
             fileSearchQuery = query
         }
 
         if !fileSearchQuery.isEmpty {
             let fileResults = FileSearchService.shared.searchSync(query: fileSearchQuery, maxResults: 5)
+            fileSpan.setTag("results", fileResults.count)
             results.append(contentsOf: fileResults)
         }
+        fileSpan.finish()
 
         // Emojis disabled - users can use Cmd+Ctrl+Space system picker instead
         // let emojiResults = EmojiSearchService.shared.search(query: query)
         // results.append(contentsOf: emojiResults)
 
         // Global commands (lowest priority)
+        let globalSpan = span.createChild(operationName: "global_commands")
         let globalCommandResults = GlobalCommandsService.shared.search(query: query)
+        globalSpan.setTag("results", globalCommandResults.count)
+        globalSpan.finish()
         results.append(contentsOf: globalCommandResults)
 
         // Toggles (low priority - below apps)
+        let toggleSpan = span.createChild(operationName: "toggles")
         let toggleResults = searchToggles(query: lowercasedQuery)
+        toggleSpan.setTag("results", toggleResults.count)
+        toggleSpan.finish()
         results.append(contentsOf: toggleResults)
 
         // Quicklinks - searchable by name, URL, keyword "quicklink"
+        let qlSpan = span.createChild(operationName: "quicklinks")
         let quicklinkResults = searchQuicklinks(query: lowercasedQuery)
+        qlSpan.setTag("results", quicklinkResults.count)
+        qlSpan.finish()
         results.append(contentsOf: quicklinkResults)
 
         // Settings category - "Add Quicklink" as first item
         if lowercasedQuery.contains("add") || lowercasedQuery.isEmpty {
+            let settingsSpan = span.createChild(operationName: "settings")
             let settingsResults = createSettingsResults(query: lowercasedQuery)
+            settingsSpan.setTag("results", settingsResults.count)
+            settingsSpan.finish()
             results.append(contentsOf: settingsResults)
         }
 
         // Deduplicate and sort by category
+        let dedupSpan = span.createChild(operationName: "deduplicate_sort")
         var finalResults: [SearchResult] = []
         var seenTitles: Set<String> = []
         for result in results {
@@ -487,6 +593,9 @@ final class SearchEngine {
                 finalResults.append(result)
             }
         }
+        dedupSpan.setTag("before_dedup", results.count)
+        dedupSpan.setTag("after_dedup", finalResults.count)
+        dedupSpan.finish()
 
         // Sort by score (descending), then category (ascending for priority)
         return Array(finalResults.sorted { (a, b) -> Bool in
