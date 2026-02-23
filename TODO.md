@@ -1057,30 +1057,29 @@ Performance metrics must be measurable and reproducible.
 
 ---
 
-### [ ] Story QA-10: Performance Profiling - CI Integration
+### [ ] Story QA-10: Performance Profiling
 
-**As a** CI engineer who monitors app performance
-**I want** performance tests to run in CI
-**So that** performance regressions are caught before release
+**As a** developer who monitors app performance
+**I want** to measure and track performance metrics locally
+**So that** I can identify and fix performance regressions
 
 ### Use Case Context
 Part of: "Performance" use case
-- Follows: "Metrics Collection" story
+- Follows: "Metrics Collection" story (QA-9)
 
 ### Verification Strategy
-Performance baselines must be established and monitored in CI.
+Performance metrics must be measurable and show meaningful data.
 
 #### Test Cases (Acceptance Criteria)
-- **Given** a performance baseline exists, **When** CI runs, **Then** results are compared to baseline
-- **Given** performance degrades by >20%, **When** CI runs, **Then** the build fails with a warning
-- **Given** performance test runs, **When** it completes, **Then** metrics are stored in CI artifacts
-- **Given** I check CI logs, **When** performance data is available, **Then** I can see execution time for each benchmark
+- **Given** the app launches, **When** I measure startup time, **Then** I can see the result in logs
+- **Given** search executes, **When** I measure search time, **Then** metrics are collected and stored
+- **Given** I run performance tests, **When** they complete, **Then** I can see timing for each operation
 
 ### Implementation Notes
+- Use os_signpost or CFAbsoluteTime for timing measurements
 - Create benchmark tests using XCBenchmark or custom timing
-- Store baselines in version control
-- Use GitHub Actions or similar for CI
-- Set performance budgets: startup < 1s, search < 100ms
+- Store results locally for comparison
+- Set performance targets: startup < 1s, search < 100ms
 
 ---
 
@@ -1102,7 +1101,7 @@ Quality Assurance Pipeline
 │   └── xccov
 └── Performance (Stories QA-9 to QA-10)
     ├── Metrics Collection (QA-9)
-    └── CI Integration (QA-10)
+    └── Performance Profiling (QA-10)
 ```
 
 ---

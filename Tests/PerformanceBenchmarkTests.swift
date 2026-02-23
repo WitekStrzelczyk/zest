@@ -103,6 +103,28 @@ final class PerformanceBenchmarkTests: XCTestCase {
         XCTAssertLessThan(duration, 5.0, "Fuzzy scoring should be very fast")
     }
 
+    /// Test: Common searches performance with memory tracking
+    func test_common_searches_performance_with_memory() {
+        let engine = SearchEngine.shared
+        let queries = ["calculator", "spotify", "4+4", "100 km to miles"]
+
+        for query in queries {
+            // Memory before
+            let memBefore = getCurrentMemoryMB()
+
+            // Search
+            let start = CFAbsoluteTimeGetCurrent()
+            let results = engine.searchFast(query: query)
+            let duration = (CFAbsoluteTimeGetCurrent() - start) * 1000
+
+            // Memory after
+            let memAfter = getCurrentMemoryMB()
+            let memDelta = memAfter - memBefore
+
+            print("Search '\(query)': \(String(format: "%.2f", duration))ms, memory delta: \(String(format: "%.2f", memDelta))MB, results: \(results.count)")
+        }
+    }
+
     // MARK: - Memory Benchmarks
 
     /// Test: Memory baseline should be reasonable when idle
@@ -259,5 +281,22 @@ final class PerformanceBenchmarkTests: XCTestCase {
         XCTAssertEqual(iterations, 10, "Async benchmark should run 10 iterations")
         XCTAssertGreaterThan(averageDuration, 0.5, "Average duration should be at least 0.5ms")
         print("Async benchmark average: \(String(format: "%.4f", averageDuration))ms per iteration")
+    }
+
+    // MARK: - Helper Functions
+
+    /// Get current memory usage in MB using mach_task_basic_info
+    func getCurrentMemoryMB() -> Double {
+        var info = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size) / 4
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
+            }
+        }
+        if result == KERN_SUCCESS {
+            return Double(info.resident_size) / 1024.0 / 1024.0
+        }
+        return 0
     }
 }

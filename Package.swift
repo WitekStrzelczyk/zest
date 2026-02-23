@@ -12,10 +12,15 @@ let package = Package(
             targets: ["ZestApp"]
         )
     ],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.0.0")
+    ],
     targets: [
         .executableTarget(
             name: "ZestApp",
-            dependencies: [],
+            dependencies: [
+                .product(name: "Sparkle", package: "Sparkle")
+            ],
             path: "Sources",
             exclude: ["Info.plist", "Zest.entitlements"],
             linkerSettings: [

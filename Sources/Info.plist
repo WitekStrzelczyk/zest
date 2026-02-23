@@ -8,6 +8,8 @@
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIconFile</key>
     <string></string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
     <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
     <key>CFBundleInfoDictionaryVersion</key>
@@ -28,5 +30,9 @@
     <true/>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
+    <key>SUFeedURL</key>
+    <string>https://api.amore.computer/v1/apps/com.zest.app/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>47026J9YQFNQGrzPYaTQ2z6mByWawA6LEjUB/o3o71Q=</string>
 </dict>
 </plist>

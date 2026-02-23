@@ -122,6 +122,14 @@ create_app_bundle() {
     
     cp "$BUILD_DIR/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/"
     
+    # Copy app icon
+    if [[ -d "$PROJECT_DIR/AppIcon.appiconset" ]]; then
+        cp -r "$PROJECT_DIR/AppIcon.appiconset" "$APP_BUNDLE/Contents/Resources/"
+        log_info "App icon included"
+    else
+        log_warn "App iconset not found at $PROJECT_DIR/AppIcon.appiconset"
+    fi
+    
     # Resolve placeholder variables in Info.plist
     sed -e "s/\$(EXECUTABLE_NAME)/$APP_NAME/g" \
         -e "s/\$(PRODUCT_BUNDLE_IDENTIFIER)/com.zest.app/g" \

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Background circle -->
+  <circle cx="512" cy="512" r="480" fill="black"/>
+  
+  <!-- Zest lightning bolt / Z shape -->
+  <path d="M580 160 L320 480 L450 480 L380 864 L680 500 L520 500 L580 160 Z" 
+        fill="white"/>
+  
+  <!-- Subtle highlight -->
+  <path d="M380 864 L680 500 L520 500 L580 160 L320 480 L450 480 L380 864 Z" 
+        fill="white" 
+        opacity="0.1"/>
+</svg>
