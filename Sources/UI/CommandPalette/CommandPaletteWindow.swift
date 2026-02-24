@@ -126,7 +126,13 @@ final class ResultsTableView: NSTableView {
             palette.handleEscape()
 
         case kVK_Return:
-            palette.selectCurrentResult()
+            if event.modifierFlags.contains(.command) {
+                // Cmd+Enter: Trigger reveal action (force quit for processes, reveal in Finder for files)
+                palette.revealCurrentResult()
+            } else {
+                // Enter: Select result
+                palette.selectCurrentResult()
+            }
 
         case kVK_UpArrow:
             clearHover()
@@ -269,6 +275,21 @@ final class CommandPaletteWindow: NSPanel {
 
     /// Tracks whether Quick Look preview is currently showing
     private var isQuickLookOpen: Bool = false
+
+    /// Tracks whether Option key is currently pressed
+    private var isOptionKeyPressed: Bool = false
+
+    /// Action bar view shown when Option key is held
+    private var actionBarView: NSView?
+
+    /// Action bar options available (for testing)
+    private let actionBarOptionLabels: [String] = ["convert", "translate"]
+
+    /// Constraint for scroll view when action bar is visible
+    private var actionBarScrollViewTopConstraint: NSLayoutConstraint?
+
+    /// Original scroll view top constraint (to restore when action bar hides)
+    private var originalScrollViewTopConstraint: NSLayoutConstraint?
 
     /// Tracks whether we're in settings mode (quicklink creation)
     /// Exposed for testing
@@ -508,9 +529,13 @@ final class CommandPaletteWindow: NSPanel {
             searchField.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
             searchField.centerYAnchor.constraint(equalTo: searchIcon.centerYAnchor),
             searchField.heightAnchor.constraint(equalToConstant: 28),
-
-            // Scroll view - below search, to bottom edge
-            scrollView.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 4),
+        ])
+        
+        // Store the original scroll view top constraint (needed for action bar management)
+        originalScrollViewTopConstraint = scrollView.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 4)
+        originalScrollViewTopConstraint?.isActive = true
+        
+        NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
@@ -635,6 +660,8 @@ final class CommandPaletteWindow: NSPanel {
         noResultsLabel.isHidden = true
         hintLabel.isHidden = false
         isResultsFocused = false // Reset to search field focus
+        isOptionKeyPressed = false // Reset Option key state
+        hideActionBar() // Ensure action bar is hidden
 
         // Position window - store top position for resize from bottom (top fixed)
         if let screen = NSScreen.main {
@@ -662,6 +689,9 @@ final class CommandPaletteWindow: NSPanel {
         resultsTableView.reloadData()
         // Reset settings mode when closing
         isSettingsMode = false
+        // Reset Option key state and hide action bar
+        isOptionKeyPressed = false
+        hideActionBar()
         orderOut(nil)
     }
 
@@ -1036,7 +1066,136 @@ final class CommandPaletteWindow: NSPanel {
             handleEscape()
             return
         }
+        
+        // Handle Cmd+Enter for reveal action (force quit processes, reveal files in Finder)
+        if Int(event.keyCode) == kVK_Return && event.modifierFlags.contains(.command) {
+            revealCurrentResult()
+            return
+        }
+        
         super.keyDown(with: event)
+    }
+
+    // MARK: - Modifier Key Events (Option Key Action Bar)
+
+    override func flagsChanged(with event: NSEvent) {
+        let optionIsPressed = event.modifierFlags.contains(.option)
+
+        // Only react to Option key changes, and only when we have results
+        if optionIsPressed != isOptionKeyPressed {
+            isOptionKeyPressed = optionIsPressed
+            updateActionBarVisibility()
+        }
+
+        super.flagsChanged(with: event)
+    }
+
+    /// Update action bar visibility based on current state
+    private func updateActionBarVisibility() {
+        // Action bar is only visible when Option is pressed AND we have results
+        let shouldShowActionBar = isOptionKeyPressed && !searchResults.isEmpty && !isSettingsMode
+
+        if shouldShowActionBar {
+            showActionBar()
+        } else {
+            hideActionBar()
+        }
+    }
+
+    /// Show the action bar above the search results
+    private func showActionBar() {
+        guard actionBarView == nil else { return }
+        guard let contentView = contentView else { return }
+
+        let actionBar = createActionBarView()
+        actionBarView = actionBar
+
+        // Insert action bar between search field and results
+        contentView.addSubview(actionBar)
+
+        // Position below search field, above results
+        NSLayoutConstraint.activate([
+            actionBar.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 12),
+            actionBar.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12),
+            actionBar.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 4),
+            actionBar.heightAnchor.constraint(equalToConstant: 32),
+        ])
+
+        // Deactivate original scroll view constraint and add new one for action bar
+        originalScrollViewTopConstraint?.isActive = false
+        actionBarScrollViewTopConstraint = scrollView.topAnchor.constraint(equalTo: actionBar.bottomAnchor, constant: 4)
+        actionBarScrollViewTopConstraint?.isActive = true
+    }
+
+    /// Hide the action bar
+    private func hideActionBar() {
+        guard actionBarView != nil else { return }
+        
+        // Restore original scroll view constraint
+        actionBarScrollViewTopConstraint?.isActive = false
+        actionBarScrollViewTopConstraint = nil
+        originalScrollViewTopConstraint?.isActive = true
+        
+        actionBarView?.removeFromSuperview()
+        actionBarView = nil
+    }
+
+    /// Create the action bar view with convert and translate options
+    private func createActionBarView() -> NSView {
+        let container = NSView()
+        container.wantsLayer = true
+        container.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.06).cgColor
+        container.layer?.cornerRadius = 6
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        // Create horizontal stack for options
+        let stackView = NSStackView()
+        stackView.orientation = .horizontal
+        stackView.spacing = 8
+        stackView.alignment = .centerY
+        stackView.distribution = .fill
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+
+        // Add convert option
+        let convertButton = createActionBarButton(title: "convert")
+        stackView.addArrangedSubview(convertButton)
+
+        // Add separator
+        let separator = NSView()
+        separator.wantsLayer = true
+        separator.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.15).cgColor
+        separator.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            separator.widthAnchor.constraint(equalToConstant: 1),
+            separator.heightAnchor.constraint(equalToConstant: 16),
+        ])
+        stackView.addArrangedSubview(separator)
+
+        // Add translate option
+        let translateButton = createActionBarButton(title: "translate")
+        stackView.addArrangedSubview(translateButton)
+
+        container.addSubview(stackView)
+
+        NSLayoutConstraint.activate([
+            stackView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
+            stackView.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
+            stackView.topAnchor.constraint(equalTo: container.topAnchor, constant: 4),
+            stackView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -4),
+        ])
+
+        return container
+    }
+
+    /// Create a button for an action bar option
+    private func createActionBarButton(title: String) -> NSButton {
+        let button = NSButton(title: title, target: nil, action: nil)
+        button.bezelStyle = .inline
+        button.isBordered = false
+        button.contentTintColor = .secondaryLabelColor
+        button.font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        return button
     }
 
     func handleEscape() {
@@ -1069,6 +1228,33 @@ final class CommandPaletteWindow: NSPanel {
         }
         
         result.execute()
+        close()
+    }
+
+    /// Reveals the current result (Cmd+Enter action)
+    /// For processes: Force quit
+    /// For files: Reveal in Finder
+    /// For other results: No action (but still closes palette)
+    func revealCurrentResult() {
+        var selectedRow = resultsTableView.selectedRow
+
+        // If no selection but results exist, default to first result
+        if selectedRow < 0, !searchResults.isEmpty {
+            selectedRow = 0
+        }
+
+        guard selectedRow >= 0, selectedRow < searchResults.count else {
+            // No results at all, just close
+            close()
+            return
+        }
+
+        let result = searchResults[selectedRow]
+        
+        // Trigger the reveal action if available
+        result.reveal()
+        
+        // Always close palette after Cmd+Enter
         close()
     }
 
@@ -1349,6 +1535,9 @@ extension CommandPaletteWindow {
         } else {
             scrollView.isHidden = true
         }
+        
+        // Update action bar visibility based on results
+        updateActionBarVisibility()
     }
 
     /// Clear selection (for testing)
@@ -1434,6 +1623,28 @@ extension CommandPaletteWindow {
     /// Clear hover on all rows for testing
     func clearHoverOnAllRowsForTesting() {
         resultsTableView.clearHover()
+    }
+
+    // MARK: - Action Bar Test Helpers
+
+    /// Check if action bar is visible (for testing)
+    var isActionBarVisible: Bool {
+        actionBarView != nil && actionBarView?.superview != nil
+    }
+
+    /// Get action bar options (for testing)
+    var actionBarOptions: [String] {
+        actionBarOptionLabels
+    }
+
+    /// Simulate modifier flags change (for testing Option key detection)
+    /// Directly updates the internal state without creating NSEvent
+    func simulateModifierFlagsChange(modifiers: NSEvent.ModifierFlags) {
+        let optionIsPressed = modifiers.contains(.option)
+        if optionIsPressed != isOptionKeyPressed {
+            isOptionKeyPressed = optionIsPressed
+            updateActionBarVisibility()
+        }
     }
 }
 
