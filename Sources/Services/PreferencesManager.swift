@@ -62,6 +62,8 @@ final class PreferencesManager: ObservableObject {
     @Published var launchAtLogin: Bool {
         didSet {
             defaults.set(launchAtLogin, forKey: Keys.launchAtLogin)
+            // Sync with LaunchAtLoginService
+            LaunchAtLoginService.shared.enabled = launchAtLogin
         }
     }
 
@@ -106,8 +108,16 @@ final class PreferencesManager: ObservableObject {
         let storedLimit = defaults.integer(forKey: Keys.searchResultsLimit)
         searchResultsLimit = storedLimit > 0 ? storedLimit : 10
 
-        // Load launch at login
-        launchAtLogin = defaults.bool(forKey: Keys.launchAtLogin)
+        // Load launch at login - sync with actual system state
+        // The system state is the source of truth
+        let storedLaunchAtLogin = defaults.bool(forKey: Keys.launchAtLogin)
+        let systemLaunchAtLogin = LaunchAtLoginService.shared.isEnabled
+        
+        // If they differ, the system state wins (e.g., user changed in System Settings)
+        if storedLaunchAtLogin != systemLaunchAtLogin {
+            defaults.set(systemLaunchAtLogin, forKey: Keys.launchAtLogin)
+        }
+        launchAtLogin = systemLaunchAtLogin
 
         // Load indexed directories
         if let dirs = defaults.stringArray(forKey: Keys.indexedDirectories), !dirs.isEmpty {

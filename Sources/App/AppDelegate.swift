@@ -9,6 +9,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var registeredHotkeyIds: [HotkeyIdentifier] = []
 
     func applicationDidFinishLaunching(_: Notification) {
+        // Sync launch at login preference with system
+        LaunchAtLoginService.shared.enabled = PreferencesManager.shared.launchAtLogin
+        
         // Apply saved awake preference if system is not already caffeinated
         AwakeService.shared.applySavedPreference()
         

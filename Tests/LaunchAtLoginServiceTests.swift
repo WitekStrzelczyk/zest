@@ -77,4 +77,59 @@ final class LaunchAtLoginServiceTests: XCTestCase {
         // Then - should match the enabled property
         XCTAssertEqual(service.enabled, systemStatus)
     }
+
+    // MARK: - Sync Behavior Tests
+
+    func test_setting_preferences_manager_launch_at_login_syncs_to_service() {
+        // Given - PreferencesManager and LaunchAtLoginService
+        let prefs = PreferencesManager.shared
+        let service = LaunchAtLoginService.shared
+
+        // Get current state
+        let originalState = service.isEnabled
+
+        // When - setting launch at login via PreferencesManager
+        prefs.launchAtLogin = !originalState
+
+        // Then - LaunchAtLoginService should reflect the change
+        XCTAssertEqual(service.isEnabled, !originalState, 
+            "LaunchAtLoginService should sync when PreferencesManager.launchAtLogin changes")
+
+        // Cleanup - restore original state
+        prefs.launchAtLogin = originalState
+    }
+
+    func test_preferences_manager_syncs_with_system_state_on_init() {
+        // Given - LaunchAtLoginService with actual system state
+        let service = LaunchAtLoginService.shared
+        let systemState = service.isEnabled
+
+        // When - accessing PreferencesManager (already initialized as singleton)
+        let prefs = PreferencesManager.shared
+
+        // Then - PreferencesManager should match system state
+        XCTAssertEqual(prefs.launchAtLogin, systemState,
+            "PreferencesManager should sync with actual system state")
+    }
+
+    func test_preferences_manager_and_service_remain_in_sync() {
+        // Given - both services
+        let prefs = PreferencesManager.shared
+        let service = LaunchAtLoginService.shared
+
+        // When - toggling via PreferencesManager
+        let originalState = prefs.launchAtLogin
+        prefs.launchAtLogin = !originalState
+
+        // Then - both should have same value
+        XCTAssertEqual(prefs.launchAtLogin, service.isEnabled,
+            "PreferencesManager and LaunchAtLoginService should stay in sync")
+
+        // When - toggling back
+        prefs.launchAtLogin = originalState
+
+        // Then - both should still match
+        XCTAssertEqual(prefs.launchAtLogin, service.isEnabled,
+            "PreferencesManager and LaunchAtLoginService should remain in sync")
+    }
 }
