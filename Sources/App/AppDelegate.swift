@@ -15,10 +15,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupMainMenu()
         setupMenuBar()
         setupGlobalCommandHotkeys()
+        setupColorPickerNotifications()
+        
+        // Register color picker plugin
+        ColorPickerPlugin.shared.onRegister()
     }
 
     func applicationWillTerminate(_: Notification) {
         GlobalHotkeyManager.shared.unregisterAll()
+    }
+
+    // MARK: - Color Picker Notifications
+
+    private func setupColorPickerNotifications() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleDismissCommandPalette),
+            name: .zestDismissCommandPalette,
+            object: nil
+        )
+    }
+
+    @objc private func handleDismissCommandPalette() {
+        DispatchQueue.main.async { [weak self] in
+            self?.commandPaletteWindow?.close()
+        }
     }
 
     // MARK: - Main Menu (enables standard edit shortcuts in text fields)

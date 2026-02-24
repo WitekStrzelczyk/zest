@@ -194,6 +194,13 @@ final class SearchEngine {
         cmdSpan.finish()
         results.append(contentsOf: commandResults)
 
+        // Color Picker
+        let colorSpan = span.createChild(operationName: "color_picker")
+        let colorPickerResults = ColorPickerPlugin.shared.search(query: query)
+        colorSpan.setTag("results", colorPickerResults.count)
+        colorSpan.finish()
+        results.append(contentsOf: colorPickerResults)
+
         // Contacts
         let contactSpan = span.createChild(operationName: "contacts")
         let contactResults = ContactsService.shared.search(query: query)
@@ -506,6 +513,13 @@ final class SearchEngine {
         cmdSpan.setTag("results", commandResults.count)
         cmdSpan.finish()
         results.append(contentsOf: commandResults)
+
+        // Color Picker
+        let colorSpan = span.createChild(operationName: "color_picker")
+        let colorPickerResults = ColorPickerPlugin.shared.search(query: query)
+        colorSpan.setTag("results", colorPickerResults.count)
+        colorSpan.finish()
+        results.append(contentsOf: colorPickerResults)
 
         // Contacts
         let contactSpan = span.createChild(operationName: "contacts")
