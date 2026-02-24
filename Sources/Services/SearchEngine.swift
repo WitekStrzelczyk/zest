@@ -208,6 +208,20 @@ final class SearchEngine {
         contactSpan.finish()
         results.append(contentsOf: contactResults)
 
+        // Battery info
+        let batterySpan = span.createChild(operationName: "battery")
+        let batteryResults = BatteryService.shared.search(query: query)
+        batterySpan.setTag("results", batteryResults.count)
+        batterySpan.finish()
+        results.append(contentsOf: batteryResults)
+
+        // System info (storage, system specs)
+        let systemInfoSpan = span.createChild(operationName: "system_info")
+        let systemInfoResults = SystemInfoService.shared.search(query: query)
+        systemInfoSpan.setTag("results", systemInfoResults.count)
+        systemInfoSpan.finish()
+        results.append(contentsOf: systemInfoResults)
+
         // Clipboard history
         let clipSpan = span.createChild(operationName: "clipboard")
         let clipboardResults = ClipboardManager.shared.search(query: query)
@@ -527,6 +541,20 @@ final class SearchEngine {
         contactSpan.setTag("results", contactResults.count)
         contactSpan.finish()
         results.append(contentsOf: contactResults)
+
+        // Battery info
+        let batterySpan = span.createChild(operationName: "battery")
+        let batteryResults = BatteryService.shared.search(query: query)
+        batterySpan.setTag("results", batteryResults.count)
+        batterySpan.finish()
+        results.append(contentsOf: batteryResults)
+
+        // System info (storage, system specs)
+        let systemInfoSpan = span.createChild(operationName: "system_info")
+        let systemInfoResults = SystemInfoService.shared.search(query: query)
+        systemInfoSpan.setTag("results", systemInfoResults.count)
+        systemInfoSpan.finish()
+        results.append(contentsOf: systemInfoResults)
 
         // Clipboard history
         let clipSpan = span.createChild(operationName: "clipboard")
