@@ -73,6 +73,20 @@ final class UnitConverter {
             fromBaseUnit: { $0 * 100 }
         ),
         Unit(
+            name: "millimeters",
+            abbreviations: ["mm", "millimeter", "millimeters"],
+            category: .length,
+            toBaseUnit: { $0 / 1000 },
+            fromBaseUnit: { $0 * 1000 }
+        ),
+        Unit(
+            name: "yards",
+            abbreviations: ["yd", "yard", "yards"],
+            category: .length,
+            toBaseUnit: { $0 * 0.9144 },
+            fromBaseUnit: { $0 / 0.9144 }
+        ),
+        Unit(
             name: "inches",
             abbreviations: ["in", "inch", "inches"],
             category: .length,
@@ -162,6 +176,13 @@ final class UnitConverter {
             toBaseUnit: { $0 * 0.236588 },
             fromBaseUnit: { $0 / 0.236588 }
         ),
+        Unit(
+            name: "quarts",
+            abbreviations: ["qt", "quart", "quarts"],
+            category: .volume,
+            toBaseUnit: { $0 * 0.946353 },
+            fromBaseUnit: { $0 / 0.946353 }
+        ),
 
         // MARK: - Area (base: square meters)
         Unit(
@@ -170,6 +191,13 @@ final class UnitConverter {
             category: .area,
             toBaseUnit: { $0 },
             fromBaseUnit: { $0 }
+        ),
+        Unit(
+            name: "square kilometers",
+            abbreviations: ["sq km", "sqkm", "km2", "km^2", "square kilometer", "square kilometers"],
+            category: .area,
+            toBaseUnit: { $0 * 1_000_000 },
+            fromBaseUnit: { $0 / 1_000_000 }
         ),
         Unit(
             name: "square feet",
@@ -251,6 +279,13 @@ final class UnitConverter {
             category: .time,
             toBaseUnit: { $0 * 86400 },
             fromBaseUnit: { $0 / 86400 }
+        ),
+        Unit(
+            name: "weeks",
+            abbreviations: ["w", "week", "weeks"],
+            category: .time,
+            toBaseUnit: { $0 * 604800 },
+            fromBaseUnit: { $0 / 604800 }
         ),
 
         // MARK: - Data (base: bytes, binary 1024)

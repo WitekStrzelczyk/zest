@@ -130,6 +130,20 @@ final class SearchEngine {
                     score: 2000 // Very high score to ensure conversion is always first
                 ))
             }
+        } else if lowercasedQuery == "convert" {
+            // Show conversion hints when user types "convert"
+            convSpan.setTag("showing_hints", true)
+            let hints = UnitConverter.shared.getHints()
+            for hint in hints {
+                results.append(SearchResult(
+                    title: hint,
+                    subtitle: "Unit Conversion Example",
+                    icon: NSImage(systemSymbolName: "arrow.left.arrow.right", accessibilityDescription: "Unit Converter"),
+                    category: .conversion,
+                    action: { },
+                    score: 2000
+                ))
+            }
         }
         convSpan.finish()
 
@@ -476,6 +490,20 @@ final class SearchEngine {
                         NSPasteboard.general.setString(result, forType: .string)
                     },
                     score: 2000 // Very high score to ensure conversion is always first
+                ))
+            }
+        } else if lowercasedQuery == "convert" {
+            // Show conversion hints when user types "convert"
+            convSpan.setTag("showing_hints", true)
+            let hints = UnitConverter.shared.getHints()
+            for hint in hints {
+                results.append(SearchResult(
+                    title: hint,
+                    subtitle: "Unit Conversion Example",
+                    icon: NSImage(systemSymbolName: "arrow.left.arrow.right", accessibilityDescription: "Unit Converter"),
+                    category: .conversion,
+                    action: { },
+                    score: 2000
                 ))
             }
         }

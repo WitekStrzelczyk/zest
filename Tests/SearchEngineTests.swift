@@ -295,4 +295,43 @@ final class SearchEngineTests: XCTestCase {
         let hasGitHubQuicklink = results.contains { $0.title == "GitHub" && $0.category == .quicklink }
         XCTAssertTrue(hasGitHubQuicklink, "Fast search should find GitHub quicklink")
     }
+
+    // MARK: - Unit Conversion Tests
+
+    func test_search_returnsUnitConversion() {
+        let engine = SearchEngine.shared
+
+        let results = engine.search(query: "100 km to miles")
+
+        let hasConversionResult = results.contains { $0.category == .conversion }
+        XCTAssertTrue(hasConversionResult, "Should return conversion result for '100 km to miles'")
+    }
+
+    func test_searchFast_returnsUnitConversion() {
+        let engine = SearchEngine.shared
+
+        let results = engine.searchFast(query: "50 kg to lbs")
+
+        let hasConversionResult = results.contains { $0.category == .conversion }
+        XCTAssertTrue(hasConversionResult, "Fast search should return conversion result for '50 kg to lbs'")
+    }
+
+    func test_search_convertKeyword_showsHints() {
+        let engine = SearchEngine.shared
+
+        let results = engine.search(query: "convert")
+
+        let hasConversionHints = results.contains { $0.category == .conversion }
+        XCTAssertTrue(hasConversionHints, "Typing 'convert' should show conversion hints")
+    }
+
+    func test_search_conversionResult_hasHighScore() {
+        let engine = SearchEngine.shared
+
+        let results = engine.search(query: "72 f to c")
+
+        let conversionResult = results.first { $0.category == .conversion }
+        XCTAssertNotNil(conversionResult, "Should have conversion result")
+        XCTAssertEqual(conversionResult?.score, 2000, "Conversion result should have high score (2000)")
+    }
 }

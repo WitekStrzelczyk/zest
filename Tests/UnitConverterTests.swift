@@ -591,4 +591,77 @@ final class UnitConverterTests: XCTestCase {
         // Then
         XCTAssertEqual(result, "-62.14 miles", "Negative numbers should convert correctly")
     }
+
+    // MARK: - Missing Required Units (Story 23)
+
+    func test_millimeters_to_centimeters() {
+        // Given
+        let converter = UnitConverter.shared
+
+        // When
+        let result = converter.convert("10 mm to cm")
+
+        // Then
+        XCTAssertEqual(result, "1 centimeters", "10 mm should convert to 1 cm")
+    }
+
+    func test_yards_to_meters() {
+        // Given
+        let converter = UnitConverter.shared
+
+        // When
+        let result = converter.convert("1 yd to m")
+
+        // Then
+        XCTAssertEqual(result, "0.91 meters", "1 yard should convert to 0.91 meters")
+    }
+
+    func test_quarts_to_liters() {
+        // Given
+        let converter = UnitConverter.shared
+
+        // When
+        let result = converter.convert("1 qt to l")
+
+        // Then
+        XCTAssertEqual(result, "0.95 liters", "1 quart should convert to 0.95 liters")
+    }
+
+    func test_sqkm_to_sqm() {
+        // Given
+        let converter = UnitConverter.shared
+
+        // When
+        let result = converter.convert("1 sqkm to sqm")
+
+        // Then
+        XCTAssertEqual(result, "1,000,000 square meters", "1 sq km should convert to 1,000,000 square meters")
+    }
+
+    func test_weeks_to_days() {
+        // Given
+        let converter = UnitConverter.shared
+
+        // When
+        let result = converter.convert("1 week to days")
+
+        // Then
+        XCTAssertEqual(result, "7 days", "1 week should convert to 7 days")
+    }
+
+    func test_convert_keyword_shows_hints() {
+        // Given
+        let converter = UnitConverter.shared
+
+        // When
+        let isConversion = converter.isConversionExpression("convert")
+
+        // Then - "convert" by itself is not a conversion but should trigger hints
+        XCTAssertFalse(isConversion, "convert by itself is not a conversion expression")
+        
+        // But hints should be available
+        let hints = converter.getHints()
+        XCTAssertFalse(hints.isEmpty, "Should have hints available")
+        XCTAssertTrue(hints.contains("100 km to miles"), "Should include example hint")
+    }
 }
