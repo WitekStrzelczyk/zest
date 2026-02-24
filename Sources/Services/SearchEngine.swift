@@ -147,6 +147,13 @@ final class SearchEngine {
         }
         convSpan.finish()
 
+        // Check for time zone conversion (high priority)
+        let tzSpan = span.createChild(operationName: "time_zone_conversion")
+        let tzResults = TimeZoneConverterService.shared.search(query: query)
+        tzSpan.setTag("results", tzResults.count)
+        tzSpan.finish()
+        results.append(contentsOf: tzResults)
+
         // Fuzzy search through installed apps
         let appSpan = span.createChild(operationName: "applications")
         appSpan.setTag("total_apps", installedApps.count)
@@ -235,6 +242,13 @@ final class SearchEngine {
         systemInfoSpan.setTag("results", systemInfoResults.count)
         systemInfoSpan.finish()
         results.append(contentsOf: systemInfoResults)
+        
+        // Network info (IP addresses, WiFi)
+        let networkSpan = span.createChild(operationName: "network_info")
+        let networkResults = NetworkInfoService.shared.search(query: query)
+        networkSpan.setTag("results", networkResults.count)
+        networkSpan.finish()
+        results.append(contentsOf: networkResults)
 
         // Clipboard history
         let clipSpan = span.createChild(operationName: "clipboard")
@@ -509,6 +523,13 @@ final class SearchEngine {
         }
         convSpan.finish()
 
+        // Check for time zone conversion (high priority)
+        let tzSpan = span.createChild(operationName: "time_zone_conversion")
+        let tzResults = TimeZoneConverterService.shared.search(query: query)
+        tzSpan.setTag("results", tzResults.count)
+        tzSpan.finish()
+        results.append(contentsOf: tzResults)
+
         // Fuzzy search through installed apps
         let appSpan = span.createChild(operationName: "applications")
         appSpan.setTag("total_apps", installedApps.count)
@@ -583,6 +604,13 @@ final class SearchEngine {
         systemInfoSpan.setTag("results", systemInfoResults.count)
         systemInfoSpan.finish()
         results.append(contentsOf: systemInfoResults)
+        
+        // Network info (IP addresses, WiFi)
+        let networkSpan = span.createChild(operationName: "network_info")
+        let networkResults = NetworkInfoService.shared.search(query: query)
+        networkSpan.setTag("results", networkResults.count)
+        networkSpan.finish()
+        results.append(contentsOf: networkResults)
 
         // Clipboard history
         let clipSpan = span.createChild(operationName: "clipboard")
