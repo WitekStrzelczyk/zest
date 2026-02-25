@@ -5,15 +5,16 @@ enum SearchResultCategory: Int, Comparable {
     case application = 0
     case conversion = 1  // Unit conversions - high priority
     case process = 2
-    case action = 3
-    case contact = 4
-    case clipboard = 5
-    case file = 6
-    case emoji = 7
-    case globalAction = 8
-    case quicklink = 9
-    case settings = 10
-    case toggle = 11
+    case calendar = 3    // Calendar events and meetings
+    case action = 4
+    case contact = 5
+    case clipboard = 6
+    case file = 7
+    case emoji = 8
+    case globalAction = 9
+    case quicklink = 10
+    case settings = 11
+    case toggle = 12
 
     static func < (lhs: SearchResultCategory, rhs: SearchResultCategory) -> Bool {
         lhs.rawValue < rhs.rawValue
@@ -25,6 +26,7 @@ enum SearchResultCategory: Int, Comparable {
         case .application: return "application app"
         case .conversion: return "conversion unit"
         case .process: return "process system monitor"
+        case .calendar: return "calendar meeting event schedule"
         case .action: return "action command shortcut"
         case .contact: return "contact"
         case .clipboard: return "clipboard history"

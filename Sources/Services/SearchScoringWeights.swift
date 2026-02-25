@@ -9,6 +9,8 @@ struct SearchScoringWeights: Codable {
     var categoryApplication: Double = 1.2
     /// Unit conversions
     var categoryConversion: Double = 1.1
+    /// Calendar events and meetings
+    var categoryCalendar: Double = 1.05
     /// Actions and commands
     var categoryAction: Double = 1.0
     /// Global actions (hotkeys)
@@ -73,6 +75,7 @@ struct SearchScoringWeights: Codable {
         switch category {
         case .application: return categoryApplication
         case .conversion: return categoryConversion
+        case .calendar: return categoryCalendar
         case .action: return categoryAction
         case .globalAction: return categoryGlobalAction
         case .quicklink: return categoryQuicklink

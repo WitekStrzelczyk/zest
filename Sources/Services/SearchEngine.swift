@@ -257,6 +257,13 @@ final class SearchEngine {
         clipSpan.finish()
         results.append(contentsOf: clipboardResults)
 
+        // Calendar events and meetings
+        let calendarSpan = span.createChild(operationName: "calendar")
+        let calendarResults = CalendarService.shared.search(query: query)
+        calendarSpan.setTag("results", calendarResults.count)
+        calendarSpan.finish()
+        results.append(contentsOf: calendarResults)
+
         // Emojis disabled - users can use Cmd+Ctrl+Space system picker instead
         // let emojiResults = EmojiSearchService.shared.search(query: query)
         // results.append(contentsOf: emojiResults)
@@ -618,6 +625,13 @@ final class SearchEngine {
         clipSpan.setTag("results", clipboardResults.count)
         clipSpan.finish()
         results.append(contentsOf: clipboardResults)
+
+        // Calendar events and meetings
+        let calendarSpan = span.createChild(operationName: "calendar")
+        let calendarResults = CalendarService.shared.search(query: query)
+        calendarSpan.setTag("results", calendarResults.count)
+        calendarSpan.finish()
+        results.append(contentsOf: calendarResults)
 
         // Search for files using Spotlight
         let fileSpan = span.createChild(operationName: "files")

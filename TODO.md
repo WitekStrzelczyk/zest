@@ -333,7 +333,7 @@ Calculator should handle standard mathematical expressions accurately.
 
 ---
 
-### [ ] Story 23: Unit Conversion Function
+### [x] Story 23: Unit Conversion Function
 
 **As a** developer and knowledge worker who frequently needs to convert units while working
 **I want** to type natural language conversions like "100 km to miles" in the command palette
@@ -716,7 +716,7 @@ Preferences should persist correctly and apply immediately.
 
 ---
 
-### [ ] Story 20: Launch at Login
+### [x] Story 20: Launch at Login
 
 **As a** user who wants Zest always available
 **I want** Zest to launch automatically when I log in
@@ -1385,3 +1385,446 @@ Part of: "Accessibility" use case
 - This is a cross-cutting concern that affects every feature
 
 ### Verification Strategy
+Keyboard navigation must work consistently across all features without requiring a mouse.
+
+#### Test Cases (Acceptance Criteria)
+- **Given** the command palette is open, **When** I type a search query, **Then** I can navigate results with Up/Down arrows
+- **Given** search results are displayed, **When** I press Enter, **Then** the selected item is activated
+- **Given** the command palette is open, **When** I press Tab, **Then** focus moves to the next interactive element
+- **Given** multiple results exist, **When** I press Cmd+1 through Cmd+9, **Then** the corresponding result is selected
+- **Given** the command palette is open, **When** I press Escape, **Then** the palette closes
+
+### Implementation Notes
+- Ensure all UI elements are keyboard-accessible
+- Support standard macOS keyboard navigation patterns
+- Add keyboard shortcut hints in the UI
+
+---
+
+## Community-Requested Features
+
+These stories are based on popular feature requests from Raycast forum, Raycast Store analytics, and launcher app communities. Focus on high-value, non-AI features that complement existing Zest capabilities.
+
+---
+
+### [x] Story 24: Color Picker
+
+**As a** designer and developer who frequently works with colors
+**I want** to pick colors from anywhere on screen and convert between color formats
+**So that** I can quickly capture and use colors in my designs and code
+
+### Use Case Context
+Part of: "Built-in Tools" use case
+- Similar to: Raycast Color Picker (365,990+ installs)
+- Complements: Calculator and other quick utilities
+
+### Verification Strategy
+Color picker must work with any on-screen content and provide accurate color values in multiple formats.
+
+#### Test Cases (Acceptance Criteria)
+- **Given** the command palette is open, **When** I search for "color picker", **Then** a color picker tool appears
+- **Given** the color picker is active, **When** I click anywhere on screen, **Then** the color under cursor is captured
+- **Given** a color is captured, **When** I view the result, **Then** it shows HEX, RGB, and HSL formats
+- **Given** a color is captured, **When** I press Enter, **Then** the HEX value is copied to clipboard
+- **Given** the color picker is open, **When** I press Cmd+C, **Then** the color is copied in the currently displayed format
+- **Given** colors are picked, **When** I view color history, **Then** recently picked colors appear for quick access
+
+### Implementation Notes
+- Use NSColorSampler (macOS 14+) or NSColorPanel for color picking
+- Support formats: HEX (#RRGGBB), RGB (255, 255, 255), HSL, NSColor, UIColor
+- Store color history in UserDefaults (last 20 colors)
+- Consider integration with Apple Color Picker
+
+---
+
+### [ ] Story 25: Translation Tool
+
+**As a** multilingual user who frequently translates text
+**I want** to quickly translate text between languages from the command palette
+**So that** I can communicate effectively without opening a browser or separate app
+
+### Use Case Context
+Part of: "Built-in Tools" use case
+- Similar to: Raycast Google Translate (345,652+ installs)
+- Integrates with: Clipboard history for translating copied text
+
+### Verification Strategy
+Translation must be fast and support common language pairs.
+
+#### Test Cases (Acceptance Criteria)
+- **Given** the command palette is open, **When** I type "translate hello to spanish", **Then** "hola" appears as result
+- **Given** the command palette is open, **When** I type "traduire bonjour en anglais", **Then** "translate bonjour to english" is understood
+- **Given** text is in clipboard, **When** I search "translate clipboard", **Then** the clipboard text is translated
+- **Given** a translation result, **When** I press Enter, **Then** the translation is copied to clipboard
+- **Given** translation settings, **When** I set default target language to Spanish, **Then** future translations default to Spanish
+- **Given** an unsupported language, **When** I try to translate, **Then** a helpful error message appears
+
+### Implementation Notes
+- Use free translation APIs (LibreTranslate, MyMemory) or macOS built-in Translation framework
+- Support auto-detection of source language
+- Cache recent translations for offline access
+- Language code support: en, es, fr, de, it, pt, zh, ja, ko, ru, ar
+
+---
+
+### [ ] Story 26: Calendar Integration
+
+**As a** remote worker with many meetings
+**I want** to instantly join my next meeting and see my meeting schedule at a glance
+**So that** I save time and never miss or double-book meetings
+
+### Use Case Context
+Part of: "Productivity" use case
+- Similar to: Raycast Calendar extension (240,000+ active users)
+- **WOW Factor**: "Join Next Meeting" one-command access + meeting insights
+
+### 🌟 WOW Features (Differentiators)
+
+#### 1. "Join Next Meeting" - One Command (⭐ PRIMARY WOW)
+```
+Cmd+Space → "join" → Enter → Boom, you're in the meeting
+```
+- Detects your next meeting with a video link
+- Works with: Zoom, Google Meet, Microsoft Teams, WebEx, Slack huddles
+- Shows countdown: "Next meeting in 12 min: Team Standup"
+- **Saves 30+ seconds × 8 meetings/day = 4 min/day saved**
+
+#### 2. Meeting Insights - Know Your Day
+```
+Cmd+Space → "meetings today"
+```
+Shows:
+- "3 meetings today (4.5 hours)"
+- "Next free slot: 3:00 PM - 5:00 PM"
+- "Heaviest day this week: Thursday (6 meetings)"
+
+#### 3. Always Show Active/Recent Meetings
+- Show meetings currently in progress (🔴 LIVE indicator)
+- Show meetings that ended in the last 60 minutes
+- Helps you quickly rejoin if you stepped out
+- Shows "Ended 15 min ago" for recent meetings
+
+#### 4. Quick Schedule - Natural Language
+```
+"Schedule 30min sync with Sarah tomorrow 3pm"
+```
+Creates event + (optional) sends invite
+
+### Verification Strategy
+Calendar must sync with macOS Calendar and support common conferencing platforms.
+
+#### Test Cases (Acceptance Criteria)
+
+**Basic Calendar Access:**
+- **Given** the command palette is open, **When** I search for "calendar" or "schedule", **Then** my upcoming events appear
+- **Given** calendar events are displayed, **When** I view the list, **Then** events show title, time, and location
+- **Given** no calendar access, **When** I try to use calendar features, **Then** a permission request appears
+
+**Join Next Meeting (WOW):**
+- **Given** I have a meeting with a video link in 5 minutes, **When** I search "join", **Then** "Join: Team Standup (in 5 min)" appears as top result
+- **Given** I search "join" and press Enter, **When** the meeting has a Zoom link, **Then** Zoom opens and joins the meeting
+- **Given** I search "join", **When** there's no upcoming video meeting, **Then** "No upcoming meetings with video links" is shown
+- **Given** multiple video meetings exist, **When** I search "join", **Then** the next one chronologically is shown
+
+**Active/Recent Meetings:**
+- **Given** a meeting is currently in progress (now is between start and end time), **When** I search "calendar", **Then** the meeting shows with "🔴 IN PROGRESS" indicator
+- **Given** a meeting ended 30 minutes ago, **When** I search "calendar", **Then** the meeting appears with "Ended 30 min ago"
+- **Given** a meeting ended 2 hours ago, **When** I search "calendar", **Then** the meeting does NOT appear (only show last 60 min)
+- **Given** an in-progress meeting has a video link, **When** I press Enter, **Then** I can rejoin the meeting
+
+**Meeting Insights:**
+- **Given** I search "meetings today", **When** results appear, **Then** I see total meeting count and hours
+- **Given** I search "meetings today", **When** results appear, **Then** I see my next free time slot (minimum 30 min gap)
+- **Given** I search "free slot" or "when am I free", **Then** my next available 30+ minute gap is shown
+
+**Video Link Detection:**
+- **Given** an event contains "zoom.us/j/", **When** displayed, **Then** it's recognized as a Zoom meeting
+- **Given** an event contains "meet.google.com/", **When** displayed, **Then** it's recognized as Google Meet
+- **Given** an event contains "teams.microsoft.com/", **When** displayed, **Then** it's recognized as Microsoft Teams
+- **Given** an event contains "webex.com/", **When** displayed, **Then** it's recognized as WebEx
+
+**Calendar Actions:**
+- **Given** an event with a Zoom/Meet/Teams link, **When** I press Enter, **Then** the meeting opens in the appropriate app
+- **Given** calendar events are displayed, **When** I press Cmd+Enter, **Then** the event opens in Calendar app
+- **Given** an event is selected, **When** I press Cmd+C, **Then** the meeting link is copied to clipboard
+
+### Implementation Notes
+
+**Files to Create:**
+```
+Sources/Services/CalendarService.swift
+├── getUpcomingEvents(days: 7)           // Events for next 7 days
+├── getNextMeetingWithLink()             // Find next video meeting
+├── getActiveMeetings()                  // Meetings in progress
+├── getRecentMeetings(within: 60min)     // Meetings that ended recently
+├── joinMeeting(url: URL)                // Open Zoom/Meet/Teams
+├── getTodayInsights()                   // Meeting count, hours, free slots
+├── findNextFreeSlot(duration: 30min)    // Find gaps in calendar
+├── parseVideoLink(event: EKEvent)       // Extract URLs
+├── getSupportedPlatforms()              // Zoom, Meet, Teams, WebEx, Slack
+└── createQuickEvent(text: String)       // Natural language parsing (optional)
+```
+
+**Video Platform URL Patterns:**
+- Zoom: `zoom.us/j/`, `zoom.us/s/`, `zoom.us/w/`
+- Google Meet: `meet.google.com/`
+- Microsoft Teams: `teams.microsoft.com/l/meetup-join/`, `teams.live.com/`
+- WebEx: `webex.com/meet/`, `.webex.com/`
+- Slack: `slack.com/call/`, `app.slack.com/client/`
+
+**Technology:**
+- Use EventKit framework to access Calendar
+- Request Calendar access permission on first use
+- Cache events for 30 seconds to reduce API calls
+- Support multiple calendars (work, personal) with filtering
+
+### Differentiators from Other Launchers
+| Feature | Zest | Raycast | Alfred |
+|---------|------|---------|--------|
+| "Join" one-command | ✅ | ❌ (requires navigation) | ❌ |
+| Active meeting indicator | ✅ | ❌ | ❌ |
+| Recent meetings (60 min) | ✅ | ❌ | ❌ |
+| Meeting insights | ✅ | Partial | ❌ |
+| Free slot finder | ✅ | ❌ | ❌ |
+
+---
+
+### [ ] Story 27: Homebrew Integration
+
+**As a** developer who uses Homebrew to manage packages
+**I want** to search and install Homebrew formulae from the command palette
+**So that** I can discover and install packages without opening Terminal
+
+### Use Case Context
+Part of: "Developer Tools" use case
+- Similar to: Raycast Brew extension (215,087+ installs)
+- Complements: Script command execution
+
+### Verification Strategy
+Homebrew commands must execute safely with proper feedback.
+
+#### Test Cases (Acceptance Criteria)
+- **Given** the command palette is open, **When** I search "brew search node", **Then** available node formulae appear
+- **Given** Homebrew search results, **When** I select a formula and press Enter, **Then** "brew install [formula]" is executed
+- **Given** an installation is running, **When** I view status, **Then** progress is shown in a panel
+- **Given** the command palette is open, **When** I search "brew installed" or "brew list", **Then** my installed formulae appear
+- **Given** the command palette is open, **When** I search "brew outdated", **Then** packages with updates available are listed
+- **Given** Homebrew is not installed, **When** I try to use brew features, **Then** a helpful message with installation instructions appears
+
+### Implementation Notes
+- Use Process to execute brew commands
+- Cache formula descriptions from `brew info --json`
+- Support both formulae and casks
+- Show install/uninstall status for each package
+- Add "brew update" and "brew upgrade" commands
+
+---
+
+### [ ] Story 28: Pomodoro Timer
+
+**As a** knowledge worker who wants to maintain focus and productivity
+**I want** to start and track Pomodoro sessions from the command palette
+**So that** I can maintain healthy work/break cycles without a separate timer app
+
+### Use Case Context
+Part of: "Time Management" use case
+- Popular in productivity communities
+- Integrates with: Focus mode control
+
+### Verification Strategy
+Timer must be accurate and provide clear notifications.
+
+#### Test Cases (Acceptance Criteria)
+- **Given** the command palette is open, **When** I search "pomodoro start" or "timer start", **Then** a 25-minute Pomodoro begins
+- **Given** a Pomodoro is running, **When** I search "pomodoro status", **Then** remaining time is displayed
+- **Given** a Pomodoro completes, **When** the timer ends, **Then** a notification appears suggesting a break
+- **Given** a Pomodoro is running, **When** I search "pomodoro stop", **Then** the timer is cancelled
+- **Given** the command palette is open, **When** I search "pomodoro config", **Then** I can adjust work/break durations
+- **Given** Focus mode is off, **When** a Pomodoro starts, **Then** optionally Focus mode can be enabled automatically
+
+### Implementation Notes
+- Use Timer or async task for countdown
+- Store session history for daily/weekly statistics
+- Support custom durations (default: 25min work, 5min break)
+- Menu bar indicator showing remaining time
+- UserNotification framework for alerts
+
+---
+
+### [ ] Story 29: Quick Notes (Floating Notes)
+
+**As a** user who frequently captures ideas and meeting notes
+**I want** to quickly jot down notes in a floating window that stays on top
+**So that** I can capture thoughts without switching contexts
+
+### Use Case Context
+Part of: "Built-in Tools" use case
+- Similar to: Raycast Notes (highly requested feature)
+- Complements: Snippets and clipboard history
+
+### Verification Strategy
+Notes must be instantly accessible and persist across sessions.
+
+#### Test Cases (Acceptance Criteria)
+- **Given** the command palette is open, **When** I search "note" or "quick note", **Then** a floating note window appears
+- **Given** a note window is open, **When** I type text, **Then** the note auto-saves
+- **Given** I have multiple notes, **When** I search "notes", **Then** all my notes appear with previews
+- **Given** a note exists, **When** I search for text within the note content, **Then** matching notes appear
+- **Given** a note is selected, **When** I press Cmd+C on the note list, **Then** the note content is copied
+- **Given** markdown is supported, **When** I type markdown in a note, **Then** it renders with formatting preview
+
+### Implementation Notes
+- Store notes in Application Support directory (JSON or SQLite)
+- Support basic markdown: bold, italic, lists, checkboxes
+- Auto-save every few seconds
+- Floating window stays on top (.floatingPanel)
+- Export to plain text or markdown
+
+---
+
+### [ ] Story 30: Audio Device Switcher
+
+**As a** user who frequently switches between headphones, speakers, and microphones
+**I want** to quickly switch audio input/output devices from the command palette
+**So that** I can change audio settings without opening System Preferences
+
+### Use Case Context
+Part of: "System Integration" use case
+- Common request in launcher communities
+- Complements: System Control story
+
+### Verification Strategy
+Device switching must be instant and reliable.
+
+#### Test Cases (Acceptance Criteria)
+- **Given** the command palette is open, **When** I search "audio" or "speaker", **Then** available output devices appear
+- **Given** the command palette is open, **When** I search "microphone" or "input", **Then** available input devices appear
+- **Given** audio devices are listed, **When** I select a device and press Enter, **Then** the system audio switches to that device
+- **Given** a device switch occurs, **When** I check the menu bar, **Then** the current device is reflected in any audio indicators
+- **Given** AirPods are connected, **When** I search "airpods", **Then** they appear as an output option
+- **Given** no external devices are connected, **When** I search for audio devices, **Then** only built-in devices appear
+
+### Implementation Notes
+- Use CoreAudio/AudioToolbox for device enumeration
+- Use AudioDeviceID and AudioObjectPropertyAddress for switching
+- Support both input and output devices
+- Show current device with a checkmark indicator
+- Handle device connection/disconnection events
+
+---
+
+### [x] Story 31: Battery and System Info
+
+**As a** laptop user who monitors system health
+**I want** to quickly check battery status, storage, and system information
+**So that** I can monitor my Mac's health without opening System Information
+
+### Use Case Context
+Part of: "System Monitoring" use case
+- Complements: Process Monitoring story
+- Popular in productivity launcher communities
+
+### Verification Strategy
+System information must be accurate and updated in real-time.
+
+#### Test Cases (Acceptance Criteria)
+- **Given** the command palette is open, **When** I search "battery", **Then** current battery percentage, charging status, and cycle count appear
+- **Given** the command palette is open, **When** I search "storage" or "disk", **Then** available storage and disk usage appear
+- **Given** the command palette is open, **When** I search "system info" or "about", **Then** macOS version, model name, memory, and chip info appear
+- **Given** battery info is displayed, **When** battery is low (<20%), **Then** a warning indicator appears
+- **Given** storage info is displayed, **When** storage is nearly full (>90%), **Then** a warning indicator appears
+- **Given** system info is displayed, **When** I press Cmd+C, **Then** the system specs are copied to clipboard
+
+### Implementation Notes
+- Use IOKit for battery information (cycle count, health, temperature)
+- Use FileManager for storage information
+- Use ProcessInfo and SystemConfiguration for system details
+- Cache values for performance (refresh every 30 seconds)
+- Show health percentage for battery
+
+---
+
+### [x] Story 32: IP Address and Network Info
+
+**As a** developer and network user
+**I want** to quickly view my local and public IP addresses
+**So that** I can share connection info or debug network issues without opening Terminal
+
+### Use Case Context
+Part of: "Network Utilities" use case
+- Common request in developer communities
+- Complements: Script command execution for network debugging
+
+### Verification Strategy
+Network information must be accurate and retrieved quickly.
+
+#### Test Cases (Acceptance Criteria)
+- **Given** the command palette is open, **When** I search "ip" or "my ip", **Then** my local and public IP addresses appear
+- **Given** IP info is displayed, **When** I view the result, **Then** both local IP (LAN) and public IP (WAN) are shown
+- **Given** IP addresses are displayed, **When** I press Enter, **Then** the public IP is copied to clipboard
+- **Given** the command palette is open, **When** I search "network info", **Then** network interface details appear (SSID, BSSID, DNS)
+- **Given** no internet connection, **When** I search for public IP, **Then** "No internet connection" message appears
+- **Given** VPN is connected, **When** I search for IP, **Then** VPN IP is shown with an indicator
+
+### Implementation Notes
+- Use getifaddrs for local IP addresses
+- Use free IP API services for public IP (ipify, ip-api.com)
+- Cache public IP for 5 minutes to avoid API limits
+- Show all network interfaces (Wi-Fi, Ethernet, etc.)
+- Optional: Show geolocation for public IP
+
+---
+
+### [x] Story 33: Time Zone Converter
+
+**As a** remote worker who collaborates across time zones
+**I want** to quickly convert times between different time zones
+**So that** I can schedule meetings without mental math or web searches
+
+### Use Case Context
+Part of: "Built-in Tools" use case
+- Integrates with: Calculator function
+- Common request in distributed team communities
+
+### Verification Strategy
+Time zone conversion must be accurate and handle daylight saving time.
+
+#### Test Cases (Acceptance Criteria)
+- **Given** the command palette is open, **When** I type "3pm EST to PST", **Then** "12:00 PM PST" appears
+- **Given** the command palette is open, **When** I type "9am Tokyo to London", **Then** the converted time appears
+- **Given** the command palette is open, **When** I type "time in New York", **Then** current time in New York appears
+- **Given** the command palette is open, **When** I search "time zones", **Then** a list of frequently used time zones appears with current times
+- **Given** a conversion result, **When** I press Enter, **Then** the converted time is copied to clipboard
+- **Given** the command palette is open, **When** I type "now in Tokyo", **Then** current Tokyo time appears
+
+### Implementation Notes
+- Use TimeZone and DateFormatter from Foundation
+- Support common city/time zone aliases (NYC, PST, EST, GMT, etc.)
+- Store frequently used time zones in preferences
+- Handle daylight saving time automatically
+- Show time zone offset indicators (±hours)
+
+---
+
+## Story Priorities Summary
+
+### Immediate Priority (Phase 5)
+1. Story 19: Preferences Window - Required for app configuration
+2. Story 20: Launch at Login - Essential for launcher app
+3. Story 23: Unit Conversion - Quick win, high value
+
+### High Value (Phase 6)
+4. Story 24: Color Picker - Popular with designers/developers
+5. Story 25: Translation - Popular with multilingual users
+6. Story 26: Calendar Integration - Essential for productivity
+7. Story 28: Pomodoro Timer - Popular productivity tool
+
+### Developer Tools (Phase 7)
+8. Story 27: Homebrew Integration - Popular with developers
+9. Story 31: Battery and System Info - System monitoring
+10. Story 32: IP Address and Network Info - Developer utility
+
+### Quality of Life (Phase 8)
+11. Story 29: Quick Notes - Complements clipboard/snippets
+12. Story 30: Audio Device Switcher - Convenience feature
+13. Story 33: Time Zone Converter - Quick win
