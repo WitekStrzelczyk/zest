@@ -54,9 +54,9 @@ struct RunningProcess: Identifiable, Equatable {
         }
     }
 
-    /// Subtitle for search results display: "Memory | CPU"
+    /// Subtitle for search results display: "PID: 12345 | 256 MB | 5.0%"
     var resourceSubtitle: String {
-        "\(memoryFormatted) | \(cpuFormatted)"
+        "PID: \(pid) | \(memoryFormatted) | \(cpuFormatted)"
     }
 
     static func == (lhs: RunningProcess, rhs: RunningProcess) -> Bool {
@@ -224,6 +224,8 @@ final class ProcessSearchService {
 
     // MARK: - Search Results Conversion
 
+    // MARK: - Search Results Conversion
+
     /// Creates SearchResult array from RunningProcess array
     func createSearchResults(from processes: [RunningProcess]) -> [SearchResult] {
         processes.map { process in
@@ -235,6 +237,9 @@ final class ProcessSearchService {
                 category: .process,
                 action: {
                     ProcessSearchService.activateProcess(processCopy)
+                },
+                revealAction: {
+                    ProcessSearchService.forceQuitWithConfirmation(process: processCopy)
                 },
                 score: Int(process.cpuPercent * 10) // Higher CPU = higher score
             )
@@ -251,6 +256,86 @@ final class ProcessSearchService {
         let runningApps = NSWorkspace.shared.runningApplications
         if let app = runningApps.first(where: { $0.processIdentifier == process.pid }) {
             app.activate(options: .activateIgnoringOtherApps)
+        }
+    }
+
+    // MARK: - Force Quit
+
+    /// List of system process names that require confirmation before force quit
+    private static let systemProcessNames: Set<String> = [
+        "kernel_task",
+        "WindowServer",
+        "launchd",
+        "launchd_session",
+        "init",
+        "mds",
+        "mds_stores",
+        "mds_backup",
+        "securityd",
+        "configd",
+        "SystemUIServer",
+        "Finder",
+        "Dock"
+    ]
+
+    /// Checks if a process is a critical system process
+    /// - Parameters:
+    ///   - name: Process name
+    ///   - pid: Process ID
+    /// - Returns: true if the process is a critical system process
+    static func isSystemProcess(name: String, pid: pid_t) -> Bool {
+        // PID 0 is always kernel_task
+        if pid == 0 { return true }
+        
+        // Check against known system process names
+        return systemProcessNames.contains(name)
+    }
+
+    /// Force quits a process by PID
+    /// - Parameter pid: Process ID to terminate
+    /// - Returns: true if termination signal was sent successfully
+    static func forceQuitProcess(pid: pid_t) -> Bool {
+        // Send SIGKILL to the process
+        let result = kill(pid, SIGKILL)
+        
+        if result == 0 {
+            return true
+        } else {
+            // Check error - ESRCH means process doesn't exist, EPERM means permission denied
+            return false
+        }
+    }
+
+    /// Force quits a process with confirmation for system processes
+    /// - Parameter process: The process to force quit
+    static func forceQuitWithConfirmation(process: RunningProcess) {
+        if isSystemProcess(name: process.name, pid: process.pid) {
+            // Show confirmation for system processes on main thread
+            DispatchQueue.main.async {
+                Self.showForceQuitConfirmation(process: process)
+            }
+        } else {
+            // Directly force quit user apps
+            _ = forceQuitProcess(pid: process.pid)
+        }
+    }
+
+    /// Shows a confirmation dialog before force quitting a system process
+    private static func showForceQuitConfirmation(process: RunningProcess) {
+        let alert = NSAlert()
+        alert.messageText = "Force Quit \(process.name)?"
+        alert.informativeText = """
+        \(process.name) is a system process. Force quitting it may cause system instability.
+
+        Are you sure you want to continue?
+        """
+        alert.alertStyle = .critical
+        alert.addButton(withTitle: "Force Quit")
+        alert.addButton(withTitle: "Cancel")
+
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            _ = forceQuitProcess(pid: process.pid)
         }
     }
 }

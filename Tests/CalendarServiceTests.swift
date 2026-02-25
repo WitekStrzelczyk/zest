@@ -24,7 +24,7 @@ final class CalendarServiceTests: XCTestCase {
         videoLink: URL? = nil,
         videoType: VideoLinkType = .unknown
     ) -> CalendarEvent {
-        makeEvent(
+        CalendarEvent(
             id: id,
             title: title,
             startDate: startDate,
@@ -387,13 +387,14 @@ final class CalendarServiceTests: XCTestCase {
         XCTAssertEqual(VideoLinkType.unknown.displayName, "Video Call")
     }
 
-    /// Test VideoLinkType icon names
+    /// Test VideoLinkType icon names - platform-specific SF Symbols
     func testVideoLinkTypeIconNames() {
-        XCTAssertEqual(VideoLinkType.zoom.iconName, "video.fill")
-        XCTAssertEqual(VideoLinkType.googleMeet.iconName, "video.fill")
-        XCTAssertEqual(VideoLinkType.teams.iconName, "video.fill")
-        XCTAssertEqual(VideoLinkType.webex.iconName, "video.fill")
-        XCTAssertEqual(VideoLinkType.slack.iconName, "video.fill")
+        XCTAssertEqual(VideoLinkType.zoom.iconName, "video.bubble.left.fill")
+        XCTAssertEqual(VideoLinkType.googleMeet.iconName, "person.3.fill")
+        XCTAssertEqual(VideoLinkType.teams.iconName, "rectangle.3.group.fill")
+        XCTAssertEqual(VideoLinkType.webex.iconName, "network")
+        XCTAssertEqual(VideoLinkType.slack.iconName, "bubble.left.and.bubble.right.fill")
+        XCTAssertEqual(VideoLinkType.unknown.iconName, "video.fill")
     }
 
     // MARK: - Video Link Parsing Tests

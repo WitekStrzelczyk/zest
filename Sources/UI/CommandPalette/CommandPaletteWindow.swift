@@ -6,6 +6,7 @@ import Quartz
 
 /// Row view using `.inset` table style for layout (rounded rects)
 /// but with custom subtle colors instead of the default blue accent.
+/// Supports "danger mode" - red background with border to indicate kill action.
 final class ResultRowView: NSTableRowView {
     var isHovered: Bool = false {
         didSet {
@@ -13,20 +14,50 @@ final class ResultRowView: NSTableRowView {
         }
     }
 
+    /// When true, shows red background and border to indicate dangerous action (e.g., force quit)
+    var isDangerMode: Bool = false {
+        didSet {
+            if oldValue != isDangerMode { needsDisplay = true }
+        }
+    }
+
     override func prepareForReuse() {
         super.prepareForReuse()
         isHovered = false
+        isDangerMode = false
     }
 
     override func drawSelection(in dirtyRect: NSRect) {
-        // 20% lighter than background -- subtle keyboard selection
-        NSColor.white.withAlphaComponent(0.12).setFill()
-        let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 1), xRadius: 6, yRadius: 6)
-        path.fill()
+        if isDangerMode {
+            // Danger mode: reddish background with red border
+            NSColor.systemRed.withAlphaComponent(0.15).setFill()
+            let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 1), xRadius: 6, yRadius: 6)
+            path.fill()
+
+            // Red border
+            NSColor.systemRed.withAlphaComponent(0.6).setStroke()
+            path.lineWidth = 1.5
+            path.stroke()
+        } else {
+            // Normal selection: 20% lighter than background -- subtle keyboard selection
+            NSColor.white.withAlphaComponent(0.12).setFill()
+            let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 1), xRadius: 6, yRadius: 6)
+            path.fill()
+        }
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        if !isSelected, isHovered {
+        if isDangerMode {
+            // Danger mode background even when not selected (for hover state)
+            NSColor.systemRed.withAlphaComponent(0.1).setFill()
+            let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 1), xRadius: 6, yRadius: 6)
+            path.fill()
+
+            // Red border
+            NSColor.systemRed.withAlphaComponent(0.5).setStroke()
+            path.lineWidth = 1.5
+            path.stroke()
+        } else if !isSelected, isHovered {
             // 30% lighter than background -- mouse hover
             NSColor.white.withAlphaComponent(0.06).setFill()
             let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 1), xRadius: 6, yRadius: 6)
@@ -123,18 +154,27 @@ final class ResultsTableView: NSTableView {
 
         switch Int(event.keyCode) {
         case kVK_Escape:
+            // Clear danger mode before handling escape
+            palette.clearDangerMode()
             palette.handleEscape()
 
         case kVK_Return:
             if event.modifierFlags.contains(.command) {
-                // Cmd+Enter: Trigger reveal action (force quit for processes, reveal in Finder for files)
+                // Cmd+Enter: Two-step force quit for processes
+                // First press: Enter danger mode (red state)
+                // Second press (already in danger mode): Force quit
                 palette.revealCurrentResult()
+            } else if palette.isDangerMode {
+                // Enter in danger mode: Force quit the process
+                palette.forceQuitCurrentResult()
             } else {
                 // Enter: Select result
                 palette.selectCurrentResult()
             }
 
         case kVK_UpArrow:
+            // Clear danger mode when navigating
+            palette.clearDangerMode()
             clearHover()
             if selectedRow <= 0 {
                 palette.returnToSearchField()
@@ -143,6 +183,8 @@ final class ResultsTableView: NSTableView {
             }
 
         case kVK_DownArrow:
+            // Clear danger mode when navigating
+            palette.clearDangerMode()
             clearHover()
             super.keyDown(with: event)
 
@@ -155,6 +197,8 @@ final class ResultsTableView: NSTableView {
                !event.modifierFlags.contains(.command),
                !event.modifierFlags.contains(.control)
             {
+                // Clear danger mode when typing
+                palette.clearDangerMode()
                 palette.returnToSearchFieldAndType(characters)
             } else {
                 super.keyDown(with: event)
@@ -301,6 +345,16 @@ final class CommandPaletteWindow: NSPanel {
         }
     }
 
+    /// Tracks whether "danger mode" is active for the selected process row
+    /// When true, shows red background/border, Enter triggers force quit instead of normal action
+    private(set) var isDangerMode: Bool = false {
+        didSet {
+            if isDangerMode != oldValue {
+                updateDangerModeAppearance()
+            }
+        }
+    }
+
     /// Centralized mode handling - called whenever mode changes
     private func handleModeChange() {
         if isSettingsMode {
@@ -355,6 +409,69 @@ final class CommandPaletteWindow: NSPanel {
             // 6. Focus on search field
             makeFirstResponder(searchField)
         }
+    }
+
+    // MARK: - Danger Mode (Tab key for processes)
+
+    /// Clear danger mode (called on navigation, typing, escape)
+    func clearDangerMode() {
+        guard isDangerMode else { return }
+        isDangerMode = false
+        updateDangerModeAppearance()
+    }
+
+    /// Update the visual appearance of the selected row to show/hide danger mode
+    private func updateDangerModeAppearance() {
+        let selectedRow = resultsTableView.selectedRow
+        guard selectedRow >= 0 else { return }
+
+        // Get the row view and update its danger mode state
+        if let rowView = resultsTableView.rowView(atRow: selectedRow, makeIfNecessary: false) as? ResultRowView {
+            rowView.isDangerMode = isDangerMode
+            rowView.needsDisplay = true
+        }
+    }
+
+    /// Force quit the currently selected process (triggered by Enter in danger mode)
+    func forceQuitCurrentResult() {
+        var selectedRow = resultsTableView.selectedRow
+
+        // If no selection but results exist, default to first result
+        if selectedRow < 0, !searchResults.isEmpty {
+            selectedRow = 0
+        }
+
+        guard selectedRow >= 0, selectedRow < searchResults.count else {
+            close()
+            return
+        }
+
+        let result = searchResults[selectedRow]
+
+        // Only force quit process items
+        guard result.category == .process else {
+            close()
+            return
+        }
+
+        // Clear danger mode first
+        clearDangerMode()
+
+        // Trigger the reveal action (which is force quit for processes)
+        result.reveal()
+
+        // Refresh the results to show the process is gone
+        // Small delay to let the process terminate
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            self?.refreshProcessResults()
+        }
+    }
+
+    /// Refresh process list after a force quit
+    private func refreshProcessResults() {
+        // Re-run the current search to refresh process list
+        let currentQuery = searchField.stringValue
+        performSearch(currentQuery)
     }
 
     /// Quicklink creation UI elements
@@ -1232,9 +1349,9 @@ final class CommandPaletteWindow: NSPanel {
     }
 
     /// Reveals the current result (Cmd+Enter action)
-    /// For processes: Force quit
+    /// For processes: Two-step safety - first Cmd+Enter shows danger mode, second force quits
     /// For files: Reveal in Finder
-    /// For other results: No action (but still closes palette)
+    /// For other results: Trigger reveal action
     func revealCurrentResult() {
         var selectedRow = resultsTableView.selectedRow
 
@@ -1244,18 +1361,26 @@ final class CommandPaletteWindow: NSPanel {
         }
 
         guard selectedRow >= 0, selectedRow < searchResults.count else {
-            // No results at all, just close
             close()
             return
         }
 
         let result = searchResults[selectedRow]
-        
-        // Trigger the reveal action if available
-        result.reveal()
-        
-        // Always close palette after Cmd+Enter
-        close()
+
+        // For process items: two-step safety
+        if result.category == .process {
+            if isDangerMode {
+                // Second Cmd+Enter: Force quit the process
+                forceQuitCurrentResult()
+            } else {
+                // First Cmd+Enter: Enter danger mode (show red state)
+                isDangerMode = true
+            }
+        } else {
+            // For non-process items: trigger reveal action normally
+            result.reveal()
+            close()
+        }
     }
 
     // MARK: - Quick Look Preview

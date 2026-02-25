@@ -187,7 +187,9 @@ final class ProcessSearchServiceTests: XCTestCase {
 
         let subtitle = process.resourceSubtitle
 
-        // Should contain memory, separator, and CPU
+        // Should contain PID, memory, separator, and CPU
+        XCTAssertTrue(subtitle.contains("PID:"), "Subtitle should contain PID label")
+        XCTAssertTrue(subtitle.contains("123"), "Subtitle should contain PID value")
         XCTAssertTrue(subtitle.contains("MB"), "Subtitle should contain memory")
         XCTAssertTrue(subtitle.contains("|"), "Subtitle should contain separator")
         XCTAssertTrue(subtitle.contains("%"), "Subtitle should contain CPU")
@@ -253,5 +255,108 @@ final class ProcessNoResultsTests: XCTestCase {
         XCTAssertFalse(message.isEmpty, "No results message should not be empty")
         XCTAssertTrue(message.lowercased().contains("no"), "Message should indicate no results")
         XCTAssertTrue(message.lowercased().contains("process"), "Message should mention processes")
+    }
+}
+
+// MARK: - Force Quit Tests (Story 21)
+
+final class ProcessForceQuitTests: XCTestCase {
+
+    // MARK: - Force Quit Service Tests
+
+    func test_forceQuitProcess_canTerminateProcess() {
+        // Create a simple test process that we can terminate
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        task.arguments = ["10"]
+        
+        do {
+            try task.run()
+            let pid = task.processIdentifier
+            
+            // Verify the process is running
+            XCTAssertGreaterThan(pid, 0, "Process should have valid PID")
+            
+            // Force quit the process
+            let success = ProcessSearchService.forceQuitProcess(pid: pid)
+            XCTAssertTrue(success, "Force quit should succeed for user process")
+            
+            // Wait a moment for process to terminate
+            Thread.sleep(forTimeInterval: 0.2)
+            
+            // Verify process is no longer running (check via kill with signal 0)
+            let result = kill(pid, 0)
+            XCTAssertNotEqual(result, 0, "Process should be terminated after force quit")
+            
+        } catch {
+            XCTFail("Failed to create test process: \(error)")
+        }
+    }
+    
+    func test_forceQuitProcess_returnsFalseForInvalidPID() {
+        // Use an invalid PID (very high number that's unlikely to exist)
+        let invalidPID: pid_t = 999999
+        
+        let success = ProcessSearchService.forceQuitProcess(pid: invalidPID)
+        XCTAssertFalse(success, "Force quit should fail for non-existent PID")
+    }
+
+    func test_isSystemProcess_identifiesKernelProcesses() {
+        // kernel_task is a known system process (PID 0)
+        let isSystem = ProcessSearchService.isSystemProcess(name: "kernel_task", pid: 0)
+        XCTAssertTrue(isSystem, "kernel_task should be identified as system process")
+    }
+    
+    func test_isSystemProcess_identifiesWindowServer() {
+        // WindowServer is a known system process
+        let isSystem = ProcessSearchService.isSystemProcess(name: "WindowServer", pid: 87)
+        XCTAssertTrue(isSystem, "WindowServer should be identified as system process")
+    }
+    
+    func test_isSystemProcess_allowsUserApps() {
+        // Regular user apps should not be system processes
+        let isSystem = ProcessSearchService.isSystemProcess(name: "Safari", pid: 12345)
+        XCTAssertFalse(isSystem, "Safari should NOT be identified as system process")
+    }
+
+    // MARK: - Process Search Results with Force Quit Tests
+
+    func test_createSearchResults_hasRevealActionForForceQuit() {
+        let processes = ProcessSearchService.shared.fetchRunningProcesses()
+        
+        // Find a user app process
+        guard let userApp = processes.first(where: { $0.isUserApp }) else {
+            XCTFail("No user app processes found for testing")
+            return
+        }
+        
+        let results = ProcessSearchService.shared.createSearchResults(from: [userApp])
+        
+        XCTAssertEqual(results.count, 1, "Should have one result")
+        XCTAssertNotNil(results.first?.revealAction, "User app process should have revealAction for force quit")
+    }
+    
+    func test_createSearchResults_systemProcessHasRevealActionWithWarning() {
+        let processes = ProcessSearchService.shared.fetchRunningProcesses()
+        
+        // Find a system process (not a user app)
+        guard let systemProcess = processes.first(where: { !$0.isUserApp }) else {
+            // If no system process found, create a mock one
+            let mockSystemProcess = RunningProcess(
+                name: "kernel_task",
+                pid: 0,
+                memoryBytes: 100_000_000,
+                cpuPercent: 5.0,
+                icon: nil,
+                bundleIdentifier: nil,
+                isUserApp: false
+            )
+            let results = ProcessSearchService.shared.createSearchResults(from: [mockSystemProcess])
+            XCTAssertNotNil(results.first?.revealAction, "System process should also have revealAction (shows warning)")
+            return
+        }
+        
+        let results = ProcessSearchService.shared.createSearchResults(from: [systemProcess])
+        XCTAssertNotNil(results.first?.revealAction, "System process should have revealAction (shows warning)")
     }
 }

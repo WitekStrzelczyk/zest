@@ -63,9 +63,67 @@ enum VideoLinkType: String, CaseIterable {
         }
     }
 
-    /// SF Symbol icon name
+    /// SF Symbol icon name - platform-specific icons (fallback if favicon not available)
     var iconName: String {
-        "video.fill"
+        switch self {
+        case .zoom: return "video.bubble.left.fill"
+        case .googleMeet: return "person.3.fill"
+        case .teams: return "rectangle.3.group.fill"
+        case .webex: return "network"
+        case .slack: return "bubble.left.and.bubble.right.fill"
+        case .unknown: return "video.fill"
+        }
+    }
+
+    /// Favicon URL for the platform (for fetching actual icons)
+    var faviconURL: URL? {
+        switch self {
+        case .zoom: return URL(string: "https://zoom.us/favicon.ico")
+        case .googleMeet: return URL(string: "https://meet.google.com/favicon.ico")
+        case .teams: return URL(string: "https://statics.teams.cdn.office.net/evergreen-assets/favicon.ico")
+        case .webex: return URL(string: "https://webex.com/favicon.ico")
+        case .slack: return URL(string: "https://slack.com/favicon.ico")
+        case .unknown: return nil
+        }
+    }
+
+    // MARK: - Icon Cache
+
+    private static var iconCache: [VideoLinkType: NSImage] = [:]
+    private static let cacheLock = NSLock()
+
+    /// Get cached icon or fetch from URL
+    static func getIcon(for type: VideoLinkType) -> NSImage {
+        // Check cache first
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+
+        if let cached = iconCache[type] {
+            return cached
+        }
+
+        // Try to fetch favicon
+        if let url = type.faviconURL,
+           let image = fetchFavicon(from: url) {
+            iconCache[type] = image
+            return image
+        }
+
+        // Fallback to SF Symbol
+        let fallback = NSImage(systemSymbolName: type.iconName, accessibilityDescription: type.displayName) ?? NSImage(systemSymbolName: "video.fill", accessibilityDescription: "Video")!
+        iconCache[type] = fallback
+        return fallback
+    }
+
+    /// Fetch favicon from URL (synchronous, called from cache)
+    private static func fetchFavicon(from url: URL) -> NSImage? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        let image = NSImage(data: data)
+        // Only return if it's a valid image with reasonable size
+        if let img = image, img.isValid, img.size.width > 0 {
+            return img
+        }
+        return nil
     }
 }
 
@@ -280,6 +338,11 @@ struct MeetingInsights {
 
 // MARK: - CalendarService
 
+/// Notification posted when calendar cache is updated with fresh data
+extension Notification.Name {
+    static let calendarCacheUpdated = Notification.Name("calendarCacheUpdated")
+}
+
 /// Service for accessing calendar events via EventKit
 final class CalendarService: @unchecked Sendable {
     // MARK: - Singleton
@@ -292,10 +355,13 @@ final class CalendarService: @unchecked Sendable {
     private let logger = Logger(subsystem: "com.zest.app", category: "Calendar")
     private var hasAccess = false
 
-    /// Cached events (refreshed every 30 seconds)
+    /// Cached events (refreshed in background)
     private var cachedEvents: [CalendarEvent] = []
     private var lastCacheTime: Date?
     private let cacheTimeout: TimeInterval = 30
+
+    /// Track if background refresh is in progress
+    private var isRefreshingInBackground = false
 
     /// Calendar search keywords
     private let calendarKeywords = [
@@ -338,8 +404,83 @@ final class CalendarService: @unchecked Sendable {
         hasAccess
     }
 
-    /// Get upcoming events for the next N days
-    func getUpcomingEvents(days: Int = 7) async -> [CalendarEvent] {
+    // MARK: - Background Refresh
+
+    /// Trigger background refresh when cache is stale or empty
+    /// Call this from sync search to ensure fresh data is loaded
+    func triggerBackgroundRefresh() {
+        guard !isRefreshingInBackground else { return }
+        guard hasAccess else { return }
+
+        // Check if cache needs refresh (stale or empty)
+        let needsRefresh: Bool
+        if let lastTime = lastCacheTime {
+            needsRefresh = Date().timeIntervalSince(lastTime) >= cacheTimeout
+        } else {
+            needsRefresh = true
+        }
+
+        guard needsRefresh else { return }
+
+        isRefreshingInBackground = true
+        logger.debug("Starting background calendar refresh")
+
+        Task { [weak self] in
+            await self?.refreshCache()
+        }
+    }
+
+    /// Public method to refresh cache - can be called by scheduler
+    /// This is the main entry point for scheduled refresh
+    func refreshCache() async {
+        // Skip if already refreshing
+        guard !isRefreshingInBackground else {
+            logger.debug("Calendar refresh already in progress, skipping")
+            return
+        }
+
+        isRefreshingInBackground = true
+
+        // Request access if needed
+        if !hasAccess {
+            let granted = await requestCalendarAccess()
+            guard granted else {
+                isRefreshingInBackground = false
+                return
+            }
+        }
+
+        let calendar = Calendar.current
+        let now = Date()
+
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
+              let endOfTomorrow = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: tomorrow) else {
+            isRefreshingInBackground = false
+            return
+        }
+
+        let calendars = eventStore.calendars(for: .event)
+        let predicate = eventStore.predicateForEvents(withStart: now, end: endOfTomorrow, calendars: calendars)
+
+        let ekEvents = eventStore.events(matching: predicate)
+        let events = ekEvents.map { convertToCalendarEvent($0) }
+
+        // Update cache
+        cachedEvents = events
+        lastCacheTime = Date()
+        isRefreshingInBackground = false
+
+        logger.debug("Calendar cache refreshed (\(events.count) events), posting notification")
+
+        // Post notification so UI can refresh
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: .calendarCacheUpdated, object: nil)
+        }
+    }
+
+    /// Get upcoming events until end of next day
+    /// Note: Hardcoded to show events through end of tomorrow only
+    func getUpcomingEvents(days _: Int = 7) async -> [CalendarEvent] {
         if !hasAccess {
             let granted = await requestCalendarAccess()
             guard granted else { return [] }
@@ -353,12 +494,16 @@ final class CalendarService: @unchecked Sendable {
 
         let calendar = Calendar.current
         let now = Date()
-        guard let endDate = calendar.date(byAdding: .day, value: days, to: now) else {
+
+        // Calculate end of next day (23:59:59 tomorrow)
+        // Start from tomorrow, then add 1 day - 1 second to get end of tomorrow
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
+              let endOfTomorrow = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: tomorrow) else {
             return []
         }
 
         let calendars = eventStore.calendars(for: .event)
-        let predicate = eventStore.predicateForEvents(withStart: now, end: endDate, calendars: calendars)
+        let predicate = eventStore.predicateForEvents(withStart: now, end: endOfTomorrow, calendars: calendars)
 
         let ekEvents = eventStore.events(matching: predicate)
         let events = ekEvents.map { convertToCalendarEvent($0) }
@@ -522,7 +667,7 @@ final class CalendarService: @unchecked Sendable {
                 // No upcoming video meetings
                 results.append(SearchResult(
                     title: "No upcoming meetings with video links",
-                    subtitle: "No meetings detected in the next 24 hours",
+                    subtitle: "No meetings detected through end of tomorrow",
                     icon: NSImage(systemSymbolName: "video.slash", accessibilityDescription: "No Meeting"),
                     category: .calendar,
                     action: {},
@@ -565,17 +710,20 @@ final class CalendarService: @unchecked Sendable {
         return results
     }
 
-    /// Synchronous search wrapper for compatibility
-    /// Uses cached events if available, otherwise returns empty results
+    /// Synchronous search wrapper - CACHE FIRST approach
+    /// Returns cached results immediately and triggers background refresh
+    /// UI should listen for .calendarCacheUpdated notification to refresh
     func search(query: String) -> [SearchResult] {
         let lowercasedQuery = query.lowercased()
 
         guard !lowercasedQuery.isEmpty else { return [] }
         guard matchesCalendarKeywords(query: lowercasedQuery) else { return [] }
 
-        // If we don't have cached events, return empty (async search will populate cache)
-        guard !cachedEvents.isEmpty else { return [] }
+        // Always trigger background refresh if cache is stale
+        triggerBackgroundRefresh()
 
+        // Return cached results immediately (may be empty on first call)
+        // UI will be notified when cache updates via .calendarCacheUpdated
         var results: [SearchResult] = []
 
         // Check for "join" - show next meeting with video link
@@ -590,7 +738,7 @@ final class CalendarService: @unchecked Sendable {
             } else {
                 results.append(SearchResult(
                     title: "No upcoming meetings with video links",
-                    subtitle: "No meetings detected in the next 24 hours",
+                    subtitle: "No meetings detected through end of tomorrow",
                     icon: NSImage(systemSymbolName: "video.slash", accessibilityDescription: "No Meeting"),
                     category: .calendar,
                     action: {},
@@ -628,11 +776,6 @@ final class CalendarService: @unchecked Sendable {
         }
 
         return results
-    }
-
-    /// Preload calendar cache (call on app launch)
-    func preloadCache() async {
-        _ = await getUpcomingEvents(days: 7)
     }
 
     // MARK: - Formatting Helpers
@@ -770,15 +913,17 @@ final class CalendarService: @unchecked Sendable {
     private func createJoinMeetingResult(for event: CalendarEvent) -> SearchResult {
         return SearchResult(
             title: event.title,
-            subtitle: "\(event.formattedDate) • \(event.formattedTimeRange) • \(event.humanizedTimeUntil) • \(event.videoPlatformName)",
-            icon: NSImage(systemSymbolName: event.videoType.iconName, accessibilityDescription: "Video Call"),
+            subtitle: "\(event.formattedDate) • \(event.formattedTimeRange) • \(event.humanizedTimeUntil)",
+            icon: NSImage(systemSymbolName: "calendar", accessibilityDescription: "Calendar Event")!,
             category: .calendar,
             action: { [weak self] in
                 if let url = event.videoLink {
                     self?.joinMeeting(url: url)
                 }
             },
-            score: 2000 // High score for join command
+            score: 2000,
+            tintColor: event.calendarColor,
+            trailingIcon: VideoLinkType.getIcon(for: event.videoType)
         )
     }
 
@@ -786,14 +931,16 @@ final class CalendarService: @unchecked Sendable {
         return SearchResult(
             title: "🔴 \(event.title)",
             subtitle: "\(event.formattedDate) • \(event.formattedTimeRange) • \(event.durationText) • In Progress",
-            icon: NSImage(systemSymbolName: "video.fill", accessibilityDescription: "Active Meeting"),
+            icon: NSImage(systemSymbolName: "calendar", accessibilityDescription: "Calendar Event")!,
             category: .calendar,
             action: { [weak self] in
                 if let url = event.videoLink {
                     self?.joinMeeting(url: url)
                 }
             },
-            score: 1500
+            score: 1500,
+            tintColor: event.calendarColor,
+            trailingIcon: event.hasVideoLink ? VideoLinkType.getIcon(for: event.videoType) : nil
         )
     }
 
@@ -804,32 +951,47 @@ final class CalendarService: @unchecked Sendable {
         return SearchResult(
             title: "🟡 \(event.title)",
             subtitle: "\(event.formattedDate) • \(event.formattedTimeRange) • Ended \(timeText)",
-            icon: NSImage(systemSymbolName: "clock.arrow.circlepath", accessibilityDescription: "Recent Meeting"),
+            icon: NSImage(systemSymbolName: "calendar", accessibilityDescription: "Calendar Event")!,
             category: .calendar,
             action: { [weak self] in
                 if let url = event.videoLink {
                     self?.joinMeeting(url: url)
                 }
             },
-            score: 1200
+            score: 1200,
+            tintColor: event.calendarColor,
+            trailingIcon: event.hasVideoLink ? VideoLinkType.getIcon(for: event.videoType) : nil
         )
     }
 
     private func createEventResult(for event: CalendarEvent) -> SearchResult {
-        let videoText = event.hasVideoLink ? " • \(event.videoPlatformName)" : ""
-        let locationText = event.location.map { " • \($0)" } ?? ""
+        // Filter out video URLs from location - don't show Zoom links
+        let locationText: String
+        if let location = event.location {
+            // Check if location contains a video URL, if so don't show it
+            if location.contains("zoom.us") || location.contains("meet.google.com") ||
+               location.contains("teams.microsoft.com") || location.contains("webex.com") {
+                locationText = ""
+            } else {
+                locationText = " • \(location)"
+            }
+        } else {
+            locationText = ""
+        }
 
         return SearchResult(
             title: event.title,
-            subtitle: "\(event.formattedDate) • \(event.formattedTimeRange) • \(event.durationText) • \(event.humanizedTimeUntil)\(videoText)\(locationText)",
-            icon: NSImage(systemSymbolName: "calendar", accessibilityDescription: "Calendar Event"),
+            subtitle: "\(event.formattedDate) • \(event.formattedTimeRange) • \(event.durationText) • \(event.humanizedTimeUntil)\(locationText)",
+            icon: NSImage(systemSymbolName: "calendar", accessibilityDescription: "Calendar Event")!,
             category: .calendar,
             action: { [weak self] in
                 if let url = event.videoLink {
                     self?.joinMeeting(url: url)
                 }
             },
-            score: 800
+            score: 800,
+            tintColor: event.calendarColor,
+            trailingIcon: event.hasVideoLink ? VideoLinkType.getIcon(for: event.videoType) : nil
         )
     }
 

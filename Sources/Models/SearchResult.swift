@@ -57,6 +57,12 @@ struct SearchResult {
     /// Whether this result is currently active (for toggles)
     let isActive: Bool
 
+    /// Optional tint color for the result (e.g., calendar color)
+    let tintColor: NSColor?
+
+    /// Optional trailing icon displayed on the right side (e.g., video platform icon)
+    let trailingIcon: NSImage?
+
     init(
         title: String,
         subtitle: String,
@@ -66,7 +72,9 @@ struct SearchResult {
         revealAction: (() -> Void)? = nil,
         filePath: String? = nil,
         score: Int = 0,
-        isActive: Bool = false
+        isActive: Bool = false,
+        tintColor: NSColor? = nil,
+        trailingIcon: NSImage? = nil
     ) {
         self.title = title
         self.subtitle = subtitle
@@ -77,6 +85,8 @@ struct SearchResult {
         self.filePath = filePath
         self.score = score
         self.isActive = isActive
+        self.tintColor = tintColor
+        self.trailingIcon = trailingIcon
     }
 
     /// Returns true if this result represents a file that can be previewed with Quick Look

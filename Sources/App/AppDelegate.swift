@@ -19,14 +19,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupMenuBar()
         setupGlobalCommandHotkeys()
         setupColorPickerNotifications()
-        
+
         // Register color picker plugin
         ColorPickerPlugin.shared.onRegister()
-        
-        // Preload calendar cache for faster search
-        Task {
-            await CalendarService.shared.preloadCache()
+
+        // Setup scheduler for recurring tasks (calendar cache refresh, etc.)
+        setupScheduler()
+    }
+
+    private func setupScheduler() {
+        // Register calendar cache refresh task (every 10 minutes)
+        SchedulerService.shared.register(
+            id: SchedulerService.TaskID.calendarCacheRefresh,
+            intervalMinutes: 10
+        ) {
+            await CalendarService.shared.refreshCache()
         }
+
+        // Start the scheduler (runs all tasks immediately, then on interval)
+        SchedulerService.shared.start()
     }
 
     func applicationWillTerminate(_: Notification) {
