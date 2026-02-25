@@ -22,6 +22,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Register color picker plugin
         ColorPickerPlugin.shared.onRegister()
+        
+        // Preload calendar cache for faster search
+        Task {
+            await CalendarService.shared.preloadCache()
+        }
     }
 
     func applicationWillTerminate(_: Notification) {
