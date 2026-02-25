@@ -768,13 +768,10 @@ final class CalendarService: @unchecked Sendable {
     // MARK: - Search Result Creation
 
     private func createJoinMeetingResult(for event: CalendarEvent) -> SearchResult {
-        let timeText = formatRelativeTime(minutesFromNow: event.minutesUntilStart)
-        let videoType = event.videoLink.map { VideoLinkType.from(urlString: $0.absoluteString) } ?? .unknown
-
         return SearchResult(
-            title: "Join: \(event.title) (\(timeText))",
-            subtitle: "\(videoType.displayName) • \(event.calendarName)",
-            icon: NSImage(systemSymbolName: videoType.iconName, accessibilityDescription: "Video Call"),
+            title: event.title,
+            subtitle: "\(event.formattedDate) • \(event.formattedTimeRange) • \(event.humanizedTimeUntil) • \(event.videoPlatformName)",
+            icon: NSImage(systemSymbolName: event.videoType.iconName, accessibilityDescription: "Video Call"),
             category: .calendar,
             action: { [weak self] in
                 if let url = event.videoLink {
@@ -787,8 +784,8 @@ final class CalendarService: @unchecked Sendable {
 
     private func createActiveMeetingResult(for event: CalendarEvent) -> SearchResult {
         return SearchResult(
-            title: "🔴 \(event.title) (IN PROGRESS)",
-            subtitle: formatEventDateRange(start: event.startDate, end: event.endDate),
+            title: "🔴 \(event.title)",
+            subtitle: "\(event.formattedDate) • \(event.formattedTimeRange) • \(event.durationText) • In Progress",
             icon: NSImage(systemSymbolName: "video.fill", accessibilityDescription: "Active Meeting"),
             category: .calendar,
             action: { [weak self] in
@@ -802,11 +799,11 @@ final class CalendarService: @unchecked Sendable {
 
     private func createRecentMeetingResult(for event: CalendarEvent) -> SearchResult {
         let endedAgo = event.endedMinutesAgo ?? 0
-        let timeText = formatRelativeTime(minutesFromNow: -endedAgo)
+        let timeText = endedAgo < 60 ? "\(endedAgo) min ago" : "\(endedAgo / 60)h ago"
 
         return SearchResult(
-            title: "🟡 \(event.title) (Ended \(timeText))",
-            subtitle: formatEventDateRange(start: event.startDate, end: event.endDate),
+            title: "🟡 \(event.title)",
+            subtitle: "\(event.formattedDate) • \(event.formattedTimeRange) • Ended \(timeText)",
             icon: NSImage(systemSymbolName: "clock.arrow.circlepath", accessibilityDescription: "Recent Meeting"),
             category: .calendar,
             action: { [weak self] in
@@ -819,11 +816,12 @@ final class CalendarService: @unchecked Sendable {
     }
 
     private func createEventResult(for event: CalendarEvent) -> SearchResult {
+        let videoText = event.hasVideoLink ? " • \(event.videoPlatformName)" : ""
         let locationText = event.location.map { " • \($0)" } ?? ""
 
         return SearchResult(
             title: event.title,
-            subtitle: "\(formatEventDateRange(start: event.startDate, end: event.endDate))\(locationText)",
+            subtitle: "\(event.formattedDate) • \(event.formattedTimeRange) • \(event.durationText) • \(event.humanizedTimeUntil)\(videoText)\(locationText)",
             icon: NSImage(systemSymbolName: "calendar", accessibilityDescription: "Calendar Event"),
             category: .calendar,
             action: { [weak self] in

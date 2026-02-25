@@ -8,13 +8,42 @@ import XCTest
 /// - Video link parsing - fully testable
 /// - Time calculations - fully testable
 final class CalendarServiceTests: XCTestCase {
+    
+    // MARK: - Test Helpers
+    
+    /// Helper to create CalendarEvent with sensible defaults
+    private func makeEvent(
+        id: String,
+        title: String,
+        startDate: Date,
+        endDate: Date,
+        location: String? = nil,
+        notes: String? = nil,
+        calendarName: String = "Test",
+        calendarColor: NSColor = .systemBlue,
+        videoLink: URL? = nil,
+        videoType: VideoLinkType = .unknown
+    ) -> CalendarEvent {
+        makeEvent(
+            id: id,
+            title: title,
+            startDate: startDate,
+            endDate: endDate,
+            location: location,
+            notes: notes,
+            calendarName: calendarName,
+            calendarColor: calendarColor,
+            videoLink: videoLink,
+            videoType: videoType
+        )
+    }
 
     // MARK: - CalendarEvent Model Tests
 
     /// Test CalendarEvent model initialization
     func testCalendarEventCreation() {
         let now = Date()
-        let event = CalendarEvent(
+        let event = makeEvent(
             id: "test-id-123",
             title: "Team Standup",
             startDate: now,
@@ -38,7 +67,7 @@ final class CalendarServiceTests: XCTestCase {
         // Create an all-day event (duration = 24 hours starting at midnight)
         let calendar = Calendar.current
         let midnight = calendar.date(bySettingHour: 0, minute: 0, second: 0, of: Date())!
-        let allDayEvent = CalendarEvent(
+        let allDayEvent = makeEvent(
             id: "1",
             title: "All Day Event",
             startDate: midnight,
@@ -55,7 +84,7 @@ final class CalendarServiceTests: XCTestCase {
     /// Test CalendarEvent isAllDay for non-all-day event
     func testCalendarEventIsNotAllDay() {
         let now = Date()
-        let shortEvent = CalendarEvent(
+        let shortEvent = makeEvent(
             id: "2",
             title: "Quick Meeting",
             startDate: now,
@@ -72,7 +101,7 @@ final class CalendarServiceTests: XCTestCase {
     /// Test CalendarEvent duration
     func testCalendarEventDuration() {
         let now = Date()
-        let event = CalendarEvent(
+        let event = makeEvent(
             id: "3",
             title: "1 Hour Meeting",
             startDate: now,
@@ -89,7 +118,7 @@ final class CalendarServiceTests: XCTestCase {
     /// Test CalendarEvent durationMinutes
     func testCalendarEventDurationMinutes() {
         let now = Date()
-        let event = CalendarEvent(
+        let event = makeEvent(
             id: "4",
             title: "45 Min Meeting",
             startDate: now,
@@ -106,7 +135,7 @@ final class CalendarServiceTests: XCTestCase {
     /// Test CalendarEvent isActive when event is in progress
     func testCalendarEventIsActiveWhenInProgress() {
         let now = Date()
-        let event = CalendarEvent(
+        let event = makeEvent(
             id: "5",
             title: "Active Meeting",
             startDate: now.addingTimeInterval(-900), // started 15 min ago
@@ -123,7 +152,7 @@ final class CalendarServiceTests: XCTestCase {
     /// Test CalendarEvent isActive when event hasn't started
     func testCalendarEventIsActiveWhenNotStarted() {
         let now = Date()
-        let event = CalendarEvent(
+        let event = makeEvent(
             id: "6",
             title: "Future Meeting",
             startDate: now.addingTimeInterval(3600), // starts in 1 hour
@@ -140,7 +169,7 @@ final class CalendarServiceTests: XCTestCase {
     /// Test CalendarEvent isActive when event has ended
     func testCalendarEventIsActiveWhenEnded() {
         let now = Date()
-        let event = CalendarEvent(
+        let event = makeEvent(
             id: "7",
             title: "Past Meeting",
             startDate: now.addingTimeInterval(-7200), // started 2 hours ago
@@ -157,7 +186,7 @@ final class CalendarServiceTests: XCTestCase {
     /// Test CalendarEvent isUpcoming
     func testCalendarEventIsUpcoming() {
         let now = Date()
-        let event = CalendarEvent(
+        let event = makeEvent(
             id: "8",
             title: "Upcoming Meeting",
             startDate: now.addingTimeInterval(1800), // starts in 30 min
@@ -174,7 +203,7 @@ final class CalendarServiceTests: XCTestCase {
     /// Test CalendarEvent timeUntilStart
     func testCalendarEventTimeUntilStart() {
         let now = Date()
-        let event = CalendarEvent(
+        let event = makeEvent(
             id: "9",
             title: "Future Meeting",
             startDate: now.addingTimeInterval(1800), // starts in 30 min
@@ -193,7 +222,7 @@ final class CalendarServiceTests: XCTestCase {
     /// Test CalendarEvent minutesUntilStart
     func testCalendarEventMinutesUntilStart() {
         let now = Date()
-        let event = CalendarEvent(
+        let event = makeEvent(
             id: "10",
             title: "Future Meeting",
             startDate: now.addingTimeInterval(1800), // starts in 30 min
@@ -211,7 +240,7 @@ final class CalendarServiceTests: XCTestCase {
 
     /// Test CalendarEvent hasVideoLink
     func testCalendarEventHasVideoLinkTrue() {
-        let event = CalendarEvent(
+        let event = makeEvent(
             id: "11",
             title: "Zoom Meeting",
             startDate: Date(),
@@ -227,7 +256,7 @@ final class CalendarServiceTests: XCTestCase {
 
     /// Test CalendarEvent hasVideoLink false
     func testCalendarEventHasVideoLinkFalse() {
-        let event = CalendarEvent(
+        let event = makeEvent(
             id: "12",
             title: "In-Person Meeting",
             startDate: Date(),
@@ -244,7 +273,7 @@ final class CalendarServiceTests: XCTestCase {
     /// Test CalendarEvent endedMinutesAgo
     func testCalendarEventEndedMinutesAgo() {
         let now = Date()
-        let event = CalendarEvent(
+        let event = makeEvent(
             id: "13",
             title: "Recent Meeting",
             startDate: now.addingTimeInterval(-3600), // started 1 hour ago
@@ -261,7 +290,7 @@ final class CalendarServiceTests: XCTestCase {
     /// Test CalendarEvent endedMinutesAgo for ongoing event
     func testCalendarEventEndedMinutesAgoOngoing() {
         let now = Date()
-        let event = CalendarEvent(
+        let event = makeEvent(
             id: "14",
             title: "Active Meeting",
             startDate: now.addingTimeInterval(-1800),
@@ -278,7 +307,7 @@ final class CalendarServiceTests: XCTestCase {
     /// Test CalendarEvent isRecent for recently ended event
     func testCalendarEventIsRecentTrue() {
         let now = Date()
-        let event = CalendarEvent(
+        let event = makeEvent(
             id: "15",
             title: "Recent Meeting",
             startDate: now.addingTimeInterval(-3600),
@@ -295,7 +324,7 @@ final class CalendarServiceTests: XCTestCase {
     /// Test CalendarEvent isRecent for older event
     func testCalendarEventIsRecentFalse() {
         let now = Date()
-        let event = CalendarEvent(
+        let event = makeEvent(
             id: "16",
             title: "Old Meeting",
             startDate: now.addingTimeInterval(-7200),
