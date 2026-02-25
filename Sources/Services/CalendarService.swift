@@ -80,7 +80,9 @@ struct CalendarEvent: Identifiable, Hashable {
     let location: String?
     let notes: String?
     let calendarName: String
+    let calendarColor: NSColor
     let videoLink: URL?
+    let videoType: VideoLinkType
 
     // MARK: - Computed Properties
 
@@ -139,6 +141,97 @@ struct CalendarEvent: Identifiable, Hashable {
     func isRecent(withinMinutes minutes: Int) -> Bool {
         guard let endedAgo = endedMinutesAgo else { return false }
         return endedAgo <= minutes
+    }
+    
+    // MARK: - Formatted Display Properties
+    
+    /// Humanized time until event (e.g., "in 6h", "in 32 min", "started 20 min ago")
+    var humanizedTimeUntil: String {
+        let now = Date()
+        
+        if isActive {
+            let elapsed = Int(now.timeIntervalSince(startDate) / 60)
+            if elapsed < 1 {
+                return "🔴 Started now"
+            } else if elapsed < 60 {
+                return "🔴 Started \(elapsed) min ago"
+            } else {
+                let hours = elapsed / 60
+                let mins = elapsed % 60
+                if mins == 0 {
+                    return "🔴 Started \(hours)h ago"
+                }
+                return "🔴 Started \(hours)h \(mins)m ago"
+            }
+        } else if startDate > now {
+            let until = Int(startDate.timeIntervalSinceNow / 60)
+            if until < 1 {
+                return "Starts now"
+            } else if until < 60 {
+                return "Starts in \(until) min"
+            } else if until < 1440 {
+                let hours = until / 60
+                let mins = until % 60
+                if mins == 0 {
+                    return "Starts in \(hours)h"
+                }
+                return "Starts in \(hours)h \(mins)m"
+            } else {
+                let days = until / 1440
+                return "Starts in \(days)d"
+            }
+        } else {
+            let ended = Int(now.timeIntervalSince(endDate) / 60)
+            if ended < 60 {
+                return "Ended \(ended) min ago"
+            } else {
+                let hours = ended / 60
+                return "Ended \(hours)h ago"
+            }
+        }
+    }
+    
+    /// Formatted date (e.g., "Today", "Tomorrow", "Wed, Feb 26")
+    var formattedDate: String {
+        let calendar = Calendar.current
+        
+        if calendar.isDateInToday(startDate) {
+            return "Today"
+        } else if calendar.isDateInTomorrow(startDate) {
+            return "Tomorrow"
+        } else {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "EEE, MMM d"
+            return formatter.string(from: startDate)
+        }
+    }
+    
+    /// Formatted time range (e.g., "6:00 PM - 6:15 PM")
+    var formattedTimeRange: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return "\(formatter.string(from: startDate)) - \(formatter.string(from: endDate))"
+    }
+    
+    /// Duration text (e.g., "15 min", "1h 30m")
+    var durationText: String {
+        let mins = durationMinutes
+        if mins < 60 {
+            return "\(mins) min"
+        } else {
+            let hours = mins / 60
+            let remainMins = mins % 60
+            if remainMins == 0 {
+                return "\(hours)h"
+            }
+            return "\(hours)h \(remainMins)m"
+        }
+    }
+    
+    /// Video platform display name (e.g., "Zoom", "Google Meet")
+    var videoPlatformName: String {
+        videoType.displayName
     }
 
     // MARK: - Hashable
@@ -592,7 +685,7 @@ final class CalendarService: @unchecked Sendable {
     // MARK: - Private Helpers
 
     private func convertToCalendarEvent(_ ekEvent: EKEvent) -> CalendarEvent {
-        // Try to parse video link from location or notes
+        // Try to parse video link from location or notes or URL
         var videoLink: URL?
         if let location = ekEvent.location {
             videoLink = parseVideoLink(from: location)
@@ -608,6 +701,22 @@ final class CalendarService: @unchecked Sendable {
             }
         }
 
+        // Determine video type
+        let videoType: VideoLinkType
+        if let link = videoLink {
+            videoType = VideoLinkType.from(urlString: link.absoluteString)
+        } else {
+            videoType = .unknown
+        }
+
+        // Get calendar color
+        let calendarColor: NSColor
+        if let cgColor = ekEvent.calendar?.cgColor {
+            calendarColor = NSColor(cgColor: cgColor) ?? .systemBlue
+        } else {
+            calendarColor = .systemBlue
+        }
+
         return CalendarEvent(
             id: ekEvent.eventIdentifier,
             title: ekEvent.title ?? "Untitled Event",
@@ -616,7 +725,9 @@ final class CalendarService: @unchecked Sendable {
             location: ekEvent.location,
             notes: ekEvent.notes,
             calendarName: ekEvent.calendar?.title ?? "Calendar",
-            videoLink: videoLink
+            calendarColor: calendarColor,
+            videoLink: videoLink,
+            videoType: videoType
         )
     }
 
