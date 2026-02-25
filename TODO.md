@@ -1467,7 +1467,7 @@ Translation must be fast and support common language pairs.
 
 ---
 
-### [ ] Story 26: Calendar Integration
+### [x] Story 26: Calendar Integration
 
 **As a** remote worker with many meetings
 **I want** to instantly join my next meeting and see my meeting schedule at a glance
