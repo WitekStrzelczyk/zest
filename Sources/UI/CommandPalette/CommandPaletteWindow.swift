@@ -326,8 +326,17 @@ final class CommandPaletteWindow: NSPanel {
     /// Action bar view shown when Option key is held
     private var actionBarView: NSView?
 
+    /// Contextual action bar at bottom - shows available actions for selected item
+    private var contextualActionBar: NSView!
+
+    /// Label in contextual bar showing keyboard shortcuts
+    private var contextualActionLabel: NSTextField!
+
     /// Action bar options available (for testing)
     private let actionBarOptionLabels: [String] = ["convert", "translate"]
+
+    /// Height of the contextual action bar
+    private let contextualBarHeight: CGFloat = 36
 
     /// Constraint for scroll view when action bar is visible
     private var actionBarScrollViewTopConstraint: NSLayoutConstraint?
@@ -430,6 +439,9 @@ final class CommandPaletteWindow: NSPanel {
             rowView.isDangerMode = isDangerMode
             rowView.needsDisplay = true
         }
+
+        // Update contextual action bar to reflect danger mode state
+        updateContextualActionBar()
     }
 
     /// Force quit the currently selected process (triggered by Enter in danger mode)
@@ -474,6 +486,78 @@ final class CommandPaletteWindow: NSPanel {
         performSearch(currentQuery)
     }
 
+    // MARK: - Contextual Action Bar
+
+    /// Create the contextual action bar that shows available actions for selected item
+    private func createContextualActionBar() -> NSView {
+        let container = NSView()
+        container.wantsLayer = true
+        // Subtle separator line at top
+        container.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.95).cgColor
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        // Add subtle top border
+        let borderView = NSView()
+        borderView.wantsLayer = true
+        borderView.layer?.backgroundColor = NSColor.separatorColor.withAlphaComponent(0.3).cgColor
+        borderView.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(borderView)
+
+        // Label showing keyboard shortcuts
+        contextualActionLabel = NSTextField(labelWithString: "")
+        contextualActionLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+        contextualActionLabel.textColor = .secondaryLabelColor
+        contextualActionLabel.alignment = .center
+        contextualActionLabel.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(contextualActionLabel)
+
+        NSLayoutConstraint.activate([
+            // Top border
+            borderView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            borderView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            borderView.topAnchor.constraint(equalTo: container.topAnchor),
+            borderView.heightAnchor.constraint(equalToConstant: 1),
+
+            // Label centered
+            contextualActionLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
+            contextualActionLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
+            contextualActionLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+        ])
+
+        return container
+    }
+
+    /// Update the contextual action bar based on the currently selected item
+    func updateContextualActionBar() {
+        let selectedRow = resultsTableView.selectedRow
+
+        // No selection or out of bounds - show default hints
+        guard selectedRow >= 0, selectedRow < searchResults.count else {
+            contextualActionLabel.stringValue = "↵ Select  |  ⌘↵ Reveal  |  Space Preview  |  ↑↓ Navigate  |  Esc Close"
+            return
+        }
+
+        let result = searchResults[selectedRow]
+
+        // Build contextual hints based on category - use | as separator
+        switch result.category {
+        case .process:
+            if isDangerMode {
+                contextualActionLabel.stringValue = "⚠️  ⌘↵ Force Kill  |  Esc Cancel"
+            } else {
+                contextualActionLabel.stringValue = "⌘↵ Kill Process  |  ↵ Activate  |  ↑↓ Navigate"
+            }
+        case .file:
+            contextualActionLabel.stringValue = "⌘↵ Reveal in Finder  |  ↵ Open  |  Space Preview"
+        case .application:
+            contextualActionLabel.stringValue = "↵ Launch  |  ⌘↵ Show in Finder"
+        case .calendar:
+            contextualActionLabel.stringValue = "↵ Join Meeting  |  ⌘↵ View Details"
+        default:
+            contextualActionLabel.stringValue = "↵ Select  |  ⌘↵ Reveal  |  Esc Close"
+        }
+    }
+
     /// Quicklink creation UI elements
     private var settingsContainerView: NSView?
     private var quicklinkNameField: NSTextField?
@@ -512,7 +596,7 @@ final class CommandPaletteWindow: NSPanel {
         defer _: Bool
     ) {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: searchFieldHeight + hintHeight),
+            contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: searchFieldHeight + hintHeight + contextualBarHeight),
             styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -555,7 +639,7 @@ final class CommandPaletteWindow: NSPanel {
     }
 
     private func setupUI() {
-        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: windowWidth, height: searchFieldHeight + hintHeight))
+        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: windowWidth, height: searchFieldHeight + hintHeight + contextualBarHeight))
         contentView.wantsLayer = true
         contentView.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         contentView.layer?.cornerRadius = 12
@@ -586,6 +670,10 @@ final class CommandPaletteWindow: NSPanel {
         hintLabel.alignment = .center
         hintLabel.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(hintLabel)
+
+        // Contextual action bar - shows available actions for selected item
+        contextualActionBar = createContextualActionBar()
+        contentView.addSubview(contextualActionBar)
         
         // Stats label - shows search timing on hover
         statsLabel = NSTextField(labelWithString: "")
@@ -655,21 +743,27 @@ final class CommandPaletteWindow: NSPanel {
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: contextualActionBar.topAnchor, constant: 0),
 
             // No results - centered in scroll area
             noResultsLabel.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
             noResultsLabel.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 20),
 
-            // Hint label - bottom
+            // Contextual action bar - at very bottom
+            contextualActionBar.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            contextualActionBar.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            contextualActionBar.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
+            contextualActionBar.heightAnchor.constraint(equalToConstant: contextualBarHeight),
+
+            // Hint label - hidden by default, shown when no results
             hintLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             hintLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            hintLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
+            hintLabel.bottomAnchor.constraint(equalTo: contextualActionBar.topAnchor, constant: -4),
             hintLabel.heightAnchor.constraint(equalToConstant: hintHeight),
-            
-            // Stats label - right of hint label, shown on hover
+
+            // Stats label - right side, above contextual bar
             statsLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12),
-            statsLabel.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -6),
+            statsLabel.bottomAnchor.constraint(equalTo: contextualActionBar.topAnchor, constant: -4),
             statsLabel.heightAnchor.constraint(equalToConstant: 14),
         ])
         
@@ -776,11 +870,14 @@ final class CommandPaletteWindow: NSPanel {
         scrollView.isHidden = true
         noResultsLabel.isHidden = true
         hintLabel.isHidden = false
+        contextualActionBar.isHidden = true // Hide contextual bar when empty
         isResultsFocused = false // Reset to search field focus
         isOptionKeyPressed = false // Reset Option key state
         hideActionBar() // Ensure action bar is hidden
+        isDangerMode = false // Reset danger mode
 
         // Position window - store top position for resize from bottom (top fixed)
+        // Initial window doesn't include contextual bar (only shows when results exist)
         if let screen = NSScreen.main {
             let screenFrame = screen.visibleFrame
             let windowX = screenFrame.midX - windowWidth / 2
@@ -1058,6 +1155,7 @@ final class CommandPaletteWindow: NSPanel {
             scrollView.isHidden = true
             noResultsLabel.isHidden = true
             hintLabel.isHidden = false
+            contextualActionBar.isHidden = true
 
             let newHeight = searchFieldHeight + hintHeight
             let newY = topY - newHeight
@@ -1136,7 +1234,8 @@ final class CommandPaletteWindow: NSPanel {
         if searchResults.isEmpty {
             scrollView.isHidden = true
             noResultsLabel.isHidden = false
-            hintLabel.isHidden = true
+            hintLabel.isHidden = false
+            contextualActionBar.isHidden = true
 
             let newHeight = searchFieldHeight + 50
             let newY = topY - newHeight
@@ -1145,6 +1244,8 @@ final class CommandPaletteWindow: NSPanel {
             scrollView.isHidden = false
             noResultsLabel.isHidden = true
             hintLabel.isHidden = true
+            contextualActionBar.isHidden = false
+            updateContextualActionBar()
 
             var restoredRow = 0
             if let title = previouslySelectedTitle {
@@ -1156,10 +1257,11 @@ final class CommandPaletteWindow: NSPanel {
             resultsTableView.scrollRowToVisible(restoredRow)
 
             let availableHeight = screen.visibleFrame.height * maxResultsHeight
-            let maxRows = Int((availableHeight - searchFieldHeight - 20) / rowHeight)
+            let maxRows = Int((availableHeight - searchFieldHeight - contextualBarHeight - 20) / rowHeight)
             let visibleRows = min(searchResults.count, maxRows)
             let resultsHeight = CGFloat(visibleRows) * rowHeight + 8
-            let newHeight = searchFieldHeight + resultsHeight
+            // Include contextual bar height in total height
+            let newHeight = searchFieldHeight + resultsHeight + contextualBarHeight
 
             let newY = topY - newHeight
             animateFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: newHeight))
@@ -1508,6 +1610,11 @@ extension CommandPaletteWindow: NSTextFieldDelegate {
 extension CommandPaletteWindow: NSTableViewDelegate, NSTableViewDataSource {
     func numberOfRows(in _: NSTableView) -> Int {
         searchResults.count
+    }
+
+    func tableViewSelectionDidChange(_ notification: Notification) {
+        // Update contextual action bar when selection changes
+        updateContextualActionBar()
     }
 
     func tableView(_: NSTableView, rowViewForRow _: Int) -> NSTableRowView? {
