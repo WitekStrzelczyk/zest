@@ -456,7 +456,7 @@ Process information must be accurate, updated in real-time, and display without 
 
 ---
 
-### [ ] Story 22: Process Force Quit (Two-Phase)
+### [x] Story 22: Process Force Quit (Two-Phase)
 
 **As a** power user terminating unresponsive applications
 **I want** a two-phase kill with visual feedback
@@ -466,6 +466,7 @@ Process information must be accurate, updated in real-time, and display without 
 Part of: "System Monitoring" use case
 - Follows: "Process Monitoring" story (Story 21)
 - Enables quick recovery from frozen applications
+- Status: **COMPLETE** - Two-phase kill implemented with SIGTERM/SIGKILL, ProcessKillState for persistence, and visual feedback via red border.
 
 ### Two-Phase Kill Logic
 

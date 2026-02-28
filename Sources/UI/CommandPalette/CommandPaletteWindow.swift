@@ -20,6 +20,7 @@ final class PaletteBackgroundView: NSView {
 /// Row view using `.inset` table style for layout (rounded rects)
 /// but with custom subtle colors instead of the default blue accent.
 /// Supports "danger mode" - red background with border to indicate kill action.
+/// Also supports "kill attempted" state for two-phase kill (SIGTERM sent).
 final class ResultRowView: NSTableRowView {
     private let horizontalInset: CGFloat = 6
     private let verticalInset: CGFloat = 1
@@ -37,22 +38,36 @@ final class ResultRowView: NSTableRowView {
         }
     }
 
+    /// When true, shows orange/red border to indicate SIGTERM has been sent (two-phase kill)
+    /// This is the persistent state across process list refreshes
+    var isKillAttempted: Bool = false {
+        didSet {
+            if oldValue != isKillAttempted { needsDisplay = true }
+        }
+    }
+
+    /// Returns true if any danger state is active
+    private var shouldShowDangerStyle: Bool {
+        isDangerMode || isKillAttempted
+    }
+
     override func prepareForReuse() {
         super.prepareForReuse()
         isHovered = false
         isDangerMode = false
+        isKillAttempted = false
     }
 
     override func drawSelection(in dirtyRect: NSRect) {
-        if isDangerMode {
+        if shouldShowDangerStyle {
             // Danger mode: reddish background with red border
             NSColor.systemRed.withAlphaComponent(0.15).setFill()
             let path = NSBezierPath(roundedRect: bounds.insetBy(dx: horizontalInset, dy: verticalInset), xRadius: 6, yRadius: 6)
             path.fill()
 
-            // Red border
-            NSColor.systemRed.withAlphaComponent(0.6).setStroke()
-            path.lineWidth = 1.5
+            // Red border - thicker for danger mode, thinner for kill attempted
+            NSColor.systemRed.withAlphaComponent(isKillAttempted && !isDangerMode ? 0.4 : 0.6).setStroke()
+            path.lineWidth = isKillAttempted && !isDangerMode ? 1.0 : 1.5
             path.stroke()
         } else {
             AppStyle.Palette.rowSelectedFill.setFill()
@@ -65,15 +80,15 @@ final class ResultRowView: NSTableRowView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        if isDangerMode {
+        if shouldShowDangerStyle {
             // Danger mode background even when not selected (for hover state)
-            NSColor.systemRed.withAlphaComponent(0.1).setFill()
+            NSColor.systemRed.withAlphaComponent(isKillAttempted && !isDangerMode ? 0.08 : 0.1).setFill()
             let path = NSBezierPath(roundedRect: bounds.insetBy(dx: horizontalInset, dy: verticalInset), xRadius: 6, yRadius: 6)
             path.fill()
 
             // Red border
-            NSColor.systemRed.withAlphaComponent(0.5).setStroke()
-            path.lineWidth = 1.5
+            NSColor.systemRed.withAlphaComponent(isKillAttempted && !isDangerMode ? 0.4 : 0.5).setStroke()
+            path.lineWidth = isKillAttempted && !isDangerMode ? 1.0 : 1.5
             path.stroke()
         } else if !isSelected, isHovered {
             AppStyle.Palette.rowHoverFill.setFill()
@@ -1804,10 +1819,17 @@ extension CommandPaletteWindow: NSTableViewDelegate, NSTableViewDataSource {
         updateContextualActionBar()
     }
 
-    func tableView(_: NSTableView, rowViewForRow _: Int) -> NSTableRowView? {
+    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
         // Return custom row view with dual-state highlighting
         let rowView = ResultRowView()
         rowView.identifier = NSUserInterfaceItemIdentifier("ResultRow")
+
+        // Set kill attempted state for process results (two-phase kill)
+        if row >= 0, row < searchResults.count {
+            let result = searchResults[row]
+            rowView.isKillAttempted = result.isKillAttempted
+        }
+
         return rowView
     }
 

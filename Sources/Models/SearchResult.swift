@@ -70,6 +70,9 @@ struct SearchResult {
 
     /// Origin of the result used for ranking boosts.
     let source: SearchResultSource
+    
+    /// Whether a kill attempt has been made (for process results - two-phase kill)
+    let isKillAttempted: Bool
 
     init(
         title: String,
@@ -83,7 +86,8 @@ struct SearchResult {
         isActive: Bool = false,
         tintColor: NSColor? = nil,
         trailingIcon: NSImage? = nil,
-        source: SearchResultSource = .standard
+        source: SearchResultSource = .standard,
+        isKillAttempted: Bool = false
     ) {
         self.title = title
         self.subtitle = subtitle
@@ -97,6 +101,7 @@ struct SearchResult {
         self.tintColor = tintColor
         self.trailingIcon = trailingIcon
         self.source = source
+        self.isKillAttempted = isKillAttempted
     }
 
     static func rankedBefore(_ lhs: SearchResult, _ rhs: SearchResult) -> Bool {

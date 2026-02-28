@@ -3,6 +3,71 @@ import Darwin
 import Foundation
 import os.log
 
+// MARK: - Kill Result (Story 22)
+
+/// Result of a two-phase kill attempt
+enum KillResult: Equatable {
+    /// SIGTERM was sent (first phase - polite quit request)
+    case sigtermSent
+    /// SIGKILL was sent (second phase - force quit)
+    case sigkillSent
+    /// Process terminated successfully
+    case success
+    /// Kill failed with an error
+    case failed(Error)
+
+    static func == (lhs: KillResult, rhs: KillResult) -> Bool {
+        switch (lhs, rhs) {
+        case (.sigtermSent, .sigtermSent): return true
+        case (.sigkillSent, .sigkillSent): return true
+        case (.success, .success): return true
+        case (.failed, .failed): return true
+        default: return false
+        }
+    }
+}
+
+// MARK: - Process Kill State (Story 22)
+
+/// Singleton to track kill attempts across process list refreshes
+/// Uses PID as the key since RunningProcess UUID is regenerated on each fetch
+final class ProcessKillState {
+    static let shared = ProcessKillState()
+
+    private var attemptedKills: Set<pid_t> = []
+    private let lock = NSLock()
+
+    private init() {}
+
+    /// Check if a kill attempt has been made for the given PID
+    func hasAttemptedKill(pid: pid_t) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return attemptedKills.contains(pid)
+    }
+
+    /// Mark a PID as having a kill attempt
+    func markKillAttempted(pid: pid_t) {
+        lock.lock()
+        defer { lock.unlock() }
+        attemptedKills.insert(pid)
+    }
+
+    /// Clear kill attempt for a specific PID
+    func clearKillAttempt(pid: pid_t) {
+        lock.lock()
+        defer { lock.unlock() }
+        attemptedKills.remove(pid)
+    }
+
+    /// Clear all kill attempts
+    func clearAll() {
+        lock.lock()
+        defer { lock.unlock() }
+        attemptedKills.removeAll()
+    }
+}
+
 /// Represents a running process with its resource usage information
 struct RunningProcess: Identifiable, Equatable {
     let id: UUID
@@ -13,6 +78,8 @@ struct RunningProcess: Identifiable, Equatable {
     let icon: NSImage?
     let bundleIdentifier: String?
     let isUserApp: Bool
+    /// Whether SIGTERM has been sent (two-phase kill state)
+    let attemptedKill: Bool
 
     init(
         name: String,
@@ -21,7 +88,8 @@ struct RunningProcess: Identifiable, Equatable {
         cpuPercent: Double,
         icon: NSImage?,
         bundleIdentifier: String?,
-        isUserApp: Bool
+        isUserApp: Bool,
+        attemptedKill: Bool = false
     ) {
         self.id = UUID()
         self.name = name
@@ -31,6 +99,7 @@ struct RunningProcess: Identifiable, Equatable {
         self.icon = icon
         self.bundleIdentifier = bundleIdentifier
         self.isUserApp = isUserApp
+        self.attemptedKill = attemptedKill
     }
 
     /// Formats memory in human-readable format (e.g., "256 MB", "1.2 GB")
@@ -186,7 +255,8 @@ final class ProcessSearchService {
             cpuPercent: cpuPercent,
             icon: icon,
             bundleIdentifier: bundleIdentifier,
-            isUserApp: isUserApp
+            isUserApp: isUserApp,
+            attemptedKill: ProcessKillState.shared.hasAttemptedKill(pid: pid)
         )
     }
 
@@ -224,12 +294,13 @@ final class ProcessSearchService {
 
     // MARK: - Search Results Conversion
 
-    // MARK: - Search Results Conversion
-
     /// Creates SearchResult array from RunningProcess array
+    /// Includes kill state tracking for visual feedback
     func createSearchResults(from processes: [RunningProcess]) -> [SearchResult] {
         processes.map { process in
             let processCopy = process // Capture copy for closure
+            // Check kill state directly from ProcessKillState to ensure consistency
+            let isKillAttempted = ProcessKillState.shared.hasAttemptedKill(pid: process.pid)
             return SearchResult(
                 title: process.name,
                 subtitle: process.resourceSubtitle,
@@ -239,9 +310,10 @@ final class ProcessSearchService {
                     ProcessSearchService.activateProcess(processCopy)
                 },
                 revealAction: {
-                    ProcessSearchService.forceQuitWithConfirmation(process: processCopy)
+                    ProcessSearchService.twoPhaseKillWithConfirmation(process: processCopy)
                 },
-                score: Int(process.cpuPercent * 10) // Higher CPU = higher score
+                score: Int(process.cpuPercent * 10), // Higher CPU = higher score
+                isKillAttempted: isKillAttempted
             )
         }
     }
@@ -317,6 +389,91 @@ final class ProcessSearchService {
         } else {
             // Directly force quit user apps
             _ = forceQuitProcess(pid: process.pid)
+        }
+    }
+
+    // MARK: - Two-Phase Kill (Story 22)
+
+    /// Attempts to kill a process using two-phase logic
+    /// Phase 1: Send SIGTERM (polite quit request)
+    /// Phase 2: Send SIGKILL (force quit)
+    /// - Parameter pid: Process ID to terminate
+    /// - Returns: KillResult indicating what action was taken
+    static func attemptKill(pid: pid_t) -> KillResult {
+        let hasAttempted = ProcessKillState.shared.hasAttemptedKill(pid: pid)
+
+        if hasAttempted {
+            // Phase 2: Force kill with SIGKILL
+            let result = kill(pid, SIGKILL)
+            if result == 0 {
+                // Clear state after successful SIGKILL
+                ProcessKillState.shared.clearKillAttempt(pid: pid)
+                return .sigkillSent
+            } else {
+                // Failed to kill
+                let error = NSError(domain: NSPOSIXErrorDomain, code: Int(errno), userInfo: [
+                    NSLocalizedDescriptionKey: "Failed to send SIGKILL to process \(pid)"
+                ])
+                return .failed(error)
+            }
+        } else {
+            // Phase 1: Polite quit with SIGTERM
+            let result = kill(pid, SIGTERM)
+            if result == 0 {
+                // Mark as attempted for next phase
+                ProcessKillState.shared.markKillAttempted(pid: pid)
+                return .sigtermSent
+            } else {
+                // Failed to send SIGTERM
+                let error = NSError(domain: NSPOSIXErrorDomain, code: Int(errno), userInfo: [
+                    NSLocalizedDescriptionKey: "Failed to send SIGTERM to process \(pid)"
+                ])
+                return .failed(error)
+            }
+        }
+    }
+
+    /// Two-phase kill with confirmation for system processes
+    /// - Parameter process: The process to kill
+    static func twoPhaseKillWithConfirmation(process: RunningProcess) {
+        if isSystemProcess(name: process.name, pid: process.pid) {
+            // Show confirmation for system processes on main thread
+            DispatchQueue.main.async {
+                Self.showTwoPhaseKillConfirmation(process: process)
+            }
+        } else {
+            // Directly attempt kill for user apps
+            _ = attemptKill(pid: process.pid)
+        }
+    }
+
+    /// Shows a confirmation dialog before killing a system process
+    private static func showTwoPhaseKillConfirmation(process: RunningProcess) {
+        let hasAttempted = ProcessKillState.shared.hasAttemptedKill(pid: process.pid)
+
+        let alert = NSAlert()
+        if hasAttempted {
+            alert.messageText = "Force Kill \(process.name)?"
+            alert.informativeText = """
+            \(process.name) is a system process that has already received a termination request.
+            
+            Force killing it may cause system instability. Are you sure you want to continue?
+            """
+        } else {
+            alert.messageText = "Terminate \(process.name)?"
+            alert.informativeText = """
+            \(process.name) is a system process. Terminating it may cause system instability.
+
+            Are you sure you want to continue?
+            """
+        }
+        alert.alertStyle = .critical
+        alert.addButton(withTitle: hasAttempted ? "Force Kill" : "Terminate")
+        alert.addButton(withTitle: "Cancel")
+
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            _ = attemptKill(pid: process.pid)
         }
     }
 
