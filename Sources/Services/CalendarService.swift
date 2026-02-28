@@ -404,6 +404,65 @@ final class CalendarService: @unchecked Sendable {
         hasAccess
     }
 
+    // MARK: - Event Creation
+
+    /// Create a new calendar event
+    /// - Parameters:
+    ///   - title: Event title
+    ///   - startDate: Start date/time
+    ///   - endDate: End date/time (defaults to 1 hour after start)
+    ///   - location: Optional location
+    ///   - notes: Optional notes
+    /// - Returns: The created event
+    /// - Throws: Error if event creation fails
+    func createEvent(
+        title: String,
+        startDate: Date,
+        endDate: Date? = nil,
+        location: String? = nil,
+        notes: String? = nil
+    ) async throws -> EKEvent {
+        // Request access if needed
+        if !hasAccess {
+            let granted = await requestCalendarAccess()
+            guard granted else {
+                logger.error("Calendar access denied when trying to create event")
+                throw NSError(domain: "CalendarService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Calendar access denied"])
+            }
+        }
+
+        let event = EKEvent(eventStore: eventStore)
+        event.title = title
+        event.startDate = startDate
+        event.endDate = endDate ?? startDate.addingTimeInterval(3600) // Default 1 hour
+        event.location = location
+        event.notes = notes
+
+        // Use the default calendar
+        let targetCalendar = eventStore.defaultCalendarForNewEvents
+        event.calendar = targetCalendar
+
+        let calendarName = targetCalendar?.title ?? "Unknown"
+        print("📅 Creating event in calendar: \(calendarName)")
+        print("📅 Event details - Title: \(title), Start: \(startDate), End: \(endDate ?? startDate.addingTimeInterval(3600))")
+
+        do {
+            try eventStore.save(event, span: .thisEvent)
+            print("✅ Successfully created calendar event: \(title) in calendar: \(calendarName)")
+            print("✅ Event ID: \(event.eventIdentifier ?? "unknown")")
+
+            // Refresh cache to include the new event
+            Task {
+                await self.refreshCache()
+            }
+
+            return event
+        } catch {
+            logger.error("Failed to save event: \(error.localizedDescription)")
+            throw error
+        }
+    }
+
     // MARK: - Background Refresh
 
     /// Trigger background refresh when cache is stale or empty

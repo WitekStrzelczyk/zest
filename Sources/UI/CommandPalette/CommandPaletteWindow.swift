@@ -2,12 +2,28 @@ import AppKit
 import Carbon
 import Quartz
 
+final class PaletteBackgroundView: NSView {
+    override func draw(_ dirtyRect: NSRect) {
+        let bounds = self.bounds
+        let gradient = NSGradient(
+            colors: [
+                AppStyle.Palette.backgroundTop,
+                AppStyle.Palette.backgroundBottom,
+            ]
+        )
+        gradient?.draw(in: bounds, angle: -90)
+    }
+}
+
 // MARK: - Row View with Custom Highlight Colors
 
 /// Row view using `.inset` table style for layout (rounded rects)
 /// but with custom subtle colors instead of the default blue accent.
 /// Supports "danger mode" - red background with border to indicate kill action.
 final class ResultRowView: NSTableRowView {
+    private let horizontalInset: CGFloat = 6
+    private let verticalInset: CGFloat = 1
+
     var isHovered: Bool = false {
         didSet {
             if oldValue != isHovered { needsDisplay = true }
@@ -31,7 +47,7 @@ final class ResultRowView: NSTableRowView {
         if isDangerMode {
             // Danger mode: reddish background with red border
             NSColor.systemRed.withAlphaComponent(0.15).setFill()
-            let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 1), xRadius: 6, yRadius: 6)
+            let path = NSBezierPath(roundedRect: bounds.insetBy(dx: horizontalInset, dy: verticalInset), xRadius: 6, yRadius: 6)
             path.fill()
 
             // Red border
@@ -39,10 +55,12 @@ final class ResultRowView: NSTableRowView {
             path.lineWidth = 1.5
             path.stroke()
         } else {
-            // Normal selection: 20% lighter than background -- subtle keyboard selection
-            NSColor.white.withAlphaComponent(0.12).setFill()
-            let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 1), xRadius: 6, yRadius: 6)
+            AppStyle.Palette.rowSelectedFill.setFill()
+            let path = NSBezierPath(roundedRect: bounds.insetBy(dx: horizontalInset, dy: verticalInset), xRadius: 6, yRadius: 6)
             path.fill()
+            AppStyle.Palette.rowSelectedStroke.setStroke()
+            path.lineWidth = 1
+            path.stroke()
         }
     }
 
@@ -50,7 +68,7 @@ final class ResultRowView: NSTableRowView {
         if isDangerMode {
             // Danger mode background even when not selected (for hover state)
             NSColor.systemRed.withAlphaComponent(0.1).setFill()
-            let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 1), xRadius: 6, yRadius: 6)
+            let path = NSBezierPath(roundedRect: bounds.insetBy(dx: horizontalInset, dy: verticalInset), xRadius: 6, yRadius: 6)
             path.fill()
 
             // Red border
@@ -58,9 +76,8 @@ final class ResultRowView: NSTableRowView {
             path.lineWidth = 1.5
             path.stroke()
         } else if !isSelected, isHovered {
-            // 30% lighter than background -- mouse hover
-            NSColor.white.withAlphaComponent(0.06).setFill()
-            let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 1), xRadius: 6, yRadius: 6)
+            AppStyle.Palette.rowHoverFill.setFill()
+            let path = NSBezierPath(roundedRect: bounds.insetBy(dx: horizontalInset, dy: verticalInset), xRadius: 6, yRadius: 6)
             path.fill()
         }
         super.draw(dirtyRect)
@@ -89,10 +106,18 @@ final class FadingScrollView: NSScrollView {
             layer?.mask = nil
             return
         }
+        guard bounds.height > 1, bounds.width > 1 else {
+            layer?.mask = nil
+            return
+        }
 
         let contentHeight = docView.frame.height
         let visibleHeight = contentView.bounds.height
         guard contentHeight > visibleHeight else {
+            layer?.mask = nil
+            return
+        }
+        guard visibleHeight > 1 else {
             layer?.mask = nil
             return
         }
@@ -111,8 +136,9 @@ final class FadingScrollView: NSScrollView {
             fadeBottom ? NSColor.clear.cgColor : NSColor.black.cgColor,
         ]
 
-        let topStop = fadeTop ? fadeHeight / bounds.height : 0
-        let bottomStop = fadeBottom ? 1 - (fadeHeight / bounds.height) : 1
+        let normalizedFade = min(0.49, fadeHeight / bounds.height)
+        let topStop = fadeTop ? normalizedFade : 0
+        let bottomStop = fadeBottom ? 1 - normalizedFade : 1
         maskLayer.locations = [0, NSNumber(value: Double(topStop)), NSNumber(value: Double(bottomStop)), 1]
 
         layer?.mask = maskLayer
@@ -149,6 +175,12 @@ final class ResultsTableView: NSTableView {
     override func keyDown(with event: NSEvent) {
         guard let palette = commandPalette else {
             super.keyDown(with: event)
+            return
+        }
+
+        if event.modifierFlags.contains(.command),
+           palette.handleIndexedShortcutFromTable(forKeyCode: Int(event.keyCode))
+        {
             return
         }
 
@@ -294,6 +326,7 @@ final class CommandPaletteWindow: NSPanel {
     private var resultsTableView: ResultsTableView!
     private var scrollView: NSScrollView!
     private(set) var hintLabel: NSTextField!
+    private var suggestionsLabel: NSTextField!
     private var noResultsLabel: NSTextField!
     
     /// Stats label shown on hover - displays search timing metrics
@@ -322,6 +355,8 @@ final class CommandPaletteWindow: NSPanel {
 
     /// Tracks whether Option key is currently pressed
     private var isOptionKeyPressed: Bool = false
+    /// Tracks whether Command key is currently pressed (index shortcut mode)
+    private var isCommandKeyPressed: Bool = false
 
     /// Action bar view shown when Option key is held
     private var actionBarView: NSView?
@@ -331,6 +366,11 @@ final class CommandPaletteWindow: NSPanel {
 
     /// Label in contextual bar showing keyboard shortcuts
     private var contextualActionLabel: NSTextField!
+    private var contextualFooterLeftLabel: NSTextField!
+    private var preferencesIconView: NSImageView!
+    private var preferencesLabel: NSTextField!
+    private var storeIconView: NSImageView!
+    private var storeLabel: NSTextField!
 
     /// Action bar options available (for testing)
     private let actionBarOptionLabels: [String] = ["convert", "translate"]
@@ -364,25 +404,29 @@ final class CommandPaletteWindow: NSPanel {
         }
     }
 
+    /// Tracks whether LLM tool calling mode is active (when query starts with =)
+    private(set) var isLLMMode: Bool = false
+    
+    /// Global headless state store
+    private let stateStore = CommandPaletteStateStore.shared
+    private let controller = CommandPaletteController.shared
+    private var stateObserver: NSObjectProtocol?
+
     /// Centralized mode handling - called whenever mode changes
     private func handleModeChange() {
         if isSettingsMode {
             // ENTERING SETTINGS MODE
-            // 1. Cancel any pending file search
-            fileSearchTask?.cancel()
-            fileSearchTask = nil
-            
-            // 2. Cancel in-progress search engine search
+            // 1. Cancel in-progress search engine search
             SearchEngine.shared.cancelCurrentSearch()
             
-            // 3. Hide search and results UI
+            // 2. Hide search and results UI
             searchField.isHidden = true
             searchIcon.isHidden = true
             scrollView.isHidden = true
             noResultsLabel.isHidden = true
             hintLabel.isHidden = true
             
-            // 4. Show settings UI
+            // 3. Show settings UI
             showSettingsUI()
         } else {
             // EXITING SETTINGS MODE (entering normal mode)
@@ -412,7 +456,7 @@ final class CommandPaletteWindow: NSPanel {
             
             // 5. Re-run search with preserved query
             if !preservedSearchQuery.isEmpty {
-                performSearchInternal(preservedSearchQuery)
+                performSearch(preservedSearchQuery)
             }
             
             // 6. Focus on search field
@@ -492,22 +536,61 @@ final class CommandPaletteWindow: NSPanel {
     private func createContextualActionBar() -> NSView {
         let container = NSView()
         container.wantsLayer = true
-        // Subtle separator line at top
-        container.layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.95).cgColor
+        container.layer?.backgroundColor = AppStyle.Palette.footerBackground.cgColor
         container.translatesAutoresizingMaskIntoConstraints = false
 
         // Add subtle top border
         let borderView = NSView()
         borderView.wantsLayer = true
-        borderView.layer?.backgroundColor = NSColor.separatorColor.withAlphaComponent(0.3).cgColor
+        borderView.layer?.backgroundColor = AppStyle.Palette.footerBorder.cgColor
         borderView.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(borderView)
 
-        // Label showing keyboard shortcuts
+        let leftStack = NSStackView()
+        leftStack.orientation = .horizontal
+        leftStack.alignment = .centerY
+        leftStack.spacing = 16
+        leftStack.translatesAutoresizingMaskIntoConstraints = false
+
+        let prefStack = NSStackView()
+        prefStack.orientation = .horizontal
+        prefStack.alignment = .centerY
+        prefStack.spacing = 6
+        prefStack.translatesAutoresizingMaskIntoConstraints = false
+        preferencesIconView = NSImageView(image: NSImage(systemSymbolName: "gearshape.fill", accessibilityDescription: "Preferences") ?? NSImage())
+        preferencesIconView.contentTintColor = AppStyle.Palette.secondaryText
+        preferencesIconView.translatesAutoresizingMaskIntoConstraints = false
+        preferencesLabel = NSTextField(labelWithString: "Preferences")
+        preferencesLabel.font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        preferencesLabel.textColor = AppStyle.Palette.secondaryText
+        preferencesLabel.translatesAutoresizingMaskIntoConstraints = false
+        prefStack.addArrangedSubview(preferencesIconView)
+        prefStack.addArrangedSubview(preferencesLabel)
+
+        let storeStack = NSStackView()
+        storeStack.orientation = .horizontal
+        storeStack.alignment = .centerY
+        storeStack.spacing = 6
+        storeStack.translatesAutoresizingMaskIntoConstraints = false
+        storeIconView = NSImageView(image: NSImage(systemSymbolName: "shippingbox.fill", accessibilityDescription: "Store") ?? NSImage())
+        storeIconView.contentTintColor = AppStyle.Palette.secondaryText
+        storeIconView.translatesAutoresizingMaskIntoConstraints = false
+        storeLabel = NSTextField(labelWithString: "Store")
+        storeLabel.font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        storeLabel.textColor = AppStyle.Palette.secondaryText
+        storeLabel.translatesAutoresizingMaskIntoConstraints = false
+        storeStack.addArrangedSubview(storeIconView)
+        storeStack.addArrangedSubview(storeLabel)
+
+        leftStack.addArrangedSubview(prefStack)
+        leftStack.addArrangedSubview(storeStack)
+        container.addSubview(leftStack)
+
+        // Right footer label showing keyboard shortcuts
         contextualActionLabel = NSTextField(labelWithString: "")
-        contextualActionLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
-        contextualActionLabel.textColor = .secondaryLabelColor
-        contextualActionLabel.alignment = .center
+        contextualActionLabel.font = NSFont.systemFont(ofSize: 14, weight: .medium)
+        contextualActionLabel.textColor = AppStyle.Palette.secondaryText
+        contextualActionLabel.alignment = .right
         contextualActionLabel.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(contextualActionLabel)
 
@@ -518,8 +601,15 @@ final class CommandPaletteWindow: NSPanel {
             borderView.topAnchor.constraint(equalTo: container.topAnchor),
             borderView.heightAnchor.constraint(equalToConstant: 1),
 
-            // Label centered
-            contextualActionLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
+            leftStack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 14),
+            leftStack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+
+            preferencesIconView.widthAnchor.constraint(equalToConstant: 14),
+            preferencesIconView.heightAnchor.constraint(equalToConstant: 14),
+            storeIconView.widthAnchor.constraint(equalToConstant: 14),
+            storeIconView.heightAnchor.constraint(equalToConstant: 14),
+
+            contextualActionLabel.leadingAnchor.constraint(greaterThanOrEqualTo: leftStack.trailingAnchor, constant: 12),
             contextualActionLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
             contextualActionLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor),
         ])
@@ -533,7 +623,7 @@ final class CommandPaletteWindow: NSPanel {
 
         // No selection or out of bounds - show default hints
         guard selectedRow >= 0, selectedRow < searchResults.count else {
-            contextualActionLabel.stringValue = "↵ Select  |  ⌘↵ Reveal  |  Space Preview  |  ↑↓ Navigate  |  Esc Close"
+            contextualActionLabel.stringValue = "⏎ Open   |   ⌘⏎ Actions"
             return
         }
 
@@ -543,18 +633,18 @@ final class CommandPaletteWindow: NSPanel {
         switch result.category {
         case .process:
             if isDangerMode {
-                contextualActionLabel.stringValue = "⚠️  ⌘↵ Force Kill  |  Esc Cancel"
+                contextualActionLabel.stringValue = "⚠ ⌘⏎ Force Kill   |   Esc Cancel"
             } else {
-                contextualActionLabel.stringValue = "⌘↵ Kill Process  |  ↵ Activate  |  ↑↓ Navigate"
+                contextualActionLabel.stringValue = "⏎ Activate   |   ⌘⏎ Kill Process"
             }
         case .file:
-            contextualActionLabel.stringValue = "⌘↵ Reveal in Finder  |  ↵ Open  |  Space Preview"
+            contextualActionLabel.stringValue = "⏎ Open   |   ⌘⏎ Reveal   |   Space Preview"
         case .application:
-            contextualActionLabel.stringValue = "↵ Launch  |  ⌘↵ Show in Finder"
+            contextualActionLabel.stringValue = "⏎ Launch   |   ⌘⏎ Reveal"
         case .calendar:
-            contextualActionLabel.stringValue = "↵ Join Meeting  |  ⌘↵ View Details"
+            contextualActionLabel.stringValue = "⏎ Join   |   ⌘⏎ Details"
         default:
-            contextualActionLabel.stringValue = "↵ Select  |  ⌘↵ Reveal  |  Esc Close"
+            contextualActionLabel.stringValue = "⏎ Open   |   ⌘⏎ Actions"
         }
     }
 
@@ -575,11 +665,13 @@ final class CommandPaletteWindow: NSPanel {
 
 
     // Layout constants
-    private let windowWidth: CGFloat = 680
+    private let windowWidth: CGFloat = 720
     private let searchFieldHeight: CGFloat = 56
-    private let rowHeight: CGFloat = 40
+    private let rowHeight: CGFloat = 52
     private let hintHeight: CGFloat = 24
-    private let maxResultsHeight: CGFloat = 0.4 // 40% of screen
+    private let emptyStateHeight: CGFloat = 78
+    private let maxVisibleResultRows: Int = 6
+    private let resultsContainerVerticalPadding: CGFloat = 20
 
     override var canBecomeKey: Bool {
         true
@@ -605,9 +697,13 @@ final class CommandPaletteWindow: NSPanel {
         setupWindow()
         setupUI()
         setupNotifications()
+        setupStateObservation()
     }
 
     deinit {
+        if let observer = stateObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
         NotificationCenter.default.removeObserver(self)
     }
 
@@ -618,6 +714,41 @@ final class CommandPaletteWindow: NSPanel {
             name: .showAddQuicklink,
             object: nil
         )
+    }
+    
+    private func setupStateObservation() {
+        stateObserver = NotificationCenter.default.addObserver(
+            forName: .commandPaletteStateDidChange,
+            object: CommandPaletteStateStore.shared,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self,
+                  let state = notification.userInfo?[commandPaletteStateUserInfoKey] as? CommandPaletteState else { return }
+            self.render(state: state)
+        }
+    }
+    
+    private func render(state: CommandPaletteState) {
+        guard !isSettingsMode else { return }
+        isLLMMode = state.isLLMMode
+        
+        if state.query.isEmpty {
+            searchResults = []
+            resultsTableView.reloadData()
+            scrollView.isHidden = true
+            noResultsLabel.isHidden = true
+            hintLabel.isHidden = true
+            contextualActionBar.isHidden = true
+            if let topY = initialWindowTop {
+                let currentFrame = frame
+                let newY = topY - emptyStateHeight
+                animateFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: emptyStateHeight))
+            }
+            return
+        }
+        
+        guard let topY = initialWindowTop, let screen = NSScreen.main else { return }
+        updateSearchResults(state.results, topY: topY, screen: screen)
     }
 
     @objc private func handleShowAddQuicklink() {
@@ -638,38 +769,96 @@ final class CommandPaletteWindow: NSPanel {
         becomesKeyOnlyIfNeeded = false
     }
 
+    private func makeKeycapView(text: String, font: NSFont) -> (container: NSView, label: NSTextField) {
+        let container = NSView()
+        container.wantsLayer = true
+        container.layer?.cornerRadius = AppStyle.KeyboardBadge.cornerRadius
+        container.layer?.masksToBounds = true
+        container.layer?.backgroundColor = AppStyle.KeyboardBadge.background.cgColor
+        container.layer?.borderColor = AppStyle.KeyboardBadge.border.cgColor
+        container.layer?.borderWidth = 1
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let label = NSTextField(labelWithString: text)
+        label.font = font
+        label.textColor = AppStyle.KeyboardBadge.text
+        label.alignment = .center
+        label.lineBreakMode = .byClipping
+        label.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(label)
+
+        NSLayoutConstraint.activate([
+            label.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            label.leadingAnchor.constraint(greaterThanOrEqualTo: container.leadingAnchor, constant: 6),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor, constant: -6),
+        ])
+
+        return (container, label)
+    }
+
     private func setupUI() {
-        let contentView = NSView(frame: NSRect(x: 0, y: 0, width: windowWidth, height: searchFieldHeight + hintHeight + contextualBarHeight))
+        let contentView = PaletteBackgroundView(frame: NSRect(x: 0, y: 0, width: windowWidth, height: searchFieldHeight + hintHeight + contextualBarHeight))
         contentView.wantsLayer = true
-        contentView.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         contentView.layer?.cornerRadius = 12
         contentView.layer?.masksToBounds = true
+
+        let searchBarContainer = NSView()
+        searchBarContainer.wantsLayer = true
+        searchBarContainer.layer?.cornerRadius = 10
+        searchBarContainer.layer?.masksToBounds = true
+        searchBarContainer.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.55).cgColor
+        searchBarContainer.layer?.borderColor = AppStyle.Palette.searchBarBorder.cgColor
+        searchBarContainer.layer?.borderWidth = 1
+        searchBarContainer.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(searchBarContainer)
 
         // Search icon
         searchIcon = NSImageView()
         searchIcon.image = NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Search")
-        searchIcon.contentTintColor = .secondaryLabelColor
+        searchIcon.contentTintColor = AppStyle.Palette.accentText
         searchIcon.translatesAutoresizingMaskIntoConstraints = false
-        contentView.addSubview(searchIcon)
+        searchBarContainer.addSubview(searchIcon)
 
         // Search field
         searchField = NSTextField()
-        searchField.placeholderString = "Search apps, files, and commands..."
-        searchField.font = NSFont.systemFont(ofSize: 22, weight: .regular)
+        searchField.placeholderString = "Search or type a command..."
+        let searchFieldFont = NSFont.systemFont(ofSize: 22, weight: .medium)
+        if let cell = searchField.cell as? NSTextFieldCell {
+            cell.placeholderAttributedString = NSAttributedString(
+                string: "Search or type a command...",
+                attributes: [
+                    .font: searchFieldFont,
+                    .foregroundColor: AppStyle.Palette.mutedText.withAlphaComponent(0.38),
+                ]
+            )
+        }
+        searchField.font = searchFieldFont
         searchField.isBordered = false
         searchField.focusRingType = .none
         searchField.backgroundColor = .clear
+        searchField.textColor = AppStyle.Palette.primaryText
         searchField.delegate = self
         searchField.translatesAutoresizingMaskIntoConstraints = false
-        contentView.addSubview(searchField)
+        searchBarContainer.addSubview(searchField)
+
+        let (escBadge, _) = makeKeycapView(text: "ESC", font: AppStyle.KeyboardBadge.escFont)
+        searchBarContainer.addSubview(escBadge)
 
         // Hint label at bottom
         hintLabel = NSTextField(labelWithString: "\u{2318}\u{21A9} Reveal  \u{21B5} Select  Space Preview  \u{2191}\u{2193} Navigate  Esc Close")
-        hintLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
-        hintLabel.textColor = .tertiaryLabelColor
+        hintLabel.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        hintLabel.textColor = AppStyle.Palette.tertiaryText
         hintLabel.alignment = .center
         hintLabel.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(hintLabel)
+        
+        suggestionsLabel = NSTextField(labelWithString: "SUGGESTIONS")
+        suggestionsLabel.font = NSFont.systemFont(ofSize: 12, weight: .bold)
+        suggestionsLabel.textColor = AppStyle.Palette.mutedText
+        suggestionsLabel.translatesAutoresizingMaskIntoConstraints = false
+        suggestionsLabel.isHidden = true
+        contentView.addSubview(suggestionsLabel)
 
         // Contextual action bar - shows available actions for selected item
         contextualActionBar = createContextualActionBar()
@@ -678,7 +867,7 @@ final class CommandPaletteWindow: NSPanel {
         // Stats label - shows search timing on hover
         statsLabel = NSTextField(labelWithString: "")
         statsLabel.font = NSFont.systemFont(ofSize: 10, weight: .medium)
-        statsLabel.textColor = NSColor.systemOrange.withAlphaComponent(0.85)
+        statsLabel.textColor = AppStyle.Palette.tertiaryText
         statsLabel.alignment = .right
         statsLabel.translatesAutoresizingMaskIntoConstraints = false
         statsLabel.isHidden = true
@@ -708,8 +897,10 @@ final class CommandPaletteWindow: NSPanel {
         scrollView.borderType = .noBorder
         scrollView.backgroundColor = .clear
         scrollView.drawsBackground = false
+        scrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 12, right: 0)
         scrollView.isHidden = true
         scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.wantsLayer = true
         contentView.addSubview(scrollView)
 
         // No results label
@@ -723,31 +914,44 @@ final class CommandPaletteWindow: NSPanel {
 
         // Constraints
         NSLayoutConstraint.activate([
-            // Search icon - top left
-            searchIcon.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
-            searchIcon.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 18),
+            searchBarContainer.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            searchBarContainer.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+            searchBarContainer.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 12),
+            searchBarContainer.heightAnchor.constraint(equalToConstant: 40),
+
+            // Search icon in search bar
+            searchIcon.leadingAnchor.constraint(equalTo: searchBarContainer.leadingAnchor, constant: 12),
+            searchIcon.centerYAnchor.constraint(equalTo: searchBarContainer.centerYAnchor),
             searchIcon.widthAnchor.constraint(equalToConstant: 20),
             searchIcon.heightAnchor.constraint(equalToConstant: 20),
+            
+            escBadge.trailingAnchor.constraint(equalTo: searchBarContainer.trailingAnchor, constant: -10),
+            escBadge.centerYAnchor.constraint(equalTo: searchBarContainer.centerYAnchor),
+            escBadge.widthAnchor.constraint(equalToConstant: AppStyle.KeyboardBadge.escWidth),
+            escBadge.heightAnchor.constraint(equalToConstant: AppStyle.KeyboardBadge.escHeight),
 
-            // Search field - next to icon, full width minus margins
-            searchField.leadingAnchor.constraint(equalTo: searchIcon.trailingAnchor, constant: 8),
-            searchField.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
-            searchField.centerYAnchor.constraint(equalTo: searchIcon.centerYAnchor),
-            searchField.heightAnchor.constraint(equalToConstant: 28),
+            searchField.leadingAnchor.constraint(equalTo: searchIcon.trailingAnchor, constant: 10),
+            searchField.trailingAnchor.constraint(equalTo: escBadge.leadingAnchor, constant: -10),
+            searchField.centerYAnchor.constraint(equalTo: searchBarContainer.centerYAnchor),
+            searchField.heightAnchor.constraint(equalToConstant: 24),
         ])
         
         // Store the original scroll view top constraint (needed for action bar management)
-        originalScrollViewTopConstraint = scrollView.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 4)
+        originalScrollViewTopConstraint = scrollView.topAnchor.constraint(equalTo: searchBarContainer.bottomAnchor, constant: 8)
         originalScrollViewTopConstraint?.isActive = true
         
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: contextualActionBar.topAnchor, constant: 0),
+            scrollView.topAnchor.constraint(equalTo: suggestionsLabel.bottomAnchor, constant: 8),
+
+            suggestionsLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 18),
+            suggestionsLabel.topAnchor.constraint(equalTo: searchBarContainer.bottomAnchor, constant: 10),
 
             // No results - centered in scroll area
             noResultsLabel.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
-            noResultsLabel.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 20),
+            noResultsLabel.topAnchor.constraint(equalTo: suggestionsLabel.bottomAnchor, constant: 20),
 
             // Contextual action bar - at very bottom
             contextualActionBar.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
@@ -758,7 +962,7 @@ final class CommandPaletteWindow: NSPanel {
             // Hint label - hidden by default, shown when no results
             hintLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             hintLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            hintLabel.bottomAnchor.constraint(equalTo: contextualActionBar.topAnchor, constant: -4),
+            hintLabel.bottomAnchor.constraint(equalTo: contextualActionBar.topAnchor, constant: -6),
             hintLabel.heightAnchor.constraint(equalToConstant: hintHeight),
 
             // Stats label - right side, above contextual bar
@@ -869,12 +1073,16 @@ final class CommandPaletteWindow: NSPanel {
         resultsTableView.reloadData()
         scrollView.isHidden = true
         noResultsLabel.isHidden = true
-        hintLabel.isHidden = false
+        hintLabel.isHidden = true
+        suggestionsLabel.isHidden = true
         contextualActionBar.isHidden = true // Hide contextual bar when empty
         isResultsFocused = false // Reset to search field focus
         isOptionKeyPressed = false // Reset Option key state
+        isCommandKeyPressed = false
         hideActionBar() // Ensure action bar is hidden
         isDangerMode = false // Reset danger mode
+        isLLMMode = false // Reset LLM mode
+        stateStore.clearIntent()
 
         // Position window - store top position for resize from bottom (top fixed)
         // Initial window doesn't include contextual bar (only shows when results exist)
@@ -882,7 +1090,7 @@ final class CommandPaletteWindow: NSPanel {
             let screenFrame = screen.visibleFrame
             let windowX = screenFrame.midX - windowWidth / 2
             let windowY = screenFrame.midY + 120
-            let frame = NSRect(x: windowX, y: windowY, width: windowWidth, height: searchFieldHeight + hintHeight)
+            let frame = NSRect(x: windowX, y: windowY, width: windowWidth, height: emptyStateHeight)
             setFrame(frame, display: true)
             initialWindowTop = frame.maxY
         }
@@ -901,10 +1109,15 @@ final class CommandPaletteWindow: NSPanel {
         // Clear search results to ensure clean state on reopen
         searchResults = []
         resultsTableView.reloadData()
+        suggestionsLabel.isHidden = true
         // Reset settings mode when closing
         isSettingsMode = false
+        // Reset LLM mode when closing
+        isLLMMode = false
+        stateStore.clearIntent()
         // Reset Option key state and hide action bar
         isOptionKeyPressed = false
+        isCommandKeyPressed = false
         hideActionBar()
         orderOut(nil)
     }
@@ -1124,98 +1337,13 @@ final class CommandPaletteWindow: NSPanel {
     /// Store initial top position to resize from bottom (top stays fixed)
     private var initialWindowTop: CGFloat?
 
-    /// Task for background file search
-    private var fileSearchTask: Task<Void, Never>?
-
-    /// Current search query to avoid race conditions
-    private var currentSearchQuery: String = ""
-
     /// Perform search - only runs in normal mode
     private func performSearch(_ query: String) {
-        // Don't search when in settings mode
         guard !isSettingsMode else { return }
-        performSearchInternal(query)
+        controller.handleQuery(query)
     }
 
-    /// Internal search implementation - always runs regardless of mode
-    private func performSearchInternal(_ query: String) {
-        // Cancel previous file search
-        fileSearchTask?.cancel()
-
-        // Cancel any in-progress search
-        SearchEngine.shared.cancelCurrentSearch()
-
-        guard let topY = initialWindowTop, let screen = NSScreen.main else { return }
-
-        let currentFrame = frame
-
-        if query.isEmpty {
-            searchResults = []
-            resultsTableView.reloadData()
-            scrollView.isHidden = true
-            noResultsLabel.isHidden = true
-            hintLabel.isHidden = false
-            contextualActionBar.isHidden = true
-
-            let newHeight = searchFieldHeight + hintHeight
-            let newY = topY - newHeight
-            animateFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: newHeight))
-        } else {
-            // Store current query for race condition handling
-            currentSearchQuery = query
-
-            // PHASE 1: Show fast results immediately (apps, calculator, clipboard)
-            let fastResults = SearchEngine.shared.searchFast(query: query)
-            
-            // Store the trace for hover stats display
-            if let trace = SearchEngine.shared.getLastTrace() {
-                setSearchTrace(trace)
-            }
-            
-            updateSearchResults(fastResults, topY: topY, screen: screen)
-
-            // PHASE 2: Run file search in background and append when ready
-            fileSearchTask = Task { [weak self] in
-                guard let self else { return }
-
-                // Small delay before file search to not compete with fast results
-                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
-
-                guard !Task.isCancelled else { return }
-
-                // Verify query hasn't changed
-                guard currentSearchQuery == query else { return }
-
-                // Run file search on background
-                let fileResults = await Task.detached(priority: .utility) {
-                    SearchEngine.shared.searchFiles(query: query)
-                }.value
-
-                // Check if query still matches (prevent race condition)
-                guard currentSearchQuery == query else { return }
-
-                // Merge results: fast results + file results, sorted by score (highest first) then category
-                var combinedResults = fastResults
-                for fileResult in fileResults {
-                    if !combinedResults.contains(where: { $0.title == fileResult.title }) {
-                        combinedResults.append(fileResult)
-                    }
-                }
-                combinedResults.sort { (a, b) -> Bool in
-                    if a.score != b.score { return a.score > b.score }
-                    return a.category < b.category
-                }
-
-                // Update UI on main thread
-                await MainActor.run {
-                    guard self.currentSearchQuery == query else { return }
-                    self.updateSearchResults(combinedResults, topY: topY, screen: screen)
-                }
-            }
-        }
-    }
-
-    private func updateSearchResults(_ results: [SearchResult], topY: CGFloat, screen: NSScreen) {
+    private func updateSearchResults(_ results: [SearchResult], topY: CGFloat, screen _: NSScreen) {
         // Don't update results when in settings mode
         guard !isSettingsMode else { return }
         
@@ -1233,6 +1361,7 @@ final class CommandPaletteWindow: NSPanel {
 
         if searchResults.isEmpty {
             scrollView.isHidden = true
+            suggestionsLabel.isHidden = true
             noResultsLabel.isHidden = false
             hintLabel.isHidden = false
             contextualActionBar.isHidden = true
@@ -1242,10 +1371,12 @@ final class CommandPaletteWindow: NSPanel {
             animateFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: newHeight))
         } else {
             scrollView.isHidden = false
+            suggestionsLabel.isHidden = false
             noResultsLabel.isHidden = true
             hintLabel.isHidden = true
             contextualActionBar.isHidden = false
             updateContextualActionBar()
+            scrollView.hasVerticalScroller = searchResults.count > maxVisibleResultRows
 
             var restoredRow = 0
             if let title = previouslySelectedTitle {
@@ -1256,10 +1387,8 @@ final class CommandPaletteWindow: NSPanel {
             resultsTableView.selectRowIndexes(IndexSet(integer: restoredRow), byExtendingSelection: false)
             resultsTableView.scrollRowToVisible(restoredRow)
 
-            let availableHeight = screen.visibleFrame.height * maxResultsHeight
-            let maxRows = Int((availableHeight - searchFieldHeight - contextualBarHeight - 20) / rowHeight)
-            let visibleRows = min(searchResults.count, maxRows)
-            let resultsHeight = CGFloat(visibleRows) * rowHeight + 8
+            let visibleRows = min(searchResults.count, maxVisibleResultRows)
+            let resultsHeight = CGFloat(visibleRows) * rowHeight + resultsContainerVerticalPadding
             // Include contextual bar height in total height
             let newHeight = searchFieldHeight + resultsHeight + contextualBarHeight
 
@@ -1267,7 +1396,7 @@ final class CommandPaletteWindow: NSPanel {
             animateFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: newHeight))
         }
     }
-
+    
     // MARK: - Animated Resize
 
     private func animateFrame(_ newFrame: NSRect) {
@@ -1285,6 +1414,12 @@ final class CommandPaletteWindow: NSPanel {
             handleEscape()
             return
         }
+
+        if event.modifierFlags.contains(.command),
+           executeIndexedResultShortcut(forKeyCode: Int(event.keyCode))
+        {
+            return
+        }
         
         // Handle Cmd+Enter for reveal action (force quit processes, reveal files in Finder)
         if Int(event.keyCode) == kVK_Return && event.modifierFlags.contains(.command) {
@@ -1295,15 +1430,31 @@ final class CommandPaletteWindow: NSPanel {
         super.keyDown(with: event)
     }
 
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if event.type == .keyDown,
+           event.modifierFlags.contains(.command),
+           executeIndexedResultShortcut(forKeyCode: Int(event.keyCode))
+        {
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+
     // MARK: - Modifier Key Events (Option Key Action Bar)
 
     override func flagsChanged(with event: NSEvent) {
         let optionIsPressed = event.modifierFlags.contains(.option)
+        let commandIsPressed = event.modifierFlags.contains(.command)
 
         // Only react to Option key changes, and only when we have results
         if optionIsPressed != isOptionKeyPressed {
             isOptionKeyPressed = optionIsPressed
             updateActionBarVisibility()
+        }
+
+        if commandIsPressed != isCommandKeyPressed {
+            isCommandKeyPressed = commandIsPressed
+            resultsTableView.reloadData()
         }
 
         super.flagsChanged(with: event)
@@ -1382,7 +1533,7 @@ final class CommandPaletteWindow: NSPanel {
         // Add separator
         let separator = NSView()
         separator.wantsLayer = true
-        separator.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.15).cgColor
+        separator.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.08).cgColor
         separator.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             separator.widthAnchor.constraint(equalToConstant: 1),
@@ -1423,6 +1574,12 @@ final class CommandPaletteWindow: NSPanel {
         } else if isSettingsMode {
             // In settings mode, escape exits settings and returns to normal mode
             exitSettingsMode()
+        } else if isLLMMode {
+            // In LLM mode, escape clears the = prefix and returns to normal mode
+            isLLMMode = false
+            searchField.stringValue = ""
+            hintLabel.stringValue = "⌘↵ Reveal  ↵ Select  Space Preview  ↑↓ Navigate  Esc Close"
+            performSearch("")
         } else {
             close()
         }
@@ -1438,16 +1595,7 @@ final class CommandPaletteWindow: NSPanel {
 
         guard selectedRow >= 0, selectedRow < searchResults.count else { return }
 
-        let result = searchResults[selectedRow]
-        
-        // Handle settings category specially - don't close window, enter settings mode
-        if result.category == .settings {
-            enterSettingsMode()
-            return
-        }
-        
-        result.execute()
-        close()
+        executeResult(at: selectedRow)
     }
 
     /// Reveals the current result (Cmd+Enter action)
@@ -1483,6 +1631,45 @@ final class CommandPaletteWindow: NSPanel {
             result.reveal()
             close()
         }
+    }
+
+    private func executeResult(at index: Int) {
+        guard index >= 0, index < searchResults.count else { return }
+        let result = searchResults[index]
+
+        if result.category == .settings {
+            enterSettingsMode()
+            return
+        }
+
+        result.execute()
+        close()
+    }
+
+    @discardableResult
+    private func executeIndexedResultShortcut(forKeyCode keyCode: Int) -> Bool {
+        let index: Int
+        switch keyCode {
+        case kVK_ANSI_1: index = 0
+        case kVK_ANSI_2: index = 1
+        case kVK_ANSI_3: index = 2
+        case kVK_ANSI_4: index = 3
+        case kVK_ANSI_5: index = 4
+        case kVK_ANSI_6: index = 5
+        case kVK_ANSI_7: index = 6
+        case kVK_ANSI_8: index = 7
+        case kVK_ANSI_9: index = 8
+        default: return false
+        }
+
+        guard index < searchResults.count else { return true }
+        executeResult(at: index)
+        return true
+    }
+
+    @discardableResult
+    func handleIndexedShortcutFromTable(forKeyCode keyCode: Int) -> Bool {
+        executeIndexedResultShortcut(forKeyCode: keyCode)
     }
 
     // MARK: - Quick Look Preview
@@ -1629,91 +1816,196 @@ extension CommandPaletteWindow: NSTableViewDelegate, NSTableViewDataSource {
 
         let cellView = NSTableCellView()
         cellView.identifier = NSUserInterfaceItemIdentifier("ResultCell")
+        
+        if result.category == .file, let filePath = result.filePath {
+            return buildFileCellView(result: result, filePath: filePath, container: cellView, row: row)
+        }
 
         let imageView = NSImageView()
         imageView.image = result.icon
         imageView.translatesAutoresizingMaskIntoConstraints = false
 
+        imageView.wantsLayer = true
+        imageView.layer?.cornerRadius = 10
+        imageView.layer?.masksToBounds = true
+        imageView.layer?.backgroundColor = AppStyle.Palette.iconChipBackground.cgColor
+
         let titleLabel = NSTextField(labelWithString: result.title)
-        titleLabel.font = NSFont.systemFont(ofSize: 14, weight: .medium)
+        titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
+        titleLabel.textColor = AppStyle.Palette.primaryText
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        // Category badge: rounded background with small text
-        let badgeLabel = NSTextField(labelWithString: result.subtitle)
-        badgeLabel.font = NSFont.systemFont(ofSize: 10, weight: .medium)
-        badgeLabel.textColor = .secondaryLabelColor
-        badgeLabel.alignment = .center
-        badgeLabel.translatesAutoresizingMaskIntoConstraints = false
+        let subtitleLabel = NSTextField(labelWithString: result.subtitle)
+        subtitleLabel.font = NSFont.systemFont(ofSize: 12, weight: .regular)
+        subtitleLabel.textColor = AppStyle.Palette.secondaryText
+        subtitleLabel.lineBreakMode = .byTruncatingTail
+        subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        let badgeContainer = NSView()
-        badgeContainer.wantsLayer = true
-        badgeContainer.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.08).cgColor
-        badgeContainer.layer?.cornerRadius = 4
-        badgeContainer.translatesAutoresizingMaskIntoConstraints = false
-        badgeContainer.addSubview(badgeLabel)
+        let (indexBadge, _) = makeKeycapView(text: "\(row + 1)", font: AppStyle.KeyboardBadge.keyFont)
+        indexBadge.isHidden = !isCommandKeyPressed
 
         cellView.addSubview(imageView)
+        cellView.addSubview(indexBadge)
         cellView.addSubview(titleLabel)
-        cellView.addSubview(badgeContainer)
+        cellView.addSubview(subtitleLabel)
 
-        // Add checkmark for active toggles
-        if result.isActive {
-            let checkmarkView = NSImageView()
-            checkmarkView.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: "Active")
-            checkmarkView.contentTintColor = .systemGreen
-            checkmarkView.translatesAutoresizingMaskIntoConstraints = false
-            cellView.addSubview(checkmarkView)
+        NSLayoutConstraint.activate([
+            imageView.leadingAnchor.constraint(equalTo: cellView.leadingAnchor, constant: 10),
+            imageView.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
+            imageView.widthAnchor.constraint(equalToConstant: 34),
+            imageView.heightAnchor.constraint(equalToConstant: 34),
 
-            NSLayoutConstraint.activate([
-                imageView.leadingAnchor.constraint(equalTo: cellView.leadingAnchor, constant: 2),
-                imageView.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
-                imageView.widthAnchor.constraint(equalToConstant: 28),
-                imageView.heightAnchor.constraint(equalToConstant: 28),
+            indexBadge.leadingAnchor.constraint(equalTo: cellView.leadingAnchor, constant: 10),
+            indexBadge.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
+            indexBadge.widthAnchor.constraint(equalToConstant: 34),
+            indexBadge.heightAnchor.constraint(equalToConstant: AppStyle.KeyboardBadge.keyHeight),
 
-                titleLabel.leadingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: 10),
-                titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: checkmarkView.leadingAnchor, constant: -8),
-                titleLabel.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
+            titleLabel.leadingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: 12),
+            titleLabel.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -12),
+            titleLabel.topAnchor.constraint(equalTo: cellView.topAnchor, constant: 8),
 
-                checkmarkView.trailingAnchor.constraint(equalTo: badgeContainer.leadingAnchor, constant: -8),
-                checkmarkView.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
-                checkmarkView.widthAnchor.constraint(equalToConstant: 18),
-                checkmarkView.heightAnchor.constraint(equalToConstant: 18),
+            subtitleLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+            subtitleLabel.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -12),
+            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
+        ])
 
-                badgeContainer.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -8),
-                badgeContainer.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
-
-                badgeLabel.leadingAnchor.constraint(equalTo: badgeContainer.leadingAnchor, constant: 6),
-                badgeLabel.trailingAnchor.constraint(equalTo: badgeContainer.trailingAnchor, constant: -6),
-                badgeLabel.topAnchor.constraint(equalTo: badgeContainer.topAnchor, constant: 2),
-                badgeLabel.bottomAnchor.constraint(equalTo: badgeContainer.bottomAnchor, constant: -2),
-            ])
-        } else {
-            NSLayoutConstraint.activate([
-                imageView.leadingAnchor.constraint(equalTo: cellView.leadingAnchor, constant: 2),
-                imageView.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
-                imageView.widthAnchor.constraint(equalToConstant: 28),
-                imageView.heightAnchor.constraint(equalToConstant: 28),
-
-                titleLabel.leadingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: 10),
-                titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: badgeContainer.leadingAnchor, constant: -8),
-                titleLabel.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
-
-                badgeContainer.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -8),
-                badgeContainer.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
-
-                badgeLabel.leadingAnchor.constraint(equalTo: badgeContainer.leadingAnchor, constant: 6),
-                badgeLabel.trailingAnchor.constraint(equalTo: badgeContainer.trailingAnchor, constant: -6),
-                badgeLabel.topAnchor.constraint(equalTo: badgeContainer.topAnchor, constant: 2),
-                badgeLabel.bottomAnchor.constraint(equalTo: badgeContainer.bottomAnchor, constant: -2),
-            ])
-        }
+        imageView.isHidden = isCommandKeyPressed
 
         return cellView
     }
 
     func tableView(_: NSTableView, heightOfRow _: Int) -> CGFloat {
         rowHeight
+    }
+    
+    private func buildFileCellView(result: SearchResult, filePath: String, container: NSTableCellView, row: Int) -> NSView {
+        let imageView = NSImageView()
+        imageView.image = result.icon
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        imageView.wantsLayer = true
+        imageView.layer?.cornerRadius = 8
+        imageView.layer?.masksToBounds = true
+
+        let titleLabel = NSTextField(labelWithString: result.title)
+        titleLabel.font = NSFont.systemFont(ofSize: 14, weight: .semibold)
+        titleLabel.textColor = AppStyle.Palette.primaryText
+        titleLabel.lineBreakMode = .byTruncatingTail
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        let pathLabel = NSTextField(labelWithString: displayPathSuffix(for: filePath))
+        pathLabel.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        pathLabel.textColor = AppStyle.Palette.secondaryText
+        pathLabel.lineBreakMode = .byTruncatingHead
+        pathLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        let metadataLabel = NSTextField(labelWithString: fileMetadataLine(filePath: filePath))
+        metadataLabel.font = NSFont.systemFont(ofSize: 12, weight: .regular)
+        metadataLabel.textColor = AppStyle.Palette.tertiaryText
+        metadataLabel.lineBreakMode = .byTruncatingTail
+        metadataLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        let sizeLabel = NSTextField(labelWithString: fileSizeBadge(filePath: filePath))
+        sizeLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        sizeLabel.textColor = AppStyle.Palette.chipText
+        sizeLabel.alignment = .center
+        sizeLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        let sizeBadge = NSView()
+        sizeBadge.wantsLayer = true
+        sizeBadge.layer?.cornerRadius = 6
+        sizeBadge.layer?.backgroundColor = AppStyle.Palette.chipBackground.cgColor
+        sizeBadge.layer?.borderColor = AppStyle.Palette.chipBorder.cgColor
+        sizeBadge.layer?.borderWidth = 1
+        sizeBadge.translatesAutoresizingMaskIntoConstraints = false
+        sizeBadge.addSubview(sizeLabel)
+
+        let (indexBadge, _) = makeKeycapView(text: "\(row + 1)", font: AppStyle.KeyboardBadge.keyFont)
+        indexBadge.isHidden = !isCommandKeyPressed
+
+        container.addSubview(imageView)
+        container.addSubview(indexBadge)
+        container.addSubview(titleLabel)
+        container.addSubview(pathLabel)
+        container.addSubview(metadataLabel)
+        container.addSubview(sizeBadge)
+
+        NSLayoutConstraint.activate([
+            imageView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
+            imageView.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            imageView.widthAnchor.constraint(equalToConstant: 34),
+            imageView.heightAnchor.constraint(equalToConstant: 34),
+
+            indexBadge.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
+            indexBadge.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            indexBadge.widthAnchor.constraint(equalToConstant: 34),
+            indexBadge.heightAnchor.constraint(equalToConstant: AppStyle.KeyboardBadge.keyHeight),
+
+            titleLabel.leadingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: 12),
+            titleLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
+            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: pathLabel.leadingAnchor, constant: -8),
+
+            pathLabel.trailingAnchor.constraint(equalTo: sizeBadge.leadingAnchor, constant: -10),
+            pathLabel.firstBaselineAnchor.constraint(equalTo: titleLabel.firstBaselineAnchor),
+            pathLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 260),
+
+            metadataLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
+            metadataLabel.trailingAnchor.constraint(lessThanOrEqualTo: sizeBadge.leadingAnchor, constant: -8),
+            metadataLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 3),
+
+            sizeBadge.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -10),
+            sizeBadge.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+
+            sizeLabel.leadingAnchor.constraint(equalTo: sizeBadge.leadingAnchor, constant: 8),
+            sizeLabel.trailingAnchor.constraint(equalTo: sizeBadge.trailingAnchor, constant: -8),
+            sizeLabel.topAnchor.constraint(equalTo: sizeBadge.topAnchor, constant: 4),
+            sizeLabel.bottomAnchor.constraint(equalTo: sizeBadge.bottomAnchor, constant: -4),
+            sizeLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 42),
+        ])
+
+        imageView.isHidden = isCommandKeyPressed
+
+        return container
+    }
+    
+    private func displayPathSuffix(for path: String) -> String {
+        let url = URL(fileURLWithPath: path)
+        let components = url.deletingLastPathComponent().pathComponents
+        if components.count <= 3 {
+            return url.deletingLastPathComponent().path
+        }
+        let suffix = components.suffix(3).joined(separator: "/")
+        return "/\(suffix)"
+    }
+
+    private func fileMetadataLine(filePath: String) -> String {
+        let url = URL(fileURLWithPath: filePath)
+        let ext = url.pathExtension.uppercased()
+        let typeText = ext.isEmpty ? "File" : "\(ext) Document"
+
+        let modifiedText: String = {
+            let attrs = try? FileManager.default.attributesOfItem(atPath: filePath)
+            guard let date = attrs?[.modificationDate] as? Date else { return "Updated recently" }
+            return "Updated \(relativeDateString(from: date))"
+        }()
+
+        return "\(modifiedText)  •  \(typeText)"
+    }
+
+    private func fileSizeBadge(filePath: String) -> String {
+        let attrs = try? FileManager.default.attributesOfItem(atPath: filePath)
+        guard let bytes = attrs?[.size] as? NSNumber else { return "--" }
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        formatter.includesUnit = true
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        return formatter.string(fromByteCount: bytes.int64Value)
+    }
+
+    private func relativeDateString(from date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
 

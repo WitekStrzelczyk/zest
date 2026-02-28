@@ -36,10 +36,12 @@ System architecture documentation for the Zest macOS command palette application
 | Service | File | Purpose |
 |---------|------|---------|
 | SearchEngine | Sources/Services/SearchEngine.swift | Unified search interface |
+| SchedulerService | Sources/Services/SchedulerService.swift | Recurring background tasks |
 | WindowManager | Sources/Services/WindowManager.swift | Window manipulation via Accessibility API |
 | ClipboardManager | Sources/Services/ClipboardManager.swift | Clipboard monitoring and history |
 | ScriptManager | Sources/Services/ScriptManager.swift | Script execution |
 | FileSearchService | Sources/Services/FileSearchService.swift | Spotlight-based file search |
+| CalendarService | Sources/Services/CalendarService.swift | EventKit calendar integration |
 | SnippetManager | Sources/Services/SnippetManager.swift | Text snippet management |
 | SystemControlManager | Sources/Services/SystemControlManager.swift | System controls (dark mode, etc.) |
 | QuicklinkManager | Sources/Services/QuicklinkManager.swift | URL quicklinks |
@@ -99,11 +101,18 @@ var runningProcess: Process? {
 3. **visibleFrame for window operations** - Avoids covering menu bar/dock
 4. **NSMetadataQuery over mdfind** - Better API control and performance
 
+## Architecture Documents
+
+| Document | Summary |
+|----------|---------|
+| [calendar-cache.md](/Users/witek/projects/copies/zest/docs/architecture/calendar-cache.md) | Cache-first calendar search (400ms → <10ms) |
+
 ## Related Documentation
 
 - [DESIGN.md](/Users/witek/projects/copies/zest/docs/DESIGN.md) - Product design
 - [CONSOLIDATED_LEARNINGS.md](/Users/witek/projects/copies/zest/docs/retrospections/CONSOLIDATED_LEARNINGS.md) - Technical learnings
+- [how-to/add-scheduled-task.md](/Users/witek/projects/copies/zest/docs/how-to/add-scheduled-task.md) - Adding scheduled tasks
 
 ---
 
-*Last reviewed: 2026-02-14*
+*Last reviewed: 2026-02-25*

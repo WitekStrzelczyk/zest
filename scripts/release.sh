@@ -239,7 +239,11 @@ embed_sparkle_framework() {
         cp -R "$sparkle_framework" "$APP_BUNDLE/Contents/Frameworks/"
         
         # Sign the embedded framework (required for notarization)
+        # Must sign with the same identity as the app
         if [[ -n "${CODE_SIGN_IDENTITY:-}" ]]; then
+            # Remove any existing signature to avoid Team ID conflicts
+            rm -rf "$APP_BUNDLE/Contents/Frameworks/Sparkle.framework/Contents/_CodeSignature" 2>/dev/null || true
+            
             codesign --force --sign "$CODE_SIGN_IDENTITY" \
                 --options runtime \
                 --timestamp \

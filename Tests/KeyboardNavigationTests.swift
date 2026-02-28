@@ -247,6 +247,20 @@ final class KeyboardNavigationTests: XCTestCase {
         XCTAssertTrue(revealed, "Cmd+Enter should reveal first file when no selection exists")
     }
 
+    func test_cmd_number_executes_indexed_result_action() {
+        window.show(previousApp: nil)
+        var executedIndex: Int?
+        let mockResults = createMockResultsWithAction(count: 4) { index in
+            executedIndex = index
+        }
+        window.updateResultsForTesting(mockResults)
+
+        // Cmd+2 should execute second item (index 1)
+        window.simulateKeyPress(keyCode: 19, modifiers: .command)
+
+        XCTAssertEqual(executedIndex, 1, "Cmd+2 should execute the second result")
+    }
+
     // MARK: - First Responder Navigation Tests
 
     func test_down_arrow_moves_first_responder_to_results() {

@@ -35,8 +35,7 @@ final class SearchResultSortingTests: XCTestCase {
         ]
 
         let sorted = results.sorted { (a, b) -> Bool in
-            if a.score != b.score { return a.score > b.score }
-            return a.category < b.category
+            SearchResult.rankedBefore(a, b)
         }
 
         XCTAssertEqual(sorted[0].title, "High Score App")
@@ -74,13 +73,12 @@ final class SearchResultSortingTests: XCTestCase {
         ]
 
         let sorted = results.sorted { (a, b) -> Bool in
-            if a.score != b.score { return a.score > b.score }
-            return a.category < b.category
+            SearchResult.rankedBefore(a, b)
         }
 
-        // Category order: action < application < file
-        XCTAssertEqual(sorted[0].category, .action)
-        XCTAssertEqual(sorted[1].category, .application)
+        // Category order: application < action < file
+        XCTAssertEqual(sorted[0].category, .application)
+        XCTAssertEqual(sorted[1].category, .action)
         XCTAssertEqual(sorted[2].category, .file)
     }
 
@@ -135,8 +133,7 @@ final class SearchResultSortingTests: XCTestCase {
 
         // Sort by score descending, then by category
         let sorted = fastResults.sorted { (a, b) -> Bool in
-            if a.score != b.score { return a.score > b.score }
-            return a.category < b.category
+            SearchResult.rankedBefore(a, b)
         }
 
         // Expected order: Safari(95) > package.swift(90) > Slack(80) > screenshot.png(60)
@@ -144,5 +141,29 @@ final class SearchResultSortingTests: XCTestCase {
         XCTAssertEqual(sorted[1].title, "package.swift")
         XCTAssertEqual(sorted[2].title, "Slack")
         XCTAssertEqual(sorted[3].title, "screenshot.png")
+    }
+
+    func test_sorting_toolSourceBoostsAboveHigherScoreStandard() {
+        let standardHigh = SearchResult(
+            title: "Standard High",
+            subtitle: "Application",
+            icon: nil,
+            category: .application,
+            action: {},
+            score: 500,
+            source: .standard
+        )
+        let toolLower = SearchResult(
+            title: "Tool Lower",
+            subtitle: "Action",
+            icon: nil,
+            category: .action,
+            action: {},
+            score: 50,
+            source: .tool
+        )
+
+        let sorted = [standardHigh, toolLower].sorted(by: SearchResult.rankedBefore)
+        XCTAssertEqual(sorted.first?.title, "Tool Lower")
     }
 }

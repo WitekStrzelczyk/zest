@@ -255,7 +255,7 @@ final class ProcessSearchService {
         // Find the running application and activate it
         let runningApps = NSWorkspace.shared.runningApplications
         if let app = runningApps.first(where: { $0.processIdentifier == process.pid }) {
-            app.activate(options: .activateIgnoringOtherApps)
+            app.activate(options: [])
         }
     }
 

@@ -1,5 +1,10 @@
 import AppKit
 
+enum SearchResultSource {
+    case standard
+    case tool
+}
+
 /// Display priority: lower rawValue appears higher in results
 enum SearchResultCategory: Int, Comparable {
     case application = 0
@@ -63,6 +68,9 @@ struct SearchResult {
     /// Optional trailing icon displayed on the right side (e.g., video platform icon)
     let trailingIcon: NSImage?
 
+    /// Origin of the result used for ranking boosts.
+    let source: SearchResultSource
+
     init(
         title: String,
         subtitle: String,
@@ -74,7 +82,8 @@ struct SearchResult {
         score: Int = 0,
         isActive: Bool = false,
         tintColor: NSColor? = nil,
-        trailingIcon: NSImage? = nil
+        trailingIcon: NSImage? = nil,
+        source: SearchResultSource = .standard
     ) {
         self.title = title
         self.subtitle = subtitle
@@ -87,6 +96,15 @@ struct SearchResult {
         self.isActive = isActive
         self.tintColor = tintColor
         self.trailingIcon = trailingIcon
+        self.source = source
+    }
+
+    static func rankedBefore(_ lhs: SearchResult, _ rhs: SearchResult) -> Bool {
+        if lhs.source != rhs.source {
+            return lhs.source == .tool
+        }
+        if lhs.score != rhs.score { return lhs.score > rhs.score }
+        return lhs.category < rhs.category
     }
 
     /// Returns true if this result represents a file that can be previewed with Quick Look

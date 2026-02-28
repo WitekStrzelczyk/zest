@@ -68,7 +68,7 @@ struct GeneralPreferencesView: View {
         Form {
             Section {
                 Toggle("Launch at Login", isOn: $preferences.launchAtLogin)
-                    .onChange(of: preferences.launchAtLogin) { newValue in
+                    .onChange(of: preferences.launchAtLogin) { _, newValue in
                         LaunchAtLoginService.shared.enabled = newValue
                     }
             }

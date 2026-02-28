@@ -10,6 +10,7 @@ How-to documentation for building and extending Zest.
 |-------|---------|
 | [TDD Guidelines](/Users/witek/projects/copies/zest/docs/TDD_GUIDELINES.md) | Test-driven development workflow and patterns |
 | [Configuration Storage](/Users/witek/projects/copies/zest/docs/guides/CONFIGURATION_STORAGE.md) | UserDefaults vs App Support - when to use each |
+| [Demo Recording](/Users/witek/projects/copies/zest/docs/how-to/demo-recording.md) | Recording feature demos with ffmpeg and AppleScript |
 
 ### Feature Implementation
 

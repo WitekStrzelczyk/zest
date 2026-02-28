@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# Build and run Zest using xcodebuild, then execute the fresh binary.
+# Usage: ./scripts/run [--clean] [--no-kill] [--with-dyld] [--no-fallback-dyld]
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+SCHEME="Zest"
+ARCH="$(uname -m)"
+DESTINATION="platform=macOS,arch=${ARCH}"
+CONFIGURATION="Debug"
+DERIVED_DATA_PATH="${ROOT_DIR}/.deriveddata"
+
+CLEAN_BUILD=0
+KILL_EXISTING=1
+USE_DYLD_FRAMEWORK_PATH=0
+USE_DYLD_FALLBACK_FRAMEWORK_PATH=1
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --clean)
+      CLEAN_BUILD=1
+      shift
+      ;;
+    --no-kill)
+      KILL_EXISTING=0
+      shift
+      ;;
+    --with-dyld)
+      USE_DYLD_FRAMEWORK_PATH=1
+      shift
+      ;;
+    --no-fallback-dyld)
+      USE_DYLD_FALLBACK_FRAMEWORK_PATH=0
+      shift
+      ;;
+    -h|--help)
+      cat <<'EOF'
+Usage: ./scripts/run [--clean] [--no-kill] [--with-dyld] [--no-fallback-dyld]
+  --clean    Clean before launch (xcodebuild or swift package)
+  --no-kill  Do not kill existing Zest processes before launch
+  --with-dyld  Force DYLD_FRAMEWORK_PATH (off by default)
+  --no-fallback-dyld  Disable default DYLD_FALLBACK_FRAMEWORK_PATH injection
+EOF
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      exit 2
+      ;;
+  esac
+done
+
+cd "$ROOT_DIR"
+
+run_swiftpm() {
+  if [[ "$KILL_EXISTING" -eq 1 ]]; then
+    echo "Stopping existing Zest processes..."
+    pkill -x "Zest" 2>/dev/null || true
+    sleep 0.5
+  fi
+
+  if [[ "$CLEAN_BUILD" -eq 1 ]]; then
+    echo "Cleaning SwiftPM build artifacts..."
+    swift package clean
+  fi
+
+  echo "Running via SwiftPM fallback..."
+  exec swift run
+}
+
+if [[ "$CLEAN_BUILD" -eq 1 ]]; then
+  echo "Cleaning ${SCHEME} (${CONFIGURATION})..."
+  if ! xcodebuild \
+    -scheme "$SCHEME" \
+    -destination "$DESTINATION" \
+    -configuration "$CONFIGURATION" \
+    -derivedDataPath "$DERIVED_DATA_PATH" \
+    clean >/dev/null; then
+    echo "xcodebuild clean failed, falling back to SwiftPM."
+    run_swiftpm
+  fi
+fi
+
+echo "Building ${SCHEME} (${CONFIGURATION})..."
+if ! xcodebuild \
+  -scheme "$SCHEME" \
+  -destination "$DESTINATION" \
+  -configuration "$CONFIGURATION" \
+  -derivedDataPath "$DERIVED_DATA_PATH" \
+  build >/dev/null; then
+  echo "xcodebuild build failed, falling back to SwiftPM."
+  run_swiftpm
+fi
+
+echo "Resolving build product path..."
+PRODUCTS_ROOT="${DERIVED_DATA_PATH}/Build/Products/${CONFIGURATION}"
+BINARY_PATH=""
+
+for candidate in \
+  "${PRODUCTS_ROOT}/Zest.app/Contents/MacOS/Zest" \
+  "${PRODUCTS_ROOT}/Zest" \
+  "${PRODUCTS_ROOT}/ZestPackage/Zest"; do
+  if [[ -x "$candidate" ]]; then
+    BINARY_PATH="$candidate"
+    break
+  fi
+done
+
+if [[ -z "$BINARY_PATH" ]]; then
+  echo "Failed to resolve built binary under: ${PRODUCTS_ROOT}" >&2
+  find "${PRODUCTS_ROOT}" -maxdepth 5 -type f -name "Zest*" 2>/dev/null || true
+  echo "Falling back to SwiftPM launch."
+  run_swiftpm
+fi
+
+if [[ ! -x "$BINARY_PATH" ]]; then
+  echo "Built binary not found at: $BINARY_PATH" >&2
+  exit 1
+fi
+
+if [[ "$KILL_EXISTING" -eq 1 ]]; then
+  echo "Stopping existing Zest processes..."
+  pkill -x "Zest" 2>/dev/null || true
+  sleep 0.5
+fi
+
+echo "Launching: $BINARY_PATH"
+if [[ "$USE_DYLD_FALLBACK_FRAMEWORK_PATH" -eq 1 ]]; then
+  FALLBACK_FRAMEWORK_PATH="${PRODUCTS_ROOT}:${PRODUCTS_ROOT}/PackageFrameworks:${DERIVED_DATA_PATH}/Build/Products/lib"
+  if [[ -n "${DYLD_FALLBACK_FRAMEWORK_PATH:-}" ]]; then
+    export DYLD_FALLBACK_FRAMEWORK_PATH="${FALLBACK_FRAMEWORK_PATH}:${DYLD_FALLBACK_FRAMEWORK_PATH}"
+  else
+    export DYLD_FALLBACK_FRAMEWORK_PATH="${FALLBACK_FRAMEWORK_PATH}:/Library/Frameworks:/System/Library/Frameworks"
+  fi
+fi
+
+if [[ "$USE_DYLD_FRAMEWORK_PATH" -eq 1 ]]; then
+  FRAMEWORK_PATH="${PRODUCTS_ROOT}/PackageFrameworks:${PRODUCTS_ROOT}"
+  export DYLD_FRAMEWORK_PATH="$FRAMEWORK_PATH"
+  echo "Using DYLD_FRAMEWORK_PATH=${DYLD_FRAMEWORK_PATH}"
+fi
+exec "$BINARY_PATH"

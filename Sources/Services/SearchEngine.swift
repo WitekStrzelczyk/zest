@@ -16,6 +16,7 @@ final class SearchEngine {
     private let quicklinkManager = QuicklinkManager.shared
     private let awakeService = AwakeService.shared
     private let tracer = SearchTracer.shared
+    private let clipboardPrefix = "clip"
 
     /// Last search trace for displaying stats
     private(set) var lastSearchTrace: SearchSpan?
@@ -45,7 +46,7 @@ final class SearchEngine {
         lastSearchTrace
     }
 
-    /// Fast search - returns apps, calculator, clipboard immediately (no file search)
+    /// Fast search - returns apps and tool results immediately (no file search)
     /// Use this for instant feedback while file search runs in background
     func searchFast(query: String) -> [SearchResult] {
         ensureAppsLoaded()
@@ -86,8 +87,7 @@ final class SearchEngine {
                 results.append(contentsOf: processResults)
                 // Return early if process search matched - processes take priority
                 return results.sorted { (a, b) -> Bool in
-                    if a.score != b.score { return a.score > b.score }
-                    return a.category < b.category
+                    SearchResult.rankedBefore(a, b)
                 }
             }
         }
@@ -106,7 +106,8 @@ final class SearchEngine {
                     action: {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(result, forType: .string)
-                    }
+                    },
+                    source: .tool
                 ))
             }
         }
@@ -250,9 +251,14 @@ final class SearchEngine {
         networkSpan.finish()
         results.append(contentsOf: networkResults)
 
-        // Clipboard history
+        // Clipboard history (only when explicitly prefixed with "clip")
         let clipSpan = span.createChild(operationName: "clipboard")
-        let clipboardResults = ClipboardManager.shared.search(query: query)
+        let clipboardResults: [SearchResult]
+        if let clipboardQuery = clipboardQueryIfTriggered(from: query, lowercasedQuery: lowercasedQuery) {
+            clipboardResults = ClipboardManager.shared.search(query: clipboardQuery)
+        } else {
+            clipboardResults = []
+        }
         clipSpan.setTag("results", clipboardResults.count)
         clipSpan.finish()
         results.append(contentsOf: clipboardResults)
@@ -293,8 +299,7 @@ final class SearchEngine {
         }
 
         return results.sorted { (a, b) -> Bool in
-            if a.score != b.score { return a.score > b.score }
-            return a.category < b.category
+            SearchResult.rankedBefore(a, b)
         }
     }
 
@@ -469,8 +474,7 @@ final class SearchEngine {
                 results.append(contentsOf: processResults)
                 // Return early if process search matched - processes take priority
                 return results.sorted { (a, b) -> Bool in
-                    if a.score != b.score { return a.score > b.score }
-                    return a.category < b.category
+                    SearchResult.rankedBefore(a, b)
                 }
             }
         }
@@ -489,7 +493,8 @@ final class SearchEngine {
                     action: {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(result, forType: .string)
-                    }
+                    },
+                    source: .tool
                 ))
             }
         }
@@ -619,9 +624,14 @@ final class SearchEngine {
         networkSpan.finish()
         results.append(contentsOf: networkResults)
 
-        // Clipboard history
+        // Clipboard history (only when explicitly prefixed with "clip")
         let clipSpan = span.createChild(operationName: "clipboard")
-        let clipboardResults = ClipboardManager.shared.search(query: query)
+        let clipboardResults: [SearchResult]
+        if let clipboardQuery = clipboardQueryIfTriggered(from: query, lowercasedQuery: lowercasedQuery) {
+            clipboardResults = ClipboardManager.shared.search(query: clipboardQuery)
+        } else {
+            clipboardResults = []
+        }
         clipSpan.setTag("results", clipboardResults.count)
         clipSpan.finish()
         results.append(contentsOf: clipboardResults)
@@ -702,8 +712,7 @@ final class SearchEngine {
 
         // Sort by score (descending), then category (ascending for priority)
         return Array(finalResults.sorted { (a, b) -> Bool in
-            if a.score != b.score { return a.score > b.score }
-            return a.category < b.category
+            SearchResult.rankedBefore(a, b)
         }.prefix(10))
     }
 
@@ -761,6 +770,12 @@ final class SearchEngine {
         ))
 
         return results
+    }
+
+    private func clipboardQueryIfTriggered(from query: String, lowercasedQuery: String) -> String? {
+        guard lowercasedQuery.hasPrefix(clipboardPrefix) else { return nil }
+        let remainder = String(query.dropFirst(clipboardPrefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        return remainder.isEmpty ? query : remainder
     }
 
     // MARK: - Quicklinks

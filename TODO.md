@@ -456,32 +456,62 @@ Process information must be accurate, updated in real-time, and display without 
 
 ---
 
-### [ ] Story 22: Process Force Quit
+### [ ] Story 22: Process Force Quit (Two-Phase)
 
-**As a** power user who needs to terminate unresponsive applications
-**I want** to force quit a process directly from the command palette
-**So that** I can kill frozen apps without using Force Quit menu or Activity Monitor
+**As a** power user terminating unresponsive applications
+**I want** a two-phase kill with visual feedback
+**So that** apps get one chance to quit gracefully before force
 
 ### Use Case Context
 Part of: "System Monitoring" use case
 - Follows: "Process Monitoring" story (Story 21)
 - Enables quick recovery from frozen applications
 
+### Two-Phase Kill Logic
+
+```
+Phase 1 (attemptedKill = false):
+  → Cmd+Enter sends SIGTERM (polite quit request)
+  → Mark item as attemptedKill = true
+  → Show red border decoration
+
+Phase 2 (attemptedKill = true):
+  → Cmd+Enter sends SIGKILL (-9) immediate termination
+```
+
 ### Verification Strategy
-Force quit must work reliably with appropriate safety measures.
+Force quit must work reliably with visual feedback for kill state.
 
 #### Test Cases (Acceptance Criteria)
-- **Given** a user application (e.g., Safari) is selected in process list, **When** I press Cmd+Enter, **Then** a confirmation appears asking to force quit
-- **Given** I confirm the force quit, **When** the command executes, **Then** the application terminates immediately
-- **Given** a system process is selected, **When** I attempt to force quit, **Then** a warning appears explaining this may be unsafe
-- **Given** force quit succeeds, **When** I search for "processes" again, **Then** the terminated app no longer appears in the list
-- **Given** force quit fails, **When** the command executes, **Then** an error message explains why it failed
+- **Given** a process has NOT been kill-attempted, **When** I press Cmd+Enter, **Then** SIGTERM is sent and item shows red border
+- **Given** a process HAS red border (attemptedKill=true), **When** I press Cmd+Enter, **Then** SIGKILL (-9) is sent immediately
+- **Given** SIGTERM succeeds, **When** the process exits, **Then** it disappears from the list
+- **Given** a system process is selected, **When** I attempt any kill, **Then** a warning appears explaining this may be unsafe
+- **Given** kill fails (permission denied), **When** the command executes, **Then** an error message explains why
 
 ### Implementation Notes
-- Use NSRunningApplication.forceTerminate() for user apps
-- For system processes, use kill(pid, SIGKILL) via Darwin API
-- Add confirmation dialog for force quit (can be disabled in preferences)
-- Log force quit events for user reference
+
+**Data Model:**
+```swift
+struct ProcessInfo {
+    let pid: Int32
+    let name: String
+    let cpuUsage: Double
+    let memoryMB: Double
+    var attemptedKill: Bool = false  // tracks if SIGTERM was already sent
+}
+```
+
+**Visual Decoration:**
+- Red border (2px solid) on items where `attemptedKill = true`
+
+**Kill Logic:**
+1. Check `attemptedKill`:
+   - If `false` → send SIGTERM, set `attemptedKill = true`, show red border
+   - If `true` → send SIGKILL (-9), no grace period
+2. For NSRunningApplication: use `terminate()` for phase 1, `forceTerminate()` for phase 2
+3. For system processes: use `kill(pid, SIGTERM)` then `kill(pid, SIGKILL)`
+- Log kill events for user reference
 
 ---
 

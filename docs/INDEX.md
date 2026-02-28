@@ -11,6 +11,7 @@ System design and architectural decisions.
 | Document | Summary |
 |----------|---------|
 | [architecture/README.md](/Users/witek/projects/copies/zest/docs/architecture/README.md) | System architecture overview |
+| [architecture/calendar-cache.md](/Users/witek/projects/copies/zest/docs/architecture/calendar-cache.md) | Cache-first calendar search pattern |
 | [DESIGN.md](/Users/witek/projects/copies/zest/docs/DESIGN.md) | Product design document |
 
 ### Guides
@@ -22,6 +23,16 @@ How-to documentation for common tasks.
 | [guides/README.md](/Users/witek/projects/copies/zest/docs/guides/README.md) | All guides index |
 | [TDD Guidelines](/Users/witek/projects/copies/zest/docs/TDD_GUIDELINES.md) | Test-driven development workflow |
 | [FAQ.md](/Users/witek/projects/copies/zest/docs/FAQ.md) | Common problems and solutions |
+
+### How-To
+
+Step-by-step tutorials for specific tasks.
+
+| Document | Summary |
+|----------|---------|
+| [how-to/demo-recording.md](/Users/witek/projects/copies/zest/docs/how-to/demo-recording.md) | Recording feature demos with ffmpeg |
+| [how-to/add-scheduled-task.md](/Users/witek/projects/copies/zest/docs/how-to/add-scheduled-task.md) | Adding recurring background tasks |
+| [how-to/add-llm-tool.md](/Users/witek/projects/copies/zest/docs/how-to/add-llm-tool.md) | Adding new LLM-powered tools |
 
 ### Reference
 
@@ -71,7 +82,9 @@ Implementation learnings and observations from agent work.
 - **Quality**: `./scripts/quality.sh`
 - **Lint**: `swiftlint Sources`
 - **Format**: `swiftformat Sources`
+- **Demo Recording**: `./scripts/demo-recording.sh demo.mp4`
+- **Window Coords**: `./scripts/get-window-coords.sh Zest`
 
 ---
 
-*Last reviewed: 2026-02-23*
+*Last reviewed: 2026-02-28*

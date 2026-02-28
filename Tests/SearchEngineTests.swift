@@ -92,6 +92,13 @@ final class SearchEngineTests: XCTestCase {
         XCTAssertNotNil(results, "Search should return results including clipboard history")
     }
 
+    func test_search_hidesClipboardWithoutClipPrefix() {
+        let engine = SearchEngine.shared
+        let results = engine.search(query: "the")
+        let hasClipboard = results.contains { $0.category == .clipboard }
+        XCTAssertFalse(hasClipboard, "Clipboard items should be hidden unless query starts with 'clip'")
+    }
+
     // MARK: - Activity Monitor Metrics Tests
 
     func test_search_activityMonitor_showsCPUMemoryMetrics() {
