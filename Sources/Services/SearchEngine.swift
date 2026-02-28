@@ -24,6 +24,9 @@ final class SearchEngine {
     /// Flag to disable app loading for tests
     static var disableAppLoading = false
 
+    /// Flag to disable file search for tests (avoids 2s mdfind timeout)
+    static var disableFileSearch = false
+
     private init() {
         // Lazy load apps - don't block init with mdfind
     }
@@ -354,7 +357,7 @@ final class SearchEngine {
             fileSearchQuery = query
         }
 
-        if !fileSearchQuery.isEmpty {
+        if !fileSearchQuery.isEmpty && !Self.disableFileSearch {
             return FileSearchService.shared.searchSync(query: fileSearchQuery, maxResults: 5)
         }
 
@@ -655,7 +658,7 @@ final class SearchEngine {
             fileSearchQuery = query
         }
 
-        if !fileSearchQuery.isEmpty {
+        if !fileSearchQuery.isEmpty && !Self.disableFileSearch {
             let fileResults = FileSearchService.shared.searchSync(query: fileSearchQuery, maxResults: 5)
             fileSpan.setTag("results", fileResults.count)
             results.append(contentsOf: fileResults)

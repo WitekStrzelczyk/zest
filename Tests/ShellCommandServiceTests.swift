@@ -162,8 +162,8 @@ final class ShellCommandServiceTests: XCTestCase {
         // Reset history first
         service.resetCommandHistory()
 
-        // Run multiple commands
-        let commandCount = 150
+        // Run just over the limit to verify truncation (105 > 100)
+        let commandCount = 105
         let expectation = XCTestExpectation(description: "All commands complete")
         expectation.expectedFulfillmentCount = commandCount
 
@@ -171,11 +171,9 @@ final class ShellCommandServiceTests: XCTestCase {
             service.executeCommand("> echo test\(i)") { _ in
                 expectation.fulfill()
             }
-            // Small delay to prevent overwhelming
-            Thread.sleep(forTimeInterval: 0.01)
         }
 
-        wait(for: [expectation], timeout: 30)
+        wait(for: [expectation], timeout: 15)
 
         let history = service.commandHistory
         XCTAssertLessThanOrEqual(history.count, 100, "History should be limited to 100 items")
