@@ -1469,7 +1469,13 @@ final class CommandPaletteWindow: NSPanel {
 
         if commandIsPressed != isCommandKeyPressed {
             isCommandKeyPressed = commandIsPressed
+            // Preserve selection before reload to avoid losing focus
+            let savedSelection = resultsTableView.selectedRow
             resultsTableView.reloadData()
+            // Restore selection after reload
+            if savedSelection >= 0 && savedSelection < searchResults.count {
+                resultsTableView.selectRowIndexes(IndexSet(integer: savedSelection), byExtendingSelection: false)
+            }
         }
 
         super.flagsChanged(with: event)

@@ -109,3 +109,4 @@ fastlane/test_output
 
 # Tuist (if used)
 tuist-generated/
+default.profraw
