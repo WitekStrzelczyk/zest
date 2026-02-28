@@ -74,6 +74,9 @@ struct SearchResult {
     /// Whether a kill attempt has been made (for process results - two-phase kill)
     let isKillAttempted: Bool
 
+    /// Process ID for process results (used to check if process died after kill)
+    let pid: pid_t?
+
     init(
         title: String,
         subtitle: String,
@@ -87,7 +90,8 @@ struct SearchResult {
         tintColor: NSColor? = nil,
         trailingIcon: NSImage? = nil,
         source: SearchResultSource = .standard,
-        isKillAttempted: Bool = false
+        isKillAttempted: Bool = false,
+        pid: pid_t? = nil
     ) {
         self.title = title
         self.subtitle = subtitle
@@ -102,6 +106,7 @@ struct SearchResult {
         self.trailingIcon = trailingIcon
         self.source = source
         self.isKillAttempted = isKillAttempted
+        self.pid = pid
     }
 
     static func rankedBefore(_ lhs: SearchResult, _ rhs: SearchResult) -> Bool {

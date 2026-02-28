@@ -518,9 +518,10 @@ final class CommandPaletteWindow: NSPanel {
         }
 
         let result = searchResults[selectedRow]
+        let processPID = result.pid // Capture PID before list changes
 
         // Only force quit process items
-        guard result.category == .process else {
+        guard result.category == .process, let pid = processPID else {
             close()
             return
         }
@@ -528,13 +529,39 @@ final class CommandPaletteWindow: NSPanel {
         // Clear danger mode first
         clearDangerMode()
 
-        // Trigger the reveal action (which is force quit for processes)
+        // Trigger the reveal action (which is kill for processes)
         result.reveal()
 
-        // Refresh the results to show the process is gone
-        // Small delay to let the process terminate
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            self?.refreshProcessResults()
+        // Check if process died and refresh accordingly
+        // Poll a few times with increasing delays to handle slow termination
+        checkProcessAndRefresh(pid: pid, attempts: 0)
+    }
+
+    /// Check if a process is dead and refresh the list
+    /// Polls multiple times with increasing delays to handle slow process termination
+    private func checkProcessAndRefresh(pid: pid_t, attempts: Int) {
+        let maxAttempts = 5
+        let delays: [TimeInterval] = [0.2, 0.3, 0.5, 0.5, 1.0]
+
+        guard attempts < maxAttempts else {
+            // Max attempts reached, just refresh
+            refreshProcessResults()
+            return
+        }
+
+        let delay = delays[attempts]
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            // Check if process still exists (kill with signal 0 just checks)
+            let processExists = kill(pid, 0) == 0
+
+            if processExists {
+                // Process still alive, check again
+                self?.checkProcessAndRefresh(pid: pid, attempts: attempts + 1)
+            } else {
+                // Process is dead, refresh now
+                self?.refreshProcessResults()
+            }
         }
     }
 

@@ -313,7 +313,8 @@ final class ProcessSearchService {
                     ProcessSearchService.twoPhaseKillWithConfirmation(process: processCopy)
                 },
                 score: Int(process.cpuPercent * 10), // Higher CPU = higher score
-                isKillAttempted: isKillAttempted
+                isKillAttempted: isKillAttempted,
+                pid: process.pid
             )
         }
     }
