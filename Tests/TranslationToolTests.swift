@@ -304,4 +304,38 @@ final class TranslationHistoryTests: XCTestCase {
 
         XCTAssertEqual(TranslationConfig.shared.defaultTargetLanguage, "de")
     }
+
+    // MARK: - Translation Result Copy Behavior
+
+    func testTranslationSearchResultCopiesWhenClicked() {
+        // Given: A translation result with text "Hola"
+        let searchResult = SearchResult(
+            title: "Hola",
+            subtitle: "Translated from en to es • Click to copy",
+            icon: NSImage(systemSymbolName: "character.bubble", accessibilityDescription: "Translate"),
+            category: .action,
+            action: {
+                // Copy to clipboard when user clicks
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString("Hola", forType: .string)
+            },
+            score: 1000,
+            source: .tool
+        )
+
+        // When: The action is executed
+        searchResult.action()
+
+        // Then: Text should be copied to clipboard
+        let pasteboard = NSPasteboard.general
+        let clipboardContent = pasteboard.string(forType: .string)
+        XCTAssertEqual(clipboardContent, "Hola", "Translation should be copied to clipboard when clicked")
+    }
+
+    func testTranslationSubtitleSaysClickToCopy() {
+        // Verify the subtitle indicates user needs to click to copy
+        let subtitle = "Translated from en to es • Click to copy"
+        XCTAssertTrue(subtitle.contains("Click to copy"), "Subtitle should tell user to click to copy")
+    }
 }

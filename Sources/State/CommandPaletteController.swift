@@ -411,11 +411,14 @@ final class CommandPaletteController {
             
             return [SearchResult(
                 title: translatedText,
-                subtitle: "Translated from \(sourceLang) to \(params.targetLanguage.uppercased()) • Copied!",
+                subtitle: "Translated from \(sourceLang) to \(params.targetLanguage.uppercased()) • Click to copy",
                 icon: NSImage(systemSymbolName: "character.bubble", accessibilityDescription: "Translate"),
                 category: .action,
                 action: {
-                    // Already copied to clipboard - no action needed
+                    // Copy to clipboard when user clicks
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(translatedText, forType: .string)
                 },
                 score: 1000,
                 source: .tool

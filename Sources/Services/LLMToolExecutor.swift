@@ -111,14 +111,10 @@ final class LLMToolExecutor {
                     sourceLanguage: params.sourceLanguage
                 )
 
-                // Copy result to clipboard
-                let pasteboard = NSPasteboard.general
-                pasteboard.clearContents()
-                pasteboard.setString(result.translatedText, forType: .string)
-
+                // Return the translation result (user will copy by clicking)
                 let sourceLang = result.detectedSourceLanguage ?? params.sourceLanguage ?? "auto"
                 let message = result.translatedText
-                let details = "Translated from \(sourceLang) to \(params.targetLanguage). Copied to clipboard."
+                let details = "Translated from \(sourceLang) to \(params.targetLanguage). Click to copy."
 
                 logger.info("Translation completed: \(params.text) -> \(result.translatedText)")
 
