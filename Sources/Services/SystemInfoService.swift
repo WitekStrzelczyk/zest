@@ -208,7 +208,8 @@ final class SystemInfoService {
         )
         
         // Main system info result
-        let subtitle = "\(systemInfo.modelName) • \(systemInfo.chipInfo.isEmpty ? "" : systemInfo.chipInfo + " • ")\(systemInfo.memory)"
+        let chipInfo = systemInfo.chipInfo.isEmpty ? "" : systemInfo.chipInfo + " • "
+        let subtitle = "\(systemInfo.modelName) • \(chipInfo)\(systemInfo.memory)"
         
         results.append(SearchResult(
             title: "About This Mac",
@@ -347,7 +348,9 @@ final class SystemInfoService {
             
             let total = Int64(values.volumeTotalCapacity ?? 0)
             // Use volumeAvailableCapacityForImportantUsage for more accurate "available" space
-            let importantAvailable = values.volumeAvailableCapacityForImportantUsage ?? Int64(values.volumeAvailableCapacity ?? 0)
+            let availableForImportant = values.volumeAvailableCapacityForImportantUsage
+            let standardAvailable = values.volumeAvailableCapacity ?? 0
+            let importantAvailable = availableForImportant ?? Int64(standardAvailable)
             let available = Int64(importantAvailable)
             let used = total - available
             

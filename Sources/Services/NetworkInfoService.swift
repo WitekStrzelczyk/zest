@@ -386,10 +386,11 @@ final class NetworkInfoService {
         // Show all local IPs
         if displayIPs.count > 1 {
             for ip in displayIPs {
+                let icon = iconForInterfaceType(ip.interfaceType)
                 results.append(SearchResult(
                     title: "\(ip.interfaceType.rawValue): \(ip.address)",
                     subtitle: "Interface: \(ip.name)",
-                    icon: NSImage(systemSymbolName: iconForInterfaceType(ip.interfaceType), accessibilityDescription: ip.interfaceType.rawValue),
+                    icon: NSImage(systemSymbolName: icon, accessibilityDescription: ip.interfaceType.rawValue),
                     category: .action,
                     action: { [weak self] in
                         self?.copySingleIPToClipboard(ip)
@@ -547,7 +548,12 @@ final class NetworkInfoService {
     }
     
     /// Copy network info to clipboard
-    func copyNetworkInfoToClipboard(localIPs: [NetworkInterface]? = nil, publicIP: String? = nil, wifiInfo: WiFiInfo? = nil, vpnConnected: Bool = false) {
+    func copyNetworkInfoToClipboard(
+        localIPs: [NetworkInterface]? = nil,
+        publicIP: String? = nil,
+        wifiInfo: WiFiInfo? = nil,
+        vpnConnected: Bool = false
+    ) {
         let ips = localIPs ?? getLocalIPAddresses()
         let wifi = wifiInfo ?? getWiFiInfo()
         
