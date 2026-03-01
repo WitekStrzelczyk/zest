@@ -180,20 +180,19 @@ final class RemindersService: @unchecked Sendable {
 
         // Check for day names
         let daysOfWeek = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
-        for (index, day) in daysOfWeek.enumerated() {
-            if lowercasedInput.contains(day) {
-                let currentWeekday = calendar.component(.weekday, from: now)
-                let targetWeekday = index + 1 // Calendar weekday is 1-indexed
-                var daysToAdd = targetWeekday - currentWeekday
-                if daysToAdd <= 0 {
-                    daysToAdd += 7 // Next occurrence
-                }
-                return calendar.date(byAdding: .day, value: daysToAdd, to: now)
+        for (index, day) in daysOfWeek.enumerated() where lowercasedInput.contains(day) {
+            let currentWeekday = calendar.component(.weekday, from: now)
+            let targetWeekday = index + 1 // Calendar weekday is 1-indexed
+            var daysToAdd = targetWeekday - currentWeekday
+            if daysToAdd <= 0 {
+                daysToAdd += 7 // Next occurrence
             }
+            return calendar.date(byAdding: .day, value: daysToAdd, to: now)
         }
 
         // Check for time patterns like "at 5pm", "at 5:30pm"
-        if let timeMatch = lowercasedInput.range(of: #"at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?"#, options: .regularExpression) {
+        let timePattern = #"at\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?"#
+        if let timeMatch = lowercasedInput.range(of: timePattern, options: .regularExpression) {
             let timeString = String(input[timeMatch])
             // Extract hour from time string
             let numbers = timeString.compactMap(\.wholeNumberValue)
