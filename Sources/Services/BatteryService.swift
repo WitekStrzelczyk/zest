@@ -324,7 +324,51 @@ final class BatteryService {
     
     /// Get battery health percentage
     private func getBatteryHealth() -> Double {
-        // Find the battery service in IORegistry
+        // On Apple Silicon, the most reliable way to get battery health 
+        // is from system_profiler which reads the battery's actual health metric
+        // This returns values like "Maximum Capacity: 81%"
+        
+        let process = Process()
+        let pipe = Pipe()
+        
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/system_profiler")
+        process.arguments = ["SPPowerDataType"]
+        process.standardOutput = pipe
+        process.standardError = pipe
+        
+        do {
+            try process.run()
+            process.waitUntilExit()
+            
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if let output = String(data: data, encoding: .utf8) {
+                // Parse "Maximum Capacity: XX%" from output
+                let lines = output.components(separatedBy: "\n")
+                for line in lines {
+                    if line.contains("Maximum Capacity") {
+                        // Extract percentage: "Maximum Capacity: 81%" -> 81
+                        let components = line.components(separatedBy: ":")
+                        if components.count >= 2 {
+                            let valueStr = components[1].trimmingCharacters(in: .whitespaces)
+                                .replacingOccurrences(of: "%", with: "")
+                                .trimmingCharacters(in: .whitespaces)
+                            if let percentage = Double(valueStr), percentage > 0 {
+                                return percentage
+                            }
+                        }
+                    }
+                }
+            }
+        } catch {
+            logger.error("Failed to get battery health from system_profiler: \(error.localizedDescription)")
+        }
+        
+        // Fallback: try IORegistry method for older systems
+        return getBatteryHealthFromIORegistry()
+    }
+    
+    /// Fallback: try getting battery health from IORegistry (older method for Intel Macs)
+    private func getBatteryHealthFromIORegistry() -> Double {
         let serviceMatch = IOServiceMatching("IOPMPowerSource")
         var iterator: io_iterator_t = 0
         
@@ -344,12 +388,19 @@ final class BatteryService {
                 IOObjectRelease(service)
             }
             
-            // Get MaxCapacity and DesignCapacity to calculate health
-            if let maxCap = IORegistryEntryCreateCFProperty(service, "MaxCapacity" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? Int,
-               let designCap = IORegistryEntryCreateCFProperty(service, "DesignCapacity" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? Int,
-               designCap > 0 {
-                health = Double(maxCap) / Double(designCap) * 100.0
-                break
+            if let maxCap = IORegistryEntryCreateCFProperty(service, "MaxCapacity" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? Int {
+                // Same logic: if <= 100, it's already a percentage
+                if maxCap <= 100 && maxCap >= 0 {
+                    health = Double(maxCap)
+                    break
+                }
+                // Otherwise calculate against DesignCapacity
+                if let designCap = IORegistryEntryCreateCFProperty(service, "DesignCapacity" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? Int,
+                   designCap > 0 {
+                    let healthValue = Double(maxCap) / Double(designCap) * 100.0
+                    health = min(max(healthValue, 0), 100)
+                    break
+                }
             }
             
             service = IOIteratorNext(iterator)

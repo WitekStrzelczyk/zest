@@ -59,15 +59,25 @@ final class BatteryServiceTests: XCTestCase {
         // Health percentage should be between 0 and 100 (or -1 for unavailable)
         XCTAssertGreaterThanOrEqual(info.healthPercentage, -1.0, "Health percentage should be >= -1")
         XCTAssertLessThanOrEqual(info.healthPercentage, 100.0, "Health percentage should be <= 100%")
+        
+        // If health is available (not -1), it should be either:
+        // - A reasonable value (> 0%), OR
+        // - -1 (unavailable)
+        // A very low positive value like 1% indicates a bug where we couldn't read the value correctly
+        if info.healthPercentage >= 0 {
+            XCTAssertGreaterThan(info.healthPercentage, 5.0, 
+                "Health percentage should be > 5% if available - a very low value like 1% indicates a read error")
+        }
     }
     
     func testGetBatteryInfoReturnsHasBatteryFlag() {
         let info = sut.getBatteryInfo()
         
-        // hasBattery should be a boolean
-        // On desktop Macs, this will be false
-        // On laptops, this will typically be true
-        XCTAssertTrue(info.hasBattery || !info.hasBattery, "hasBattery should be a boolean")
+        // hasBattery should be a boolean - just verify the property exists and is accessible
+        // On desktop Macs, this will be false. On laptops, this will typically be true.
+        // We can't predict the value, but we can verify it's a valid boolean
+        let hasBattery = info.hasBattery
+        XCTAssertTrue(hasBattery == true || hasBattery == false, "hasBattery should be a valid boolean")
     }
     
     func testGetBatteryInfoReturnsTimeRemaining() {
