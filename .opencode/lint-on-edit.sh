@@ -55,6 +55,8 @@ if [ $TOTAL_COUNT -gt 0 ]; then
     fi
     
     echo ""
+    echo "📖 See docs/guides/SWIFT_CODE_STYLE.md for best practices"
+    echo ""
     echo "Run './scripts/lint_file.sh $FILE_PATH' for full output"
     echo ""
     
