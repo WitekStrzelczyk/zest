@@ -65,7 +65,10 @@ final class EmojiSearchService {
 
         // Try to paste into the frontmost application
         // First, bring back the previously active app
-        if let previousApp = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier != Bundle.main.bundleIdentifier && $0.isActive == false }) {
+        let isNotOurs = { (app: NSRunningApplication) in
+            app.bundleIdentifier != Bundle.main.bundleIdentifier && app.isActive == false
+        }
+        if let previousApp = NSWorkspace.shared.runningApplications.first(where: isNotOurs) {
             previousApp.activate()
 
             // Small delay to let the app come to front

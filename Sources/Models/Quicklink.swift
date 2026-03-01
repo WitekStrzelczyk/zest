@@ -10,7 +10,15 @@ struct Quicklink: Codable, Identifiable, Equatable {
     var createdAt: Date
     var lastUsedAt: Date?
 
-    init(id: UUID = UUID(), name: String, url: String, keywords: [String] = [], keyboardShortcut: String? = nil, createdAt: Date = Date(), lastUsedAt: Date? = nil) {
+    init(
+        id: UUID = UUID(),
+        name: String,
+        url: String,
+        keywords: [String] = [],
+        keyboardShortcut: String? = nil,
+        createdAt: Date = Date(),
+        lastUsedAt: Date? = nil
+    ) {
         self.id = id
         self.name = name
         self.url = url

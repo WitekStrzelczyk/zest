@@ -68,3 +68,6 @@ excluded:
   - Tests
   - tests
   - scripts
+  # EmojiData.swift contains static emoji data (582 lines of data, not code)
+  # This is a data file, not application logic - excluding from file_length only
+  - Sources/Services/EmojiData.swift

@@ -88,18 +88,26 @@ final class Calculator {
 
     /// Check if expression is safe to pass to NSExpression
     private func isValidForNSExpression(_ expression: String) -> Bool {
-        // Check for balanced parentheses
+        guard hasBalancedParentheses(expression) else { return false }
+        return hasNoConsecutiveOperators(expression)
+    }
+
+    /// Check for balanced parentheses
+    private func hasBalancedParentheses(_ expression: String) -> Bool {
         var parenCount = 0
         for char in expression {
             if char == "(" { parenCount += 1 }
             if char == ")" { parenCount -= 1 }
             if parenCount < 0 { return false }
         }
-        if parenCount != 0 { return false }
+        return parenCount == 0
+    }
 
-        // Check for consecutive operators (but allow negative numbers)
+    /// Check for consecutive operators (but allow negative numbers)
+    private func hasNoConsecutiveOperators(_ expression: String) -> Bool {
         let ops = CharacterSet(charactersIn: "+-*/%")
         var prevWasOp = false
+
         for char in expression {
             if ops.contains(char.unicodeScalars.first!) {
                 if prevWasOp { return false }

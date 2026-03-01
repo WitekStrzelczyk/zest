@@ -69,8 +69,9 @@ final class SchedulerService: @unchecked Sendable {
         }
 
         // Schedule periodic checks on main thread
+        let interval = self.checkInterval
         DispatchQueue.main.async { [weak self] in
-            self?.timer = Timer.scheduledTimer(withTimeInterval: self?.checkInterval ?? 60, repeats: true) { [weak self] _ in
+            self?.timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
                 Task {
                     await self?.checkAndRunDueTasks()
                 }

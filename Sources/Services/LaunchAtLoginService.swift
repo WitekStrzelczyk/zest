@@ -32,7 +32,8 @@ final class LaunchAtLoginService {
                         try SMAppService.mainApp.unregister()
                     }
                 } catch {
-                    logger.error("Failed to \(newValue ? "enable" : "disable") launch at login: \(error.localizedDescription)")
+                    let action = newValue ? "enable" : "disable"
+                    logger.error("Failed to \(action) launch at login: \(error.localizedDescription)")
                 }
             } else {
                 // Fallback for older macOS versions

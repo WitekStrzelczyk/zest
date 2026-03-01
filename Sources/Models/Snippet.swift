@@ -9,7 +9,14 @@ struct Snippet: Codable, Identifiable, Equatable {
     var createdAt: Date
     var lastUsedAt: Date?
 
-    init(id: UUID = UUID(), name: String, content: String, keywords: [String] = [], createdAt: Date = Date(), lastUsedAt: Date? = nil) {
+    init(
+        id: UUID = UUID(),
+        name: String,
+        content: String,
+        keywords: [String] = [],
+        createdAt: Date = Date(),
+        lastUsedAt: Date? = nil
+    ) {
         self.id = id
         self.name = name
         self.content = content

@@ -17,11 +17,13 @@ final class UserCommandsService {
 
     private init() {
         // Hardcoded commands for now
+        let gcrURL = "https://console.cloud.google.com/artifacts/docker/ninety-devops/asia/apps"
+        let gcrFullURL = "\(gcrURL)?hl=en&inv=1&invt=Ab0RbA&project=ninety-devops"
         commands = [
             UserCommand(
                 id: "gcr",
                 name: "gcr",
-                url: URL(string: "https://console.cloud.google.com/artifacts/docker/ninety-devops/asia/apps?hl=en&inv=1&invt=Ab0RbA&project=ninety-devops")!,
+                url: URL(string: gcrFullURL)!,
                 description: "Google Cloud Registry"
             ),
         ]

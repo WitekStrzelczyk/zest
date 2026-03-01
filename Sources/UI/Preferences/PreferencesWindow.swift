@@ -97,7 +97,12 @@ struct SearchPreferencesView: View {
     var body: some View {
         Form {
             Section {
-                Stepper("Search Results: \(preferences.searchResultsLimit)", value: $preferences.searchResultsLimit, in: 5...30, step: 5)
+                Stepper(
+                    "Search Results: \(preferences.searchResultsLimit)",
+                    value: $preferences.searchResultsLimit,
+                    in: 5...30,
+                    step: 5
+                )
             }
         }
         .formStyle(.grouped)

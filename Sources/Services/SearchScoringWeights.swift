@@ -69,23 +69,24 @@ struct SearchScoringWeights: Codable {
     }
     
     // MARK: - Category Weight Lookup
-    
+
     /// Get weight for a category
     func weight(for category: SearchResultCategory) -> Double {
-        switch category {
-        case .application: return categoryApplication
-        case .conversion: return categoryConversion
-        case .calendar: return categoryCalendar
-        case .action: return categoryAction
-        case .globalAction: return categoryGlobalAction
-        case .quicklink: return categoryQuicklink
-        case .contact: return categoryContact
-        case .clipboard: return categoryClipboard
-        case .file: return categoryFile
-        case .process: return categoryProcess
-        case .toggle: return categoryToggle
-        case .settings: return categorySettings
-        case .emoji: return categoryEmoji
-        }
+        let weights: [SearchResultCategory: Double] = [
+            .application: categoryApplication,
+            .conversion: categoryConversion,
+            .calendar: categoryCalendar,
+            .action: categoryAction,
+            .globalAction: categoryGlobalAction,
+            .quicklink: categoryQuicklink,
+            .contact: categoryContact,
+            .clipboard: categoryClipboard,
+            .file: categoryFile,
+            .process: categoryProcess,
+            .toggle: categoryToggle,
+            .settings: categorySettings,
+            .emoji: categoryEmoji,
+        ]
+        return weights[category] ?? 0.0
     }
 }

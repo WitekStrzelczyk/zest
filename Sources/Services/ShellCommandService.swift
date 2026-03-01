@@ -157,65 +157,67 @@ final class ShellCommandService {
         processQueue.async { [weak self] in
             guard let self else { return }
 
-            let process = Process()
-            let outputPipe = Pipe()
-            let errorPipe = Pipe()
+            let result = self.runShellCommand(command)
+
+            DispatchQueue.main.async {
+                completion?(result)
+            }
+        }
+    }
+
+    private func runShellCommand(_ command: String) -> ShellCommandResult {
+        let process = Process()
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+
+        stateLock.lock()
+        currentProcess = process
+        stateLock.unlock()
+
+        // Configure process to use shell
+        process.executableURL = URL(fileURLWithPath: shellPath)
+        process.arguments = ["-l", "-c", command]
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+        process.environment = shellEnvironment
+
+        logger.info("Executing shell command: \(command)")
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+
+            let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+
+            let output = String(data: outputData, encoding: .utf8) ?? ""
+            let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
+
+            let result = ShellCommandResult(
+                output: output,
+                errorOutput: errorOutput,
+                exitCode: process.terminationStatus
+            )
 
             stateLock.lock()
-            currentProcess = process
+            currentProcess = nil
             stateLock.unlock()
 
-            // Configure process to use shell
-            process.executableURL = URL(fileURLWithPath: shellPath)
-            process.arguments = ["-l", "-c", command]
-            process.standardOutput = outputPipe
-            process.standardError = errorPipe
-            process.environment = shellEnvironment
+            logger.info("Command completed with exit code: \(process.terminationStatus)")
 
-            logger.info("Executing shell command: \(command)")
+            return result
+        } catch {
+            logger.error("Failed to execute command: \(error.localizedDescription)")
 
-            do {
-                try process.run()
-                process.waitUntilExit()
+            stateLock.lock()
+            currentProcess = nil
+            stateLock.unlock()
 
-                let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-
-                let output = String(data: outputData, encoding: .utf8) ?? ""
-                let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
-
-                let result = ShellCommandResult(
-                    output: output,
-                    errorOutput: errorOutput,
-                    exitCode: process.terminationStatus
-                )
-
-                stateLock.lock()
-                currentProcess = nil
-                stateLock.unlock()
-
-                logger.info("Command completed with exit code: \(process.terminationStatus)")
-
-                DispatchQueue.main.async {
-                    completion?(result)
-                }
-            } catch {
-                logger.error("Failed to execute command: \(error.localizedDescription)")
-
-                stateLock.lock()
-                currentProcess = nil
-                stateLock.unlock()
-
-                let result = ShellCommandResult(
-                    output: "",
-                    errorOutput: error.localizedDescription,
-                    exitCode: -1
-                )
-
-                DispatchQueue.main.async {
-                    completion?(result)
-                }
-            }
+            return ShellCommandResult(
+                output: "",
+                errorOutput: error.localizedDescription,
+                exitCode: -1
+            )
         }
     }
 

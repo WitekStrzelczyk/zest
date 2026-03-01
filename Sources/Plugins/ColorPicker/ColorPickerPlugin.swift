@@ -29,7 +29,7 @@ final class ColorPickerPlugin: ZestPlugin {
     
     static let pluginID = "com.zest.plugin.colorpicker"
     static let pluginName = "Color Picker"
-    static let searchKeywords = ["color", "picker", "pick color", "color picker", "eyedropper", "sampler", "eye dropper"]
+    static let searchKeywords = ["color", "picker", "pick color", "eyedropper", "sampler"]
     
     // MARK: - Services
     
