@@ -58,17 +58,58 @@ struct CreateCalendarEventParams: Equatable {
 }
 
 /// Parameters for finding files
+/// Supports advanced Spotlight metadata filters for "pro" file searching
 struct FindFilesParams: Equatable {
+    // Basic filters
     let query: String
     let searchInContent: Bool
     let fileExtension: String?
-    let modifiedWithin: Int?
+    
+    // Date filters (in hours)
+    let modifiedWithin: Int?  // Modified within N hours ago
+    let createdWithin: Int?   // Created within N hours ago
+    let openedWithin: Int?    // Last opened within N hours ago
+    
+    // Size filters (in bytes)
+    let sizeMin: Int?         // Minimum file size in bytes
+    let sizeMax: Int?         // Maximum file size in bytes
+    
+    // Creator/Author filters
+    let creator: String?       // App that created the file (e.g., "Pages", "Terminal")
+    let author: String?        // Document author
+    
+    // Tag/Color filter
+    let tag: String?           // Finder tag name (e.g., "Important", "Red")
+    
+    // Kind filter
+    let kind: String?          // User-readable kind (e.g., "Log", "PDF document")
 
-    init(query: String, searchInContent: Bool = false, fileExtension: String? = nil, modifiedWithin: Int? = nil) {
+    init(
+        query: String,
+        searchInContent: Bool = false,
+        fileExtension: String? = nil,
+        modifiedWithin: Int? = nil,
+        createdWithin: Int? = nil,
+        openedWithin: Int? = nil,
+        sizeMin: Int? = nil,
+        sizeMax: Int? = nil,
+        creator: String? = nil,
+        author: String? = nil,
+        tag: String? = nil,
+        kind: String? = nil
+    ) {
         self.query = query
         self.searchInContent = searchInContent
         self.fileExtension = fileExtension
         self.modifiedWithin = modifiedWithin
+        self.createdWithin = createdWithin
+        self.openedWithin = openedWithin
+        self.sizeMin = sizeMin
+        self.sizeMax = sizeMax
+        self.creator = creator
+        self.author = author
+        self.tag = tag
+        self.kind = kind
     }
 }
 
