@@ -25,7 +25,9 @@ final class MLXLLMService: ObservableObject {
     }
     
     private lazy var hubApi: HubApi = {
-        let modelsDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".zest/models", isDirectory: true)
+        let basePath = ".zest/models"
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser
+        let modelsDir = homeDir.appendingPathComponent(basePath, isDirectory: true)
         if !FileManager.default.fileExists(atPath: modelsDir.path) {
             try? FileManager.default.createDirectory(at: modelsDir, withIntermediateDirectories: true)
         }
@@ -137,7 +139,8 @@ final class MLXLLMService: ObservableObject {
             return nil
         }
         
-        let block = String(response[startRange.upperBound..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = String(response[startRange.upperBound..<endRange.lowerBound])
+        let block = trimmed.trimmingCharacters(in: .whitespacesAndNewlines)
         // Expected: call:tool_name{key:value,...}
         guard let callPrefixRange = block.range(of: "call:") else { return nil }
         let afterCall = block[callPrefixRange.upperBound...]

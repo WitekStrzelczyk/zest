@@ -19,7 +19,12 @@ final class SearchResultScoring {
     /// - Prefix of first word: 900 points
     /// - Prefix of any word: 700-850 points based on word position
     /// - Fuzzy match with gap penalties: 0-500 points
-    func scoreResult(query: String, title: String, subtitle: String? = nil, category: SearchResultCategory? = nil) -> Int {
+    func scoreResult(
+        query: String,
+        title: String,
+        subtitle: String? = nil,
+        category: SearchResultCategory? = nil
+    ) -> Int {
         guard !query.isEmpty, !title.isEmpty else { return 0 }
 
         let lowercasedQuery = query.lowercased()
@@ -68,19 +73,16 @@ final class SearchResultScoring {
         return score
     }
 
-    
     /// Check if query matches at the start of any word in target
     private func scoreWordStartMatch(query: String, target: String) -> Int? {
         let words = target.components(separatedBy: CharacterSet(charactersIn: " -_"))
-        
-        for (index, word) in words.enumerated() {
-            if word.hasPrefix(query) {
-                // Score based on word position
-                let positionPenalty = min(index * 50, 250)
-                return 850 - positionPenalty
-            }
+
+        for (index, word) in words.enumerated() where word.hasPrefix(query) {
+            // Score based on word position
+            let positionPenalty = min(index * 50, 250)
+            return 850 - positionPenalty
         }
-        
+
         return nil
     }
     
