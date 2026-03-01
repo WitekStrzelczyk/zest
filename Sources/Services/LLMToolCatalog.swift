@@ -5,25 +5,26 @@ enum LLMToolCatalog {
     <start_function_declaration>declaration:create_calendar_event{description:<escape>Create a calendar event.<escape>,parameters:{properties:{title:{description:<escape>Event title.<escape>,type:<escape>STRING<escape>},date:{description:<escape>Date for the event (e.g., "tomorrow", "March 10").<escape>,type:<escape>STRING<escape>},time:{description:<escape>Time for the event (e.g., "4pm", "14:30").<escape>,type:<escape>STRING<escape>},location:{description:<escape>Event location.<escape>,type:<escape>STRING<escape>},contact:{description:<escape>Contact person.<escape>,type:<escape>STRING<escape>}},required:[<escape>title<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>
     <start_function_declaration>declaration:find_files{description:<escape>Search for files.<escape>,parameters:{properties:{query:{description:<escape>Search query.<escape>,type:<escape>STRING<escape>},search_in_content:{description:<escape>Search within file contents.<escape>,type:<escape>BOOLEAN<escape>},file_extension:{description:<escape>File extension without dot, e.g. "pdf".<escape>,type:<escape>STRING<escape>},modified_within:{description:<escape>Modified within the last N hours.<escape>,type:<escape>INTEGER<escape>}},required:[<escape>query<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>
     <start_function_declaration>declaration:convert_units{description:<escape>Convert values between units of measurement.<escape>,parameters:{properties:{value:{description:<escape>Numeric value to convert.<escape>,type:<escape>NUMBER<escape>},from_unit:{description:<escape>Source unit (e.g., "km", "pounds", "celsius").<escape>,type:<escape>STRING<escape>},to_unit:{description:<escape>Target unit (e.g., "miles", "kg", "fahrenheit").<escape>,type:<escape>STRING<escape>},category:{description:<escape>Category hint: "length", "weight", "temperature", "volume".<escape>,type:<escape>STRING<escape>}},required:[<escape>value<escape>,<escape>from_unit<escape>,<escape>to_unit<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>
+    <start_function_declaration>declaration:translate{description:<escape>Translate text between languages.<escape>,parameters:{properties:{text:{description:<escape>Text to translate.<escape>,type:<escape>STRING<escape>},target_language:{description:<escape>Target language (e.g., "spanish", "french", "german", "es", "fr").<escape>,type:<escape>STRING<escape>},source_language:{description:<escape>Source language (optional, auto-detect if not specified).<escape>,type:<escape>STRING<escape>}},required:[<escape>text<escape>,<escape>target_language<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>
     """
+
+    // MARK: - Fallback Parse
 
     static func fallbackParse(input: String) -> LLMToolCall? {
         let lower = input.lowercased()
 
-        // Unit conversion - only try if there's a number in the input
-        // Patterns like "100 km to miles", "convert 5 kg to lbs", "how many feet in 10 meters"
-        if lower.contains(where: { $0.isNumber }) {
-            if let params = inferUnitConversionParams(from: input) {
-                return LLMToolCall.convertUnits(
-                    value: params.value,
-                    fromUnit: params.fromUnit,
-                    toUnit: params.toUnit,
-                    category: params.category,
-                    confidence: 0.6
-                )
-            }
+        // Translation - check early since it's a specific command
+        if lower.contains("translate") || lower.contains("translation") {
+            let params = inferTranslationParams(from: input)
+            return LLMToolCall.translate(
+                text: params.text,
+                targetLanguage: params.targetLanguage,
+                sourceLanguage: params.sourceLanguage,
+                confidence: 0.6
+            )
         }
 
+        // Calendar event
         if lower.contains("meeting") || lower.contains("event") || lower.contains("calendar") || lower.contains("schedule") {
             return LLMToolCall.createCalendarEvent(
                 title: inferEventTitle(from: input) ?? "Event",
@@ -35,6 +36,7 @@ enum LLMToolCatalog {
             )
         }
 
+        // File search
         if lower.contains("find") || lower.contains("search") || lower.contains("file") {
             let params = inferFileSearchParams(from: input)
             return LLMToolCall.findFiles(
@@ -46,8 +48,21 @@ enum LLMToolCatalog {
             )
         }
 
+        // Unit conversion
+        if let params = inferUnitConversionParams(from: input) {
+            return LLMToolCall.convertUnits(
+                value: params.value,
+                fromUnit: params.fromUnit,
+                toUnit: params.toUnit,
+                category: params.category,
+                confidence: 0.6
+            )
+        }
+
         return nil
     }
+
+    // MARK: - Map Payload to Tool Call
 
     static func mapPayloadToToolCall(toolName: String, fields: [String: Any], originalInput: String) -> LLMToolCall? {
         switch toolName {
@@ -69,6 +84,7 @@ enum LLMToolCatalog {
                 contact: (fields["contact"] as? String) ?? inferredContact,
                 confidence: 0.9
             )
+
         case "find_files":
             guard let query = (fields["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !query.isEmpty else {
@@ -81,8 +97,8 @@ enum LLMToolCatalog {
                 modifiedWithin: fields["modified_within"] as? Int,
                 confidence: 0.9
             )
+
         case "convert_units":
-            // Try to get value from fields
             let value: Double? = {
                 if let v = fields["value"] as? Double {
                     return v
@@ -97,7 +113,6 @@ enum LLMToolCatalog {
             let toUnit = (fields["to_unit"] as? String)?.lowercased()
             let category = fields["category"] as? String
 
-            // If we have all required fields from LLM, use them
             if let value = value, let fromUnit = fromUnit, !fromUnit.isEmpty,
                let toUnit = toUnit, !toUnit.isEmpty {
                 return LLMToolCall.convertUnits(
@@ -121,23 +136,89 @@ enum LLMToolCatalog {
             }
 
             return nil
+
+        case "translate":
+            let text = (fields["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let targetLanguage = fields["target_language"] as? String ?? ""
+            let sourceLanguage = fields["source_language"] as? String
+
+            // If we have the required fields, use them
+            if !text.isEmpty && !targetLanguage.isEmpty {
+                return LLMToolCall.translate(
+                    text: text,
+                    targetLanguage: TranslationService.normalizeLanguage(targetLanguage),
+                    sourceLanguage: sourceLanguage.map { TranslationService.normalizeLanguage($0) },
+                    confidence: 0.9
+                )
+            }
+
+            // Fallback: try to infer from original input
+            let params = inferTranslationParams(from: originalInput)
+            return LLMToolCall.translate(
+                text: params.text,
+                targetLanguage: params.targetLanguage,
+                sourceLanguage: params.sourceLanguage,
+                confidence: 0.7
+            )
+
         case "none":
             return nil
+
         default:
             return nil
         }
     }
 
+    // MARK: - Describe Tool Call
+
     static func describe(_ toolCall: LLMToolCall) -> String {
         switch toolCall.parameters {
         case .createCalendarEvent(let params):
-            return "create_calendar_event(title: \(params.title), date: \(params.date ?? "nil"), time: \(params.time ?? "nil"), location: \(params.location ?? "nil"), contact: \(params.contact ?? "nil"), confidence: \(toolCall.confidence))"
+            return "create_calendar_event(title: \(params.title), date: \(params.date ?? "nil"), time: \(params.time ?? "nil"))"
         case .findFiles(let params):
-            return "find_files(query: \(params.query), searchInContent: \(params.searchInContent), fileExtension: \(params.fileExtension ?? "nil"), modifiedWithin: \(params.modifiedWithin.map(String.init) ?? "nil"), confidence: \(toolCall.confidence))"
+            return "find_files(query: \(params.query), extension: \(params.fileExtension ?? "nil"))"
         case .convertUnits(let params):
-            return "convert_units(value: \(params.value), fromUnit: \(params.fromUnit), toUnit: \(params.toUnit), category: \(params.category ?? "nil"), confidence: \(toolCall.confidence))"
+            return "convert_units(\(params.value) \(params.fromUnit) -> \(params.toUnit))"
+        case .translate(let params):
+            return "translate(text: \(params.text), sourceLanguage: \(params.sourceLanguage ?? "auto-detect"), targetLanguage: \(params.targetLanguage))"
         }
     }
+
+    // MARK: - Translation Inference
+
+    private static func inferTranslationParams(from input: String) -> TranslationParams {
+        let lower = input.lowercased()
+        var text = ""
+        var sourceLanguage: String?
+        var targetLanguage = "en"  // Default to English
+
+        // Pattern: "translate X from Y to Z"
+        let fromToPattern = #"translate\s+(.+?)\s+from\s+(\w+)\s+to\s+(\w+)"#
+        if firstRegexMatch(in: lower, pattern: fromToPattern, captureGroup: 0) != nil,
+           let textMatch = firstRegexMatch(in: lower, pattern: fromToPattern, captureGroup: 1),
+           let sourceMatch = firstRegexMatch(in: lower, pattern: fromToPattern, captureGroup: 2),
+           let targetMatch = firstRegexMatch(in: lower, pattern: fromToPattern, captureGroup: 3) {
+            text = textMatch
+            sourceLanguage = TranslationService.normalizeLanguage(sourceMatch)
+            targetLanguage = TranslationService.normalizeLanguage(targetMatch)
+            return TranslationParams(text: text, targetLanguage: targetLanguage, sourceLanguage: sourceLanguage)
+        }
+
+        // Pattern: "translate X to Y"
+        let toPattern = #"translate\s+(.+?)\s+to\s+(\w+)"#
+        if firstRegexMatch(in: lower, pattern: toPattern, captureGroup: 0) != nil,
+           let textMatch = firstRegexMatch(in: lower, pattern: toPattern, captureGroup: 1),
+           let targetMatch = firstRegexMatch(in: lower, pattern: toPattern, captureGroup: 2) {
+            text = textMatch
+            targetLanguage = TranslationService.normalizeLanguage(targetMatch)
+            return TranslationParams(text: text, targetLanguage: targetLanguage, sourceLanguage: nil)
+        }
+
+        // Fallback: just extract what we can
+        return TranslationParams(text: text.isEmpty ? input : text, targetLanguage: targetLanguage, sourceLanguage: sourceLanguage)
+    }
+
+    // MARK: - Calendar Event Inference
 
     private static func inferEventTitle(from input: String) -> String? {
         if let contact = inferContact(from: input) {
@@ -177,6 +258,8 @@ enum LLMToolCatalog {
         let raw = firstRegexMatch(in: input, pattern: #"(?i)\bat\s+(?:the\s+)?([A-Za-z][A-Za-z0-9 _'-]{1,60}?)(?=\s*$|\s+on\b|\s+tomorrow\b|\s+today\b|\s+tonight\b|\s+at\s+[0-1]?\d(:[0-5]\d)?\s?(am|pm)\b)"#)
         return sanitizeLocation(raw)
     }
+
+    // MARK: - File Search Inference
 
     private static func inferFileSearchParams(from input: String) -> FindFilesParams {
         let lower = input.lowercased()
@@ -249,18 +332,6 @@ enum LLMToolCatalog {
         return max(1, hours)
     }
 
-    private static func firstRegexMatch(in text: String, pattern: String, captureGroup: Int = 1) -> String? {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
-        let range = NSRange(text.startIndex ..< text.endIndex, in: text)
-        guard let match = regex.firstMatch(in: text, options: [], range: range),
-              match.numberOfRanges > captureGroup,
-              let capturedRange = Range(match.range(at: captureGroup), in: text) else {
-            return nil
-        }
-        let value = String(text[capturedRange]).trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
-    }
-
     // MARK: - Unit Conversion Inference
 
     /// Check if a string is a known unit abbreviation
@@ -291,7 +362,6 @@ enum LLMToolCatalog {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Pattern: "convert X unit1 to unit2" or "X unit1 to unit2" or "how many unit2 in X unit1"
-        // Note: We try "convert" pattern first as it's most specific
         let patterns: [(pattern: String, isHowMany: Bool)] = [
             // "convert 100 km to miles"
             (#"(?i)convert\s+([\d.eE+-]+)\s*([a-zA-Z/]+)\s+(?:to|in)\s+([a-zA-Z/]+)"#, false),
@@ -372,6 +442,8 @@ enum LLMToolCatalog {
         return nil
     }
 
+    // MARK: - Utility
+
     private static func sanitizeLocation(_ raw: String?) -> String? {
         guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
         value = value.replacingOccurrences(
@@ -381,5 +453,16 @@ enum LLMToolCatalog {
         ).trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : value
     }
-}
 
+    private static func firstRegexMatch(in text: String, pattern: String, captureGroup: Int = 1) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(text.startIndex ..< text.endIndex, in: text)
+        guard let match = regex.firstMatch(in: text, options: [], range: range),
+              match.numberOfRanges > captureGroup,
+              let capturedRange = Range(match.range(at: captureGroup), in: text) else {
+            return nil
+        }
+        let value = String(text[capturedRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? nil : value
+    }
+}

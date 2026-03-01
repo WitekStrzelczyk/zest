@@ -710,7 +710,7 @@ final class CommandPaletteWindow: NSPanel {
     private let windowWidth: CGFloat = 720
     private let searchFieldHeight: CGFloat = 56
     private let rowHeight: CGFloat = 52
-    private let hintHeight: CGFloat = 24
+    private let hintHeight: CGFloat = 0  // Removed hint bar
     private let emptyStateHeight: CGFloat = 78
     private let maxVisibleResultRows: Int = 6
     private let resultsContainerVerticalPadding: CGFloat = 20
@@ -887,14 +887,15 @@ final class CommandPaletteWindow: NSPanel {
         let (escBadge, _) = makeKeycapView(text: "ESC", font: AppStyle.KeyboardBadge.escFont)
         searchBarContainer.addSubview(escBadge)
 
-        // Hint label at bottom
-        hintLabel = NSTextField(labelWithString: "\u{2318}\u{21A9} Reveal  \u{21B5} Select  Space Preview  \u{2191}\u{2193} Navigate  Esc Close")
-        hintLabel.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-        hintLabel.textColor = AppStyle.Palette.tertiaryText
+        // Hint label - kept for compatibility, hidden by default since hintHeight is 0
+        hintLabel = NSTextField(labelWithString: "")
+        hintLabel.font = NSFont.systemFont(ofSize: 12, weight: .regular)
+        hintLabel.textColor = AppStyle.Palette.mutedText
         hintLabel.alignment = .center
         hintLabel.translatesAutoresizingMaskIntoConstraints = false
+        hintLabel.isHidden = true
         contentView.addSubview(hintLabel)
-        
+
         suggestionsLabel = NSTextField(labelWithString: "SUGGESTIONS")
         suggestionsLabel.font = NSFont.systemFont(ofSize: 12, weight: .bold)
         suggestionsLabel.textColor = AppStyle.Palette.mutedText
@@ -1001,11 +1002,7 @@ final class CommandPaletteWindow: NSPanel {
             contextualActionBar.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
             contextualActionBar.heightAnchor.constraint(equalToConstant: contextualBarHeight),
 
-            // Hint label - hidden by default, shown when no results
-            hintLabel.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            hintLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            hintLabel.bottomAnchor.constraint(equalTo: contextualActionBar.topAnchor, constant: -6),
-            hintLabel.heightAnchor.constraint(equalToConstant: hintHeight),
+            // Hint label removed
 
             // Stats label - right side, above contextual bar
             statsLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -12),

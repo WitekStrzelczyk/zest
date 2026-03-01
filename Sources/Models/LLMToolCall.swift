@@ -7,6 +7,7 @@ enum LLMTool: String, CaseIterable {
     case createCalendarEvent = "create_calendar_event"
     case findFiles = "find_files"
     case convertUnits = "convert_units"
+    case translate = "translate"
 
     /// Human-readable description of the tool
     var description: String {
@@ -17,6 +18,8 @@ enum LLMTool: String, CaseIterable {
             return "Search for files"
         case .convertUnits:
             return "Convert units of measurement"
+        case .translate:
+            return "Translate text between languages"
         }
     }
 
@@ -29,6 +32,8 @@ enum LLMTool: String, CaseIterable {
             return "folder.badge.questionmark"
         case .convertUnits:
             return "ruler"
+        case .translate:
+            return "character.bubble"
         }
     }
 }
@@ -82,6 +87,19 @@ struct UnitConversionParams: Equatable {
     }
 }
 
+/// Parameters for translation
+struct TranslationParams: Equatable {
+    let text: String
+    let targetLanguage: String
+    let sourceLanguage: String?  // nil = auto-detect
+
+    init(text: String, targetLanguage: String, sourceLanguage: String? = nil) {
+        self.text = text
+        self.targetLanguage = targetLanguage
+        self.sourceLanguage = sourceLanguage
+    }
+}
+
 // MARK: - Tool Call Result
 
 /// A parsed tool call with its parameters
@@ -95,6 +113,7 @@ struct LLMToolCall: Equatable {
         case createCalendarEvent(CreateCalendarEventParams)
         case findFiles(FindFilesParams)
         case convertUnits(UnitConversionParams)
+        case translate(TranslationParams)
 
         /// Whether all required parameters are present
         var isComplete: Bool {
@@ -105,6 +124,8 @@ struct LLMToolCall: Equatable {
                 return !params.query.isEmpty
             case .convertUnits(let params):
                 return params.value != 0 && !params.fromUnit.isEmpty && !params.toUnit.isEmpty
+            case .translate(let params):
+                return !params.text.isEmpty && !params.targetLanguage.isEmpty
             }
         }
     }
@@ -144,5 +165,16 @@ struct LLMToolCall: Equatable {
     ) -> LLMToolCall {
         let params = UnitConversionParams(value: value, fromUnit: fromUnit, toUnit: toUnit, category: category)
         return LLMToolCall(tool: .convertUnits, parameters: .convertUnits(params), confidence: confidence)
+    }
+
+    /// Create a tool call for translation
+    static func translate(
+        text: String,
+        targetLanguage: String,
+        sourceLanguage: String? = nil,
+        confidence: Double = 1.0
+    ) -> LLMToolCall {
+        let params = TranslationParams(text: text, targetLanguage: targetLanguage, sourceLanguage: sourceLanguage)
+        return LLMToolCall(tool: .translate, parameters: .translate(params), confidence: confidence)
     }
 }

@@ -401,7 +401,7 @@ Emoji search should be fast and comprehensive.
 
 ## System Monitoring
 
-### [ ] Story 21: Process Monitoring
+### [x] Story 21: Process Monitoring
 
 **As a** developer and system administrator who needs to monitor system resources
 **I want** to see a list of running processes with their memory and CPU usage in the command palette
@@ -412,6 +412,7 @@ Part of: "System Monitoring" use case
 - Follows: "Command Palette Activation" story
 - This feature provides quick access to process information as part of the broader "System Integration" capability
 - Related: "System Control" story (Story 12) - both provide system-level visibility
+- Status: **COMPLETE** - Implemented using libproc/sysctl for process list, proc_pidinfo for CPU/memory, integrated with search via ProcessSearchService.
 
 ### Verification Strategy
 Process information must be accurate, updated in real-time, and display without significant performance impact on the system.

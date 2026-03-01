@@ -29,6 +29,8 @@ enum ToolExecutionError: Error, LocalizedError {
     case invalidParameters(String)
     case searchFailed(String)
     case conversionFailed(String)
+    case translationNotAvailable(String)
+    case translationFailed(String)
     case unknown(String)
 
     var errorDescription: String? {
@@ -43,6 +45,10 @@ enum ToolExecutionError: Error, LocalizedError {
             return "Search failed: \(reason)"
         case .conversionFailed(let reason):
             return "Conversion failed: \(reason)"
+        case .translationNotAvailable(let reason):
+            return "Translation not available: \(reason)"
+        case .translationFailed(let reason):
+            return "Translation failed: \(reason)"
         case .unknown(let reason):
             return "Unknown error: \(reason)"
         }
@@ -82,6 +88,47 @@ final class LLMToolExecutor {
             return await executeFileSearch(params: params)
         case .convertUnits(let params):
             return executeUnitConversion(params: params)
+        case .translate(let params):
+            return await executeTranslation(params: params)
+        }
+    }
+
+    // MARK: - Translation
+
+    private func executeTranslation(params: TranslationParams) async -> Result<ToolExecutionResult, Error> {
+        logger.debug("Translating text")
+        logger.debug("  Text: \(params.text)")
+        logger.debug("  Source: \(params.sourceLanguage ?? "auto")")
+        logger.debug("  Target: \(params.targetLanguage)")
+
+        // Check macOS version - Translation requires macOS 26+
+        if #available(macOS 26.0, *) {
+            do {
+                let service = TranslationService.shared
+                let result = try await service.translate(
+                    text: params.text,
+                    targetLanguage: params.targetLanguage,
+                    sourceLanguage: params.sourceLanguage
+                )
+
+                // Copy result to clipboard
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(result.translatedText, forType: .string)
+
+                let sourceLang = result.detectedSourceLanguage ?? params.sourceLanguage ?? "auto"
+                let message = result.translatedText
+                let details = "Translated from \(sourceLang) to \(params.targetLanguage). Copied to clipboard."
+
+                logger.info("Translation completed: \(params.text) -> \(result.translatedText)")
+
+                return .success(ToolExecutionResult.success(message, details: details))
+            } catch {
+                logger.error("Translation failed: \(error.localizedDescription)")
+                return .failure(ToolExecutionError.translationFailed(error.localizedDescription))
+            }
+        } else {
+            return .failure(ToolExecutionError.translationNotAvailable("Translation requires macOS 26 or later (Sequoia)"))
         }
     }
 
@@ -94,11 +141,11 @@ final class LLMToolExecutor {
         print("   Time: \(params.time ?? "nil")")
         print("   Location: \(params.location ?? "nil")")
         print("   Contact: \(params.contact ?? "nil")")
-        
+
         // Request calendar access if needed
         let calendarService = CalendarService.shared
         let hasAccess = await calendarService.requestCalendarAccess()
-        
+
         guard hasAccess else {
             print("❌ Calendar access denied!")
             return .failure(ToolExecutionError.calendarAccessDenied)
@@ -134,7 +181,7 @@ final class LLMToolExecutor {
         // Check if date is in the past
         let now = Date()
         let isPastEvent = startDate < now
-        
+
         if isPastEvent {
             print("⚠️ WARNING: Event start date is in the past!")
             print("   Start date: \(startDate)")
@@ -161,9 +208,9 @@ final class LLMToolExecutor {
 
             let calendarName = event.calendar?.title ?? "Unknown"
             let message = "Created event: \(event.title ?? params.title)"
-            
+
             var details = "\(formatter.string(from: startDate)) - \(formatter.string(from: endDate))\nCalendar: \(calendarName)"
-            
+
             // Add warning if event is in the past
             if isPastEvent {
                 details += "\n\n⚠️ Warning: This event is in the past!"
@@ -188,7 +235,7 @@ final class LLMToolExecutor {
         print("   Modified within: \(params.modifiedWithin?.description ?? "nil") hours")
 
         var results: [SearchResult] = []
-        
+
         // Handle wildcard query with modifiedWithin - search for recently modified files
         if params.query == "*" && params.modifiedWithin != nil {
             print("🔍 Using mdfind for recently modified files")
@@ -257,7 +304,7 @@ final class LLMToolExecutor {
         // Build mdfind query for recently modified files
         // Use $time.today(-N) for days or calculate for hours
         var query: String
-        
+
         if hours >= 24 {
             // Use days for cleaner syntax
             let days = hours / 24
@@ -266,29 +313,29 @@ final class LLMToolExecutor {
             // For hours, use $time.now with offset
             query = "kMDItemFSContentChangeDate >= $time.now(-\(hours * 3600))"
         }
-        
+
         // Add extension filter if specified
         if let ext = `extension` {
             query += " && kMDItemFSExtension == '\(ext)'"
         }
-        
+
         print("🔍 mdfind query: \(query)")
-        
+
         // Execute mdfind
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/mdfind")
         process.arguments = ["-onlyin", NSHomeDirectory(), query]
-        
+
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
-        
+
         var paths: [String] = []
-        
+
         do {
             try process.run()
             process.waitUntilExit()
-            
+
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8) {
                 paths = output.components(separatedBy: "\n").filter { !$0.isEmpty }
@@ -297,7 +344,7 @@ final class LLMToolExecutor {
         } catch {
             print("❌ mdfind failed: \(error)")
         }
-        
+
         // Convert paths to SearchResult
         var results: [SearchResult] = []
         for path in paths.prefix(20) {
@@ -305,11 +352,11 @@ final class LLMToolExecutor {
             if path.contains("/.") { continue }
             // Skip .app bundles
             if path.hasSuffix(".app") { continue }
-            
+
             let url = URL(fileURLWithPath: path)
             let name = url.lastPathComponent
             let icon = NSWorkspace.shared.icon(forFile: path)
-            
+
             results.append(SearchResult(
                 title: name,
                 subtitle: "Recently modified",
@@ -324,7 +371,7 @@ final class LLMToolExecutor {
                 filePath: path
             ))
         }
-        
+
         return results
     }
 

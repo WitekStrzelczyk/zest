@@ -79,6 +79,8 @@ final class CommandPaletteController {
                 baseResults = [self.syntheticCalendarResult(params: params)]
             case .convertUnits(let params):
                 baseResults = [self.syntheticUnitConversionResult(params: params)]
+            case .translate(let params):
+                baseResults = await self.syntheticTranslationResult(params: params)
             }
 
             let intentResults = enrichResults(baseResults: baseResults, intent: toolCall)
@@ -390,6 +392,49 @@ final class CommandPaletteController {
         )
     }
 
+    private func syntheticTranslationResult(params: TranslationParams) async -> [SearchResult] {
+        // Execute translation immediately
+        let result = await LLMToolExecutor.shared.execute(
+            LLMToolCall.translate(
+                text: params.text,
+                targetLanguage: params.targetLanguage,
+                sourceLanguage: params.sourceLanguage,
+                confidence: 0.9
+            )
+        )
+        
+        switch result {
+        case .success(let executionResult):
+            // Show the translated text as the main result
+            let translatedText = executionResult.message
+            let sourceLang = params.sourceLanguage ?? "auto"
+            
+            return [SearchResult(
+                title: translatedText,
+                subtitle: "Translated from \(sourceLang) to \(params.targetLanguage.uppercased()) • Copied!",
+                icon: NSImage(systemSymbolName: "character.bubble", accessibilityDescription: "Translate"),
+                category: .action,
+                action: {
+                    // Already copied to clipboard - no action needed
+                },
+                score: 1000,
+                source: .tool
+            )]
+        case .failure(let error):
+            // Show error result
+            let errorMessage = (error as? ToolExecutionError)?.errorDescription ?? error.localizedDescription
+            return [SearchResult(
+                title: "Translation failed",
+                subtitle: errorMessage,
+                icon: NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: "Error"),
+                category: .action,
+                action: {},
+                score: 1000,
+                source: .tool
+            )]
+        }
+    }
+
     private func enrichResults(baseResults: [SearchResult], intent: LLMToolCall) -> [SearchResult] {
         var results = baseResults
 
@@ -436,6 +481,8 @@ final class CommandPaletteController {
             return "find_files(query: \(params.query), searchInContent: \(params.searchInContent), fileExtension: \(params.fileExtension ?? "nil"), modifiedWithin: \(params.modifiedWithin.map(String.init) ?? "nil"), confidence: \(toolCall.confidence))"
         case .convertUnits(let params):
             return "convert_units(value: \(params.value), fromUnit: \(params.fromUnit), toUnit: \(params.toUnit), category: \(params.category ?? "nil"), confidence: \(toolCall.confidence))"
+        case .translate(let params):
+            return "translate(text: \(params.text), sourceLanguage: \(params.sourceLanguage ?? "auto"), targetLanguage: \(params.targetLanguage), confidence: \(toolCall.confidence))"
         }
     }
 }

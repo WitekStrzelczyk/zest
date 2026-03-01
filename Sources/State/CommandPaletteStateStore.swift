@@ -13,6 +13,10 @@ enum ContextEntityType: String {
     case fromUnit
     case toUnit
     case category
+    case sourceLanguage
+    case targetLanguage
+    case sourceText
+    case translatedText
 }
 
 struct ContextEntity {
@@ -24,6 +28,7 @@ enum IntentType: String {
     case createCalendar
     case findFiles
     case convertUnits
+    case translate
 }
 
 struct ParsedIntentContext {
@@ -109,6 +114,20 @@ final class CommandPaletteStateStore {
             }
             context = ParsedIntentContext(
                 intent: .convertUnits,
+                entities: entities,
+                confidence: toolCall.confidence,
+                rawQuery: rawQuery
+            )
+        case .translate(let params):
+            var entities = [
+                ContextEntity(type: .sourceText, value: params.text),
+                ContextEntity(type: .targetLanguage, value: params.targetLanguage)
+            ]
+            if let sourceLanguage = params.sourceLanguage {
+                entities.append(ContextEntity(type: .sourceLanguage, value: sourceLanguage))
+            }
+            context = ParsedIntentContext(
+                intent: .translate,
                 entities: entities,
                 confidence: toolCall.confidence,
                 rawQuery: rawQuery

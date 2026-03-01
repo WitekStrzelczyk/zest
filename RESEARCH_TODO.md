@@ -1,6 +1,6 @@
 # Zest TODO Research Report
 
-**Date:** February 24, 2026
+**Date:** March 1, 2026 (Updated)
 **Purpose:** Analyze remaining TODO items and research popular feature requests from Raycast community
 
 ---
@@ -21,11 +21,18 @@ This research identifies:
 | Story # | Title | Status | Priority |
 |---------|-------|--------|----------|
 | 19 | Preferences Window | `[ ]` | HIGH - Required for configuration |
-| 20 | Launch at Login | `[ ]` | HIGH - Essential for launcher app |
-| 21 | Process Monitoring | `[ ]` | MEDIUM - System visibility |
-| 22 | Process Force Quit | `[ ]` | MEDIUM - Follows Process Monitoring |
-| 23 | Unit Conversion Function | `[ ]` | MEDIUM - Quick win, high value |
 | QA-10 | Performance Profiling | `[ ]` | LOW - Nice to have |
+
+### Recently Completed (Since Last Update)
+
+| Story # | Title | Status |
+|---------|-------|--------|
+| 20 | Launch at Login | `[x]` COMPLETE |
+| 21 | Process Monitoring | `[x]` COMPLETE |
+| 22 | Process Force Quit (Two-Phase) | `[x]` COMPLETE |
+| 23 | Unit Conversion Function | `[x]` COMPLETE |
+| 24 | Color Picker | `[x]` COMPLETE |
+| 25 | Translation Tool | `[x]` COMPLETE |
 
 ### Completed Stories (Summary)
 
@@ -33,7 +40,9 @@ The following phases are complete:
 - **Phase 1: Foundation** - Global hotkey, fuzzy search, app launch (Stories 1-5)
 - **Phase 2: Core Features** - Clipboard, scripts, file search, calculator, emoji (Stories 6-10)
 - **Phase 3: Advanced Features** - Snippets, system control, quicklinks, integrations (Stories 11-18)
+- **Phase 3.5: System Monitoring** - Process monitoring, force quit, unit conversion (Stories 21-23)
 - **Phase 4: QA Infrastructure** - Formatting, linting, coverage, TDD (Stories QA-1 to QA-9)
+- **Phase 4.5: Configuration** - Launch at login (Story 20)
 
 ---
 
@@ -47,8 +56,8 @@ Analyzed Raycast Store's "Most Popular" extensions by install count. These repre
 
 | Rank | Extension | Installs | Category | Relevance to Zest |
 |------|-----------|----------|----------|-------------------|
-| 1 | Kill Process | 497,005 | System | ⚠️ Similar to Story 21/22 |
-| 2 | Color Picker | 365,990 | Design | ✅ NEW STORY 24 |
+| 1 | Kill Process | 497,005 | System | ✅ COMPLETE (Stories 21/22) |
+| 2 | Color Picker | 365,990 | Design | ✅ COMPLETE (Story 24) |
 | 3 | Google Chrome | 359,835 | Browser | 🔸 Low priority (browser-specific) |
 | 4 | Google Translate | 345,652 | Productivity | ✅ NEW STORY 25 |
 | 5 | Spotify Player | 339,713 | Media | 🔸 Low priority (media-specific) |
@@ -90,6 +99,7 @@ These are native Raycast features that have high adoption:
 | Clipboard History | ✅ | ✅ |
 | Window Management | ✅ | ✅ |
 | Calculator | ✅ | ✅ |
+| Unit Conversion | ✅ | ✅ |
 | Emoji Picker | ✅ | ✅ |
 | Snippets | ✅ | ✅ |
 | Quicklinks | ✅ | ✅ |
@@ -99,13 +109,16 @@ These are native Raycast features that have high adoption:
 | Script Commands | ✅ | ✅ |
 | Reminders Integration | ✅ | ✅ |
 | Notes Integration | ✅ | ✅ |
+| Process Monitoring | ✅ | ✅ |
+| Process Force Quit | ✅ | ✅ |
+| Launch at Login | ✅ | ✅ |
+| Color Picker | ✅ | ✅ |
+| Translation | ✅ | ✅ |
 
 ### Features Zest Lacks (Popular in Raycast)
 
 | Feature | Demand | Complexity | Recommendation |
 |---------|--------|------------|----------------|
-| Color Picker | 365k+ installs | Low | ✅ Add (Story 24) |
-| Translation | 345k+ installs | Medium | ✅ Add (Story 25) |
 | Calendar/Meeting Join | 240k+ users | Medium | ✅ Add (Story 26) |
 | Homebrew | 215k+ installs | Low | ✅ Add (Story 27) |
 | Pomodoro Timer | High community demand | Low | ✅ Add (Story 28) |
@@ -132,7 +145,7 @@ The Raycast forum at `forum.raycast.com` was inaccessible during research. Alter
 Based on Raycast Store patterns and launcher app comparisons:
 
 1. **System Utilities** - Audio switching, battery, network info
-2. **Developer Tools** - Homebrew, IP addresses, process management
+2. **Developer Tools** - Homebrew, IP addresses
 3. **Productivity** - Pomodoro, calendar, time zones
 4. **Design Tools** - Color picker, format conversion
 5. **Communication** - Translation, notes
@@ -162,26 +175,21 @@ Based on Raycast Store patterns and launcher app comparisons:
 
 ### Phase 5: Essential Configuration (Immediate)
 1. **Story 19: Preferences Window** - Required for all configuration
-2. **Story 20: Launch at Login** - Essential for launcher app
-3. **Story 23: Unit Conversion** - Quick win, complements Calculator
 
 ### Phase 6: High-Value Features
-4. **Story 24: Color Picker** - Popular with designers/developers (365k users)
-5. **Story 25: Translation** - Popular with multilingual users (345k users)
-6. **Story 26: Calendar Integration** - Essential for productivity (240k users)
-7. **Story 28: Pomodoro Timer** - Popular productivity tool
+2. ~~**Story 25: Translation**~~ - ✅ COMPLETE
+3. **Story 26: Calendar Integration** - Essential for productivity (240k users)
+4. **Story 28: Pomodoro Timer** - Popular productivity tool
 
 ### Phase 7: Developer Tools
-8. **Story 27: Homebrew Integration** - Popular with developers (215k users)
-9. **Story 21: Process Monitoring** - System visibility
-10. **Story 22: Process Force Quit** - Follows Process Monitoring
-11. **Story 31: Battery and System Info** - System monitoring
-12. **Story 32: IP Address and Network Info** - Developer utility
+5. **Story 27: Homebrew Integration** - Popular with developers (215k users)
+6. **Story 31: Battery and System Info** - System monitoring
+7. **Story 32: IP Address and Network Info** - Developer utility
 
 ### Phase 8: Quality of Life
-13. **Story 29: Quick Notes** - Complements clipboard/snippets
-14. **Story 30: Audio Device Switcher** - Convenience feature
-15. **Story 33: Time Zone Converter** - Quick win
+8. **Story 29: Quick Notes** - Complements clipboard/snippets
+9. **Story 30: Audio Device Switcher** - Convenience feature
+10. **Story 33: Time Zone Converter** - Quick win
 
 ---
 
@@ -214,8 +222,8 @@ Based on Raycast Store patterns and launcher app comparisons:
 Zest already has excellent coverage of core launcher features. The gap analysis shows opportunities in:
 
 1. **Quick wins** - Color picker, IP info, time zones (low complexity, high value)
-2. **Developer tools** - Homebrew, system info, process management
+2. **Developer tools** - Homebrew, system info
 3. **Productivity** - Calendar, Pomodoro, translation
 4. **System utilities** - Audio switching, battery monitoring
 
-The recommended Phase 5 (Preferences, Launch at Login, Unit Conversion) should be completed first as these enable configuration and daily usage. Subsequent phases can be prioritized based on target user personas (designers, developers, or general productivity users).
+**Immediate priority:** Story 19 (Preferences Window) - this is the only remaining foundation story needed before adding new community features.
