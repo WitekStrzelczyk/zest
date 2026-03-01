@@ -295,10 +295,14 @@ final class TimeZoneConverterService {
         // Check for time conversion expression
         if isTimeConversionExpression(trimmed) {
             if let result = convert(trimmed) {
+                let icon = NSImage(
+                    systemSymbolName: "clock.arrow.circlepath",
+                    accessibilityDescription: "Time Zone Converter"
+                )
                 return [SearchResult(
                     title: result,
                     subtitle: "Time Zone Conversion",
-                    icon: NSImage(systemSymbolName: "clock.arrow.circlepath", accessibilityDescription: "Time Zone Converter"),
+                    icon: icon,
                     category: .conversion,
                     action: {
                         NSPasteboard.general.clearContents()
@@ -311,8 +315,9 @@ final class TimeZoneConverterService {
 
         // Check for "time in" expression
         if isTimeInExpression(trimmed) {
+            let range = NSRange(lowercased.startIndex..., in: lowercased)
             guard let regex = try? NSRegularExpression(pattern: timeInPattern, options: .caseInsensitive),
-                  let match = regex.firstMatch(in: lowercased, options: [], range: NSRange(lowercased.startIndex..., in: lowercased)),
+                  let match = regex.firstMatch(in: lowercased, options: [], range: range),
                   let cityRange = Range(match.range(at: 1), in: lowercased) else {
                 return []
             }
@@ -357,10 +362,8 @@ final class TimeZoneConverterService {
         }
 
         // Try case-insensitive direct match
-        for identifier in TimeZone.knownTimeZoneIdentifiers {
-            if identifier.lowercased() == lowercased {
-                return identifier
-            }
+        for identifier in TimeZone.knownTimeZoneIdentifiers where identifier.lowercased() == lowercased {
+            return identifier
         }
 
         return nil
@@ -379,7 +382,13 @@ final class TimeZoneConverterService {
     }
 
     /// Convert time from one zone to another
-    private func convertTime(hour: Int, minute: Int, from sourceTimeZone: String, to destTimeZone: String, toZoneName: String) -> String? {
+    private func convertTime(
+        hour: Int,
+        minute: Int,
+        from sourceTimeZone: String,
+        to destTimeZone: String,
+        toZoneName: String
+    ) -> String? {
         guard let sourceTZ = TimeZone(identifier: sourceTimeZone),
               let destTZ = TimeZone(identifier: destTimeZone) else {
             return nil
