@@ -31,7 +31,6 @@ final class StatisticsFactorService {
     ///
     /// Call this when a user selects a result to track usage patterns
     func recordSelection(category: SearchResultCategory, identifier: String) {
-        // TODO: Store selection in persistent storage
-        // TODO: Include timestamp for time-based analysis
+        // TODO: Implement persistent storage for selection tracking
     }
 }

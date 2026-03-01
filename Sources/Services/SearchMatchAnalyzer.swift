@@ -85,17 +85,15 @@ final class SearchMatchAnalyzer {
     
     private func analyzeWordStartMatch(query: String, target: String) -> SearchMatchResult? {
         let words = target.components(separatedBy: CharacterSet(charactersIn: " -_"))
-        
-        for (index, word) in words.enumerated() {
-            if word.hasPrefix(query) {
-                // Quality based on word position
-                // First word: 0.85, second: 0.8, third: 0.75, etc (min 0.6)
-                let positionPenalty = min(Double(index) * 0.05, 0.25)
-                let quality = 0.85 - positionPenalty
-                return SearchMatchResult(quality: quality, matchType: .wordStart)
-            }
+
+        for (index, word) in words.enumerated() where word.hasPrefix(query) {
+            // Quality based on word position
+            // First word: 0.85, second: 0.8, third: 0.75, etc (min 0.6)
+            let positionPenalty = min(Double(index) * 0.05, 0.25)
+            let quality = 0.85 - positionPenalty
+            return SearchMatchResult(quality: quality, matchType: .wordStart)
         }
-        
+
         return nil
     }
     

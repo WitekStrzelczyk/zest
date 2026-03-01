@@ -145,7 +145,8 @@ final class PerformanceMetrics: @unchecked Sendable {
         let duration = (CFAbsoluteTimeGetCurrent() - start) * 1000
 
         if #available(macOS 12.0, *) {
-            os_signpost(.end, log: log, name: "Operation", signpostID: signpostID, "%{public}s: %.2fms", label, duration)
+            os_signpost(.end, log: log, name: "Operation", signpostID: signpostID,
+                        "%{public}s: %.2fms", label, duration)
         } else {
             os_signpost(.end, log: log, name: "Operation", signpostID: signpostID)
         }
@@ -343,7 +344,11 @@ final class PerformanceMetrics: @unchecked Sendable {
     ///   - iterations: Number of iterations to run
     ///   - operation: The async operation to benchmark
     /// - Returns: Average duration in milliseconds
-    static func benchmarkAsync(name: String, iterations: Int = 100, _ operation: () async throws -> Void) async rethrows -> Double {
+    static func benchmarkAsync(
+        name: String,
+        iterations: Int = 100,
+        _ operation: () async throws -> Void
+    ) async rethrows -> Double {
         var totalDuration: Double = 0
 
         for _ in 0..<iterations {

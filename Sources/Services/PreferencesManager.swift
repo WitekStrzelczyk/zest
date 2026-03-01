@@ -134,15 +134,13 @@ final class PreferencesManager: ObservableObject {
 
         // Load theme
         if let themeRaw = defaults.string(forKey: Keys.theme),
-           let themeValue = AppTheme(rawValue: themeRaw)
-        {
+           let themeValue = AppTheme(rawValue: themeRaw) {
             theme = themeValue
         }
-        
+
         // Load saved awake mode
         if let modeRaw = defaults.string(forKey: Keys.savedAwakeMode),
-           let modeValue = AwakeMode(rawValue: modeRaw)
-        {
+           let modeValue = AwakeMode(rawValue: modeRaw) {
             savedAwakeMode = modeValue
         }
     }
