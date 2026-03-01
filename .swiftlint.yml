@@ -10,13 +10,14 @@ disabled_rules:
   # EmojiData.swift contains static emoji data which exceeds normal type body length
   - type_body_length
 
-# Opt-in rules (QA-3 to QA-7)
+# Opt-in rules - strict enforcement
 opt_in_rules:
   # QA-3: Unused Code Detection
   - unused_declaration
 
   # QA-4: Code Complexity
   - cyclomatic_complexity
+  - large_tuple
 
   # QA-5: Function Size Warnings
   - function_body_length
@@ -29,24 +30,24 @@ opt_in_rules:
   - force_try
   - implicitly_unwrapped_optional
 
-# Rule configurations
+# Rule configurations - STRICT LIMITS
 cyclomatic_complexity:
-  warning: 10
-  error: 20
+  warning: 8
+  error: 12
 
 function_body_length:
-  warning: 100
-  error: 150
+  warning: 50
+  error: 80
 
-# Line length - allow 150 for modern screens
+# Line length - strict for readability
 line_length:
-  warning: 150
-  error: 200
+  warning: 120
+  error: 180
 
-# CommandPaletteWindow.swift is intentionally large - exclude from file_length
+# File length - prevent growing files
 file_length:
-  warning: 600
-  error: 800
+  warning: 500
+  error: 700
 
 type_name:
   min_length: 3
@@ -58,7 +59,6 @@ identifier_name:
 
 # Analyzer rules (run with --analyze)
 analyzer_rules:
-  # Note: unused_declaration is in opt_in_rules above
 
 included:
   - Sources
@@ -68,8 +68,3 @@ excluded:
   - Tests
   - tests
   - scripts
-  - Sources/UI/CommandPalette/CommandPaletteWindow.swift
-  - Sources/Models/Quicklink.swift
-  - Sources/Services/AIService.swift
-  - Sources/Services/EmojiSearchService.swift
-  - Sources/Services/UserCommandsService.swift

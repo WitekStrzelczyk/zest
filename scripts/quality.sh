@@ -238,10 +238,11 @@ echo ""
 echo -e "${YELLOW}▸ Step 2: Linting code...${NC}"
 
 if command -v swiftlint &> /dev/null; then
-    if swiftlint Sources 2>&1; then
+    # Use --strict to fail on ANY warning or error
+    if swiftlint --strict Sources 2>&1; then
         echo -e "${GREEN}✓ Linting passed${NC}"
     else
-        echo -e "${RED}✗ Linting had warnings/errors${NC}"
+        echo -e "${RED}✗ Linting failed (strict mode - any violation causes failure)${NC}"
         STATUS=1
     fi
 else
