@@ -311,7 +311,14 @@ final class BatteryService {
             }
             
             // Get CycleCount property
-            if let properties = IORegistryEntryCreateCFProperty(service, "CycleCount" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? Int {
+            let cycleKey = "CycleCount"
+            let cfProperty = IORegistryEntryCreateCFProperty(
+                service,
+                cycleKey as CFString,
+                kCFAllocatorDefault,
+                0
+            )
+            if let properties = cfProperty?.takeRetainedValue() as? Int {
                 cycleCount = properties
                 break
             }
@@ -344,17 +351,15 @@ final class BatteryService {
             if let output = String(data: data, encoding: .utf8) {
                 // Parse "Maximum Capacity: XX%" from output
                 let lines = output.components(separatedBy: "\n")
-                for line in lines {
-                    if line.contains("Maximum Capacity") {
-                        // Extract percentage: "Maximum Capacity: 81%" -> 81
-                        let components = line.components(separatedBy: ":")
-                        if components.count >= 2 {
-                            let valueStr = components[1].trimmingCharacters(in: .whitespaces)
-                                .replacingOccurrences(of: "%", with: "")
-                                .trimmingCharacters(in: .whitespaces)
-                            if let percentage = Double(valueStr), percentage > 0 {
-                                return percentage
-                            }
+                for line in lines where line.contains("Maximum Capacity") {
+                    // Extract percentage: "Maximum Capacity: 81%" -> 81
+                    let components = line.components(separatedBy: ":")
+                    if components.count >= 2 {
+                        let valueStr = components[1].trimmingCharacters(in: .whitespaces)
+                            .replacingOccurrences(of: "%", with: "")
+                            .trimmingCharacters(in: .whitespaces)
+                        if let percentage = Double(valueStr), percentage > 0 {
+                            return percentage
                         }
                     }
                 }
@@ -387,15 +392,29 @@ final class BatteryService {
             defer {
                 IOObjectRelease(service)
             }
-            
-            if let maxCap = IORegistryEntryCreateCFProperty(service, "MaxCapacity" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? Int {
+
+            let maxCapKey = "MaxCapacity"
+            let maxCapCF = IORegistryEntryCreateCFProperty(
+                service,
+                maxCapKey as CFString,
+                kCFAllocatorDefault,
+                0
+            )
+            if let maxCap = maxCapCF?.takeRetainedValue() as? Int {
                 // Same logic: if <= 100, it's already a percentage
                 if maxCap <= 100 && maxCap >= 0 {
                     health = Double(maxCap)
                     break
                 }
                 // Otherwise calculate against DesignCapacity
-                if let designCap = IORegistryEntryCreateCFProperty(service, "DesignCapacity" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? Int,
+                let designCapKey = "DesignCapacity"
+                let designCapCF = IORegistryEntryCreateCFProperty(
+                    service,
+                    designCapKey as CFString,
+                    kCFAllocatorDefault,
+                    0
+                )
+                if let designCap = designCapCF?.takeRetainedValue() as? Int,
                    designCap > 0 {
                     let healthValue = Double(maxCap) / Double(designCap) * 100.0
                     health = min(max(healthValue, 0), 100)
