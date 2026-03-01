@@ -1,0 +1,46 @@
+Analysis Date: 2026-03-01
+
+Score/Metrics: 50/100 (gap to 100: 50)
+Previous Score: 73/100 (delta: -23)
+
+Problem Status:
+- NEW: 10 problems
+- RECURRING: 6 problems
+- PERSISTENT: 4 problems
+- RESOLVED: 2 problems
+
+Top Problems:
+1. [PERSISTENT] Code Quality - File Length: CalendarService.swift (1071 lines, limit: 800) - SERIOUS
+2. [PERSISTENT] Code Quality - File Length: SearchEngine.swift (870 lines, limit: 800) - SERIOUS
+3. [PERSISTENT] Code Quality - Line Length: LLMToolCatalog.swift (10 violations) - SERIOUS
+4. [PERSISTENT] Code Quality - Line Length: CommandPaletteController.swift (2 violations) - SERIOUS
+5. [PERSISTENT] Code Quality - Cyclomatic Complexity: UnitConverter.swift line 438 (complexity 30) - SERIOUS
+6. [RECURRING] Code Quality - Function Body Length: SearchEngine.swift (2 violations, 195 & 220 lines)
+7. [NEW] Code Quality - Large Tuple: LLMToolCatalog.swift line 361
+8. [NEW] Code Quality - Large Tuple: DateTimeParser.swift line 306
+9. [NEW] Code Quality - Line Length: LLMToolCatalog.swift tool definitions (5 very long lines)
+10. [RECURRING] Code Quality - Trailing Comma: Multiple files
+
+SwiftLint Summary:
+- Total violations: 67 (51 warnings + 16 errors)
+- Files analyzed: 62
+- Error rate: 1.08 violations/file (improved from 2.1)
+- Serious errors: 16 (vs 1 previously)
+
+Comparison with 20260219:
+- Previous: 75 violations (73/100)
+- Current: 67 violations (50/100)
+- Violations down: 8 fewer, but score dropped due to serious errors
+
+Files with Most Violations:
+1. LLMToolCatalog.swift: 11 violations (8 serious)
+2. SearchEngine.swift: 4 violations (3 serious)
+3. CalendarService.swift: 10 violations (1 serious)
+4. CommandPaletteController.swift: 3 violations (2 serious)
+5. UnitConverter.swift: 1 violation (1 serious)
+
+Build Status: SUCCESS (0 warnings in build output)
+Test Status: PASS (tests complete in <60s)
+
+Screenshots:
+- main-20260301.png - Main screenshot
