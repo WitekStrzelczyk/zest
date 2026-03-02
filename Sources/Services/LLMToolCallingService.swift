@@ -3,18 +3,18 @@ import os.log
 
 final class LLMToolCallingService: @unchecked Sendable {
     static let shared = LLMToolCallingService()
-    
+
     private let logger = Logger(subsystem: "com.zest.app", category: "LLMToolCalling")
-    
+
     private init() {}
-    
+
     func parseWithLLM(input: String) async -> LLMToolCall? {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        
+
         logger.info("parseWithLLM: \(trimmed)")
         print("🧠 Calling parseWithLLM with: \(trimmed)")
-        
+
         // Fast deterministic path for obvious intents.
         if let preParsed = fallbackParse(input: trimmed) {
             print("🧠 LLMToolCallingService: using deterministic pre-parse: \(preParsed.tool.rawValue)")
@@ -37,11 +37,11 @@ final class LLMToolCallingService: @unchecked Sendable {
     private func fallbackParse(input: String) -> LLMToolCall? {
         LLMToolCatalog.fallbackParse(input: input)
     }
-    
+
     #if DEBUG
-    func test_fallbackParse(_ input: String) -> LLMToolCall? {
-        fallbackParse(input: input)
-    }
+        func test_fallbackParse(_ input: String) -> LLMToolCall? {
+            fallbackParse(input: input)
+        }
     #endif
 
     private func describe(_ toolCall: LLMToolCall) -> String {

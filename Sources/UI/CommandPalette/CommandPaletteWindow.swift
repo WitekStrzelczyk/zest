@@ -3,8 +3,8 @@ import Carbon
 import Quartz
 
 final class PaletteBackgroundView: NSView {
-    override func draw(_ dirtyRect: NSRect) {
-        let bounds = self.bounds
+    override func draw(_: NSRect) {
+        let bounds = bounds
         let gradient = NSGradient(
             colors: [
                 AppStyle.Palette.backgroundTop,
@@ -58,11 +58,15 @@ final class ResultRowView: NSTableRowView {
         isKillAttempted = false
     }
 
-    override func drawSelection(in dirtyRect: NSRect) {
+    override func drawSelection(in _: NSRect) {
         if shouldShowDangerStyle {
             // Danger mode: reddish background with red border
             NSColor.systemRed.withAlphaComponent(0.15).setFill()
-            let path = NSBezierPath(roundedRect: bounds.insetBy(dx: horizontalInset, dy: verticalInset), xRadius: 6, yRadius: 6)
+            let path = NSBezierPath(
+                roundedRect: bounds.insetBy(dx: horizontalInset, dy: verticalInset),
+                xRadius: 6,
+                yRadius: 6
+            )
             path.fill()
 
             // Red border - thicker for danger mode, thinner for kill attempted
@@ -71,7 +75,11 @@ final class ResultRowView: NSTableRowView {
             path.stroke()
         } else {
             AppStyle.Palette.rowSelectedFill.setFill()
-            let path = NSBezierPath(roundedRect: bounds.insetBy(dx: horizontalInset, dy: verticalInset), xRadius: 6, yRadius: 6)
+            let path = NSBezierPath(
+                roundedRect: bounds.insetBy(dx: horizontalInset, dy: verticalInset),
+                xRadius: 6,
+                yRadius: 6
+            )
             path.fill()
             AppStyle.Palette.rowSelectedStroke.setStroke()
             path.lineWidth = 1
@@ -83,7 +91,11 @@ final class ResultRowView: NSTableRowView {
         if shouldShowDangerStyle {
             // Danger mode background even when not selected (for hover state)
             NSColor.systemRed.withAlphaComponent(isKillAttempted && !isDangerMode ? 0.08 : 0.1).setFill()
-            let path = NSBezierPath(roundedRect: bounds.insetBy(dx: horizontalInset, dy: verticalInset), xRadius: 6, yRadius: 6)
+            let path = NSBezierPath(
+                roundedRect: bounds.insetBy(dx: horizontalInset, dy: verticalInset),
+                xRadius: 6,
+                yRadius: 6
+            )
             path.fill()
 
             // Red border
@@ -92,7 +104,11 @@ final class ResultRowView: NSTableRowView {
             path.stroke()
         } else if !isSelected, isHovered {
             AppStyle.Palette.rowHoverFill.setFill()
-            let path = NSBezierPath(roundedRect: bounds.insetBy(dx: horizontalInset, dy: verticalInset), xRadius: 6, yRadius: 6)
+            let path = NSBezierPath(
+                roundedRect: bounds.insetBy(dx: horizontalInset, dy: verticalInset),
+                xRadius: 6,
+                yRadius: 6
+            )
             path.fill()
         }
         super.draw(dirtyRect)
@@ -343,7 +359,7 @@ final class CommandPaletteWindow: NSPanel {
     private(set) var hintLabel: NSTextField!
     private var suggestionsLabel: NSTextField!
     private var noResultsLabel: NSTextField!
-    
+
     /// Stats label shown on hover - displays search timing metrics
     private var statsLabel: NSTextField!
     /// Container view for search area (used for hover detection)
@@ -357,7 +373,7 @@ final class CommandPaletteWindow: NSPanel {
         // Default to true if not explicitly disabled
         !UserDefaults.standard.bool(forKey: "hideSearchStats")
     }
-    
+
     /// Exposed for testing
     private(set) var searchResults: [SearchResult] = []
 
@@ -421,7 +437,7 @@ final class CommandPaletteWindow: NSPanel {
 
     /// Tracks whether LLM tool calling mode is active (when query starts with =)
     private(set) var isLLMMode: Bool = false
-    
+
     /// Global headless state store
     private let stateStore = CommandPaletteStateStore.shared
     private let controller = CommandPaletteController.shared
@@ -433,14 +449,14 @@ final class CommandPaletteWindow: NSPanel {
             // ENTERING SETTINGS MODE
             // 1. Cancel in-progress search engine search
             SearchEngine.shared.cancelCurrentSearch()
-            
+
             // 2. Hide search and results UI
             searchField.isHidden = true
             searchIcon.isHidden = true
             scrollView.isHidden = true
             noResultsLabel.isHidden = true
             hintLabel.isHidden = true
-            
+
             // 3. Show settings UI
             showSettingsUI()
         } else {
@@ -449,18 +465,18 @@ final class CommandPaletteWindow: NSPanel {
             settingsContainerView?.isHidden = true
             settingsContainerView?.removeFromSuperview()
             settingsContainerView = nil
-            
+
             // 2. Show search UI
             searchField.isHidden = false
             searchIcon.isHidden = false
             searchField.stringValue = preservedSearchQuery
             hintLabel.isHidden = false
-            
+
             // 3. Show results if we have any
             if !searchResults.isEmpty {
                 scrollView.isHidden = false
             }
-            
+
             // 4. Restore window size
             if let topY = initialWindowTop {
                 let newHeight = searchFieldHeight + hintHeight
@@ -468,12 +484,12 @@ final class CommandPaletteWindow: NSPanel {
                 let currentFrame = frame
                 animateFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: newHeight))
             }
-            
+
             // 5. Re-run search with preserved query
             if !preservedSearchQuery.isEmpty {
                 performSearch(preservedSearchQuery)
             }
-            
+
             // 6. Focus on search field
             makeFirstResponder(searchField)
         }
@@ -599,7 +615,10 @@ final class CommandPaletteWindow: NSPanel {
         prefStack.alignment = .centerY
         prefStack.spacing = 6
         prefStack.translatesAutoresizingMaskIntoConstraints = false
-        preferencesIconView = NSImageView(image: NSImage(systemSymbolName: "gearshape.fill", accessibilityDescription: "Preferences") ?? NSImage())
+        preferencesIconView = NSImageView(image: NSImage(
+            systemSymbolName: "gearshape.fill",
+            accessibilityDescription: "Preferences"
+        ) ?? NSImage())
         preferencesIconView.contentTintColor = AppStyle.Palette.secondaryText
         preferencesIconView.translatesAutoresizingMaskIntoConstraints = false
         preferencesLabel = NSTextField(labelWithString: "Preferences")
@@ -614,7 +633,10 @@ final class CommandPaletteWindow: NSPanel {
         storeStack.alignment = .centerY
         storeStack.spacing = 6
         storeStack.translatesAutoresizingMaskIntoConstraints = false
-        storeIconView = NSImageView(image: NSImage(systemSymbolName: "shippingbox.fill", accessibilityDescription: "Store") ?? NSImage())
+        storeIconView = NSImageView(image: NSImage(
+            systemSymbolName: "shippingbox.fill",
+            accessibilityDescription: "Store"
+        ) ?? NSImage())
         storeIconView.contentTintColor = AppStyle.Palette.secondaryText
         storeIconView.translatesAutoresizingMaskIntoConstraints = false
         storeLabel = NSTextField(labelWithString: "Store")
@@ -651,7 +673,10 @@ final class CommandPaletteWindow: NSPanel {
             storeIconView.widthAnchor.constraint(equalToConstant: 14),
             storeIconView.heightAnchor.constraint(equalToConstant: 14),
 
-            contextualActionLabel.leadingAnchor.constraint(greaterThanOrEqualTo: leftStack.trailingAnchor, constant: 12),
+            contextualActionLabel.leadingAnchor.constraint(
+                greaterThanOrEqualTo: leftStack.trailingAnchor,
+                constant: 12
+            ),
             contextualActionLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
             contextualActionLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor),
         ])
@@ -705,12 +730,11 @@ final class CommandPaletteWindow: NSPanel {
     /// Local event monitor for when app IS frontmost
     private var quickLookLocalMonitor: Any?
 
-
     // Layout constants
     private let windowWidth: CGFloat = 720
     private let searchFieldHeight: CGFloat = 56
     private let rowHeight: CGFloat = 52
-    private let hintHeight: CGFloat = 0  // Removed hint bar
+    private let hintHeight: CGFloat = 0 // Removed hint bar
     private let emptyStateHeight: CGFloat = 78
     private let maxVisibleResultRows: Int = 6
     private let resultsContainerVerticalPadding: CGFloat = 20
@@ -730,7 +754,12 @@ final class CommandPaletteWindow: NSPanel {
         defer _: Bool
     ) {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: windowWidth, height: searchFieldHeight + hintHeight + contextualBarHeight),
+            contentRect: NSRect(
+                x: 0,
+                y: 0,
+                width: windowWidth,
+                height: searchFieldHeight + hintHeight + contextualBarHeight
+            ),
             styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -757,7 +786,7 @@ final class CommandPaletteWindow: NSPanel {
             object: nil
         )
     }
-    
+
     private func setupStateObservation() {
         stateObserver = NotificationCenter.default.addObserver(
             forName: .commandPaletteStateDidChange,
@@ -765,15 +794,16 @@ final class CommandPaletteWindow: NSPanel {
             queue: .main
         ) { [weak self] notification in
             guard let self,
-                  let state = notification.userInfo?[commandPaletteStateUserInfoKey] as? CommandPaletteState else { return }
-            self.render(state: state)
+                  let state = notification.userInfo?[commandPaletteStateUserInfoKey] as? CommandPaletteState
+            else { return }
+            render(state: state)
         }
     }
-    
+
     private func render(state: CommandPaletteState) {
         guard !isSettingsMode else { return }
         isLLMMode = state.isLLMMode
-        
+
         if state.query.isEmpty {
             searchResults = []
             resultsTableView.reloadData()
@@ -788,7 +818,7 @@ final class CommandPaletteWindow: NSPanel {
             }
             return
         }
-        
+
         guard let topY = initialWindowTop, let screen = NSScreen.main else { return }
         updateSearchResults(state.results, topY: topY, screen: screen)
     }
@@ -840,7 +870,12 @@ final class CommandPaletteWindow: NSPanel {
     }
 
     private func setupUI() {
-        let contentView = PaletteBackgroundView(frame: NSRect(x: 0, y: 0, width: windowWidth, height: searchFieldHeight + hintHeight + contextualBarHeight))
+        let contentView = PaletteBackgroundView(frame: NSRect(
+            x: 0,
+            y: 0,
+            width: windowWidth,
+            height: searchFieldHeight + hintHeight + contextualBarHeight
+        ))
         contentView.wantsLayer = true
         contentView.layer?.cornerRadius = 12
         contentView.layer?.masksToBounds = true
@@ -906,7 +941,7 @@ final class CommandPaletteWindow: NSPanel {
         // Contextual action bar - shows available actions for selected item
         contextualActionBar = createContextualActionBar()
         contentView.addSubview(contextualActionBar)
-        
+
         // Stats label - shows search timing on hover
         statsLabel = NSTextField(labelWithString: "")
         statsLabel.font = NSFont.systemFont(ofSize: 10, weight: .medium)
@@ -967,7 +1002,7 @@ final class CommandPaletteWindow: NSPanel {
             searchIcon.centerYAnchor.constraint(equalTo: searchBarContainer.centerYAnchor),
             searchIcon.widthAnchor.constraint(equalToConstant: 20),
             searchIcon.heightAnchor.constraint(equalToConstant: 20),
-            
+
             escBadge.trailingAnchor.constraint(equalTo: searchBarContainer.trailingAnchor, constant: -10),
             escBadge.centerYAnchor.constraint(equalTo: searchBarContainer.centerYAnchor),
             escBadge.widthAnchor.constraint(equalToConstant: AppStyle.KeyboardBadge.escWidth),
@@ -978,11 +1013,14 @@ final class CommandPaletteWindow: NSPanel {
             searchField.centerYAnchor.constraint(equalTo: searchBarContainer.centerYAnchor),
             searchField.heightAnchor.constraint(equalToConstant: 24),
         ])
-        
+
         // Store the original scroll view top constraint (needed for action bar management)
-        originalScrollViewTopConstraint = scrollView.topAnchor.constraint(equalTo: searchBarContainer.bottomAnchor, constant: 8)
+        originalScrollViewTopConstraint = scrollView.topAnchor.constraint(
+            equalTo: searchBarContainer.bottomAnchor,
+            constant: 8
+        )
         originalScrollViewTopConstraint?.isActive = true
-        
+
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
@@ -1009,21 +1047,21 @@ final class CommandPaletteWindow: NSPanel {
             statsLabel.bottomAnchor.constraint(equalTo: contextualActionBar.topAnchor, constant: -4),
             statsLabel.heightAnchor.constraint(equalToConstant: 14),
         ])
-        
+
         // Setup hover tracking for the entire content view
         setupHoverTracking(in: contentView)
 
         self.contentView = contentView
     }
-    
+
     // MARK: - Hover Tracking for Stats
-    
+
     private func setupHoverTracking(in view: NSView) {
         // Remove old tracking area if exists
         if let oldTracking = hoverTrackingArea {
             view.removeTrackingArea(oldTracking)
         }
-        
+
         // Create new tracking area for the entire view
         let trackingArea = NSTrackingArea(
             rect: view.bounds,
@@ -1034,7 +1072,7 @@ final class CommandPaletteWindow: NSPanel {
         view.addTrackingArea(trackingArea)
         hoverTrackingArea = trackingArea
     }
-    
+
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
         // Show stats label on hover if we have stats and they're enabled
@@ -1043,13 +1081,13 @@ final class CommandPaletteWindow: NSPanel {
             statsLabel.isHidden = false
         }
     }
-    
+
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
         // Hide stats label when mouse leaves
         statsLabel.isHidden = true
     }
-    
+
     /// Update the stats label with trace information
     private func updateStatsLabel(with trace: SearchSpan) {
         // Build a concise stats string
@@ -1065,21 +1103,20 @@ final class CommandPaletteWindow: NSPanel {
             let ms = child.durationMsPrecise
             let resultsCount = child.tags["results"] as? Int
 
-            let shortName: String
-            switch name {
-            case "calculator": shortName = "calc"
-            case "applications": shortName = "apps"
-            case "user_commands": shortName = "cmd"
-            case "contacts": shortName = "👤"
-            case "clipboard": shortName = "📋"
-            case "files": shortName = "📁"
-            case "global_commands": shortName = "⌨️"
-            case "toggles": shortName = "tgl"
-            case "quicklinks": shortName = "🔗"
-            case "deduplicate_sort": shortName = "sort"
-            case "settings": shortName = "⚙️"
-            case "unit_conversion": shortName = "conv"
-            default: shortName = name.prefix(4).lowercased()
+            let shortName: String = switch name {
+            case "calculator": "calc"
+            case "applications": "apps"
+            case "user_commands": "cmd"
+            case "contacts": "👤"
+            case "clipboard": "📋"
+            case "files": "📁"
+            case "global_commands": "⌨️"
+            case "toggles": "tgl"
+            case "quicklinks": "🔗"
+            case "deduplicate_sort": "sort"
+            case "settings": "⚙️"
+            case "unit_conversion": "conv"
+            default: name.prefix(4).lowercased()
             }
 
             // Show category with timing and result count
@@ -1106,7 +1143,7 @@ final class CommandPaletteWindow: NSPanel {
 
     // MARK: - Show/Hide
 
-    func show(previousApp: NSRunningApplication? = nil) {
+    func show(previousApp _: NSRunningApplication? = nil) {
         searchField.stringValue = ""
         searchResults = []
         resultsTableView.reloadData()
@@ -1167,14 +1204,14 @@ final class CommandPaletteWindow: NSPanel {
     /// All mode switching logic is centralized in handleModeChange() via isSettingsMode.didSet
     func enterSettingsMode() {
         guard !isSettingsMode else { return }
-        
+
         // Preserve current search query before switching mode
         preservedSearchQuery = searchField.stringValue
-        
+
         // Clear results when entering settings mode - prevents stale results from showing
         searchResults = []
         resultsTableView.reloadData()
-        
+
         // Switch mode - handleModeChange() will do all the UI work
         isSettingsMode = true
     }
@@ -1182,33 +1219,33 @@ final class CommandPaletteWindow: NSPanel {
     /// Exit settings mode and return to normal search
     func exitSettingsMode() {
         guard isSettingsMode else { return }
-        
+
         // Clear results when exiting to start fresh
         searchResults = []
         resultsTableView.reloadData()
-        
+
         // Switch mode - handleModeChange() will do all the UI work
         isSettingsMode = false
     }
 
     private func showSettingsUI() {
-        guard let contentView = contentView else { return }
-        
+        guard let contentView else { return }
+
         // Compact settings panel height
         let settingsHeight: CGFloat = 180
-        
+
         // Step 1: Resize window FIRST - make it taller while keeping same Y position
         var currentFrame = frame
         currentFrame.size.height = settingsHeight
         // Adjust origin to keep bottom in same place (grow upward)
         currentFrame.origin.y -= (settingsHeight - frame.height)
         setFrame(currentFrame, display: true, animate: true)
-        
+
         // Step 2: NOW create settings view with the NEW window bounds
         // Use window frame, not contentView.bounds (which hasn't resized yet)
         let settingsView = NSView(frame: NSRect(x: 0, y: 0, width: currentFrame.width, height: currentFrame.height))
         settingsView.wantsLayer = true
-        
+
         // Back button
         let backBtn = NSButton(title: "← Back", target: self, action: #selector(backButtonClicked))
         backBtn.bezelStyle = .inline
@@ -1217,82 +1254,82 @@ final class CommandPaletteWindow: NSPanel {
         backBtn.font = NSFont.systemFont(ofSize: 13)
         backBtn.translatesAutoresizingMaskIntoConstraints = false
         settingsView.addSubview(backBtn)
-        self.backButton = backBtn
-        
+        backButton = backBtn
+
         // Compact title
         let titleLabel = NSTextField(labelWithString: "Add Quicklink")
         titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
         titleLabel.textColor = .labelColor
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         settingsView.addSubview(titleLabel)
-        
+
         // Create button first (needed for nextKeyView)
         let createBtn = NSButton(title: "Create", target: self, action: #selector(createQuicklinkClicked))
         createBtn.bezelStyle = .rounded
         createBtn.keyEquivalent = "\r"
         createBtn.translatesAutoresizingMaskIntoConstraints = false
         settingsView.addSubview(createBtn)
-        self.createQuicklinkButton = createBtn
-        
+        createQuicklinkButton = createBtn
+
         // URL text field (needs to be before nameField for nextKeyView)
         let urlField = NSTextField()
         urlField.placeholderString = "URL (e.g., https://github.com)"
         urlField.font = NSFont.systemFont(ofSize: 14)
         urlField.delegate = self
-        urlField.nextKeyView = createBtn  // Tab from URL goes to Create button
+        urlField.nextKeyView = createBtn // Tab from URL goes to Create button
         urlField.translatesAutoresizingMaskIntoConstraints = false
         settingsView.addSubview(urlField)
-        self.quicklinkURLField = urlField
-        
+        quicklinkURLField = urlField
+
         // Name text field (first responder)
         let nameField = NSTextField()
         nameField.placeholderString = "Name (e.g., GitHub)"
         nameField.font = NSFont.systemFont(ofSize: 14)
         nameField.delegate = self
-        nameField.nextKeyView = urlField  // Tab from name goes to URL
+        nameField.nextKeyView = urlField // Tab from name goes to URL
         nameField.translatesAutoresizingMaskIntoConstraints = false
         settingsView.addSubview(nameField)
-        self.quicklinkNameField = nameField
-        
+        quicklinkNameField = nameField
+
         // Constraints - compact layout
         NSLayoutConstraint.activate([
             // Back button - top left
             backBtn.leadingAnchor.constraint(equalTo: settingsView.leadingAnchor, constant: 16),
             backBtn.topAnchor.constraint(equalTo: settingsView.topAnchor, constant: 12),
-            
+
             // Title - centered
             titleLabel.centerXAnchor.constraint(equalTo: settingsView.centerXAnchor),
             titleLabel.topAnchor.constraint(equalTo: settingsView.topAnchor, constant: 12),
-            
+
             // Name field
             nameField.leadingAnchor.constraint(equalTo: settingsView.leadingAnchor, constant: 16),
             nameField.trailingAnchor.constraint(equalTo: settingsView.trailingAnchor, constant: -16),
             nameField.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 16),
             nameField.heightAnchor.constraint(equalToConstant: 28),
-            
+
             // URL field
             urlField.leadingAnchor.constraint(equalTo: settingsView.leadingAnchor, constant: 16),
             urlField.trailingAnchor.constraint(equalTo: settingsView.trailingAnchor, constant: -16),
             urlField.topAnchor.constraint(equalTo: nameField.bottomAnchor, constant: 8),
             urlField.heightAnchor.constraint(equalToConstant: 28),
-            
+
             // Create button - center below URL field
             createBtn.centerXAnchor.constraint(equalTo: settingsView.centerXAnchor),
             createBtn.topAnchor.constraint(equalTo: urlField.bottomAnchor, constant: 16),
         ])
-        
+
         contentView.addSubview(settingsView)
         settingsContainerView = settingsView
-        
+
         // KEY: Tell AppKit to rebuild key view loop for the new fields
         // This enables proper Tab navigation between form fields
         recalculateKeyViewLoop()
-        
+
         // Focus on name field and make it the first in key loop
         nameField.window?.initialFirstResponder = nameField
         makeFirstResponder(nameField)
     }
-    
+
     @objc private func backButtonClicked() {
         exitSettingsMode()
     }
@@ -1300,33 +1337,33 @@ final class CommandPaletteWindow: NSPanel {
     @objc private func createQuicklinkClicked() {
         guard let nameField = quicklinkNameField,
               let urlField = quicklinkURLField else { return }
-        
+
         let name = nameField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         let url = urlField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         guard !name.isEmpty else {
             showAlert(message: "Please enter a name for the quicklink.")
             return
         }
-        
+
         guard !url.isEmpty else {
             showAlert(message: "Please enter a URL for the quicklink.")
             return
         }
-        
+
         // Validate URL
         let quicklink = Quicklink(name: name, url: url)
         guard quicklink.isValidURL else {
             showAlert(message: "Please enter a valid URL (http:// or https://)")
             return
         }
-        
+
         // Add quicklink
         QuicklinkManager.shared.addQuicklink(quicklink)
-        
+
         // Exit settings mode
         exitSettingsMode()
-        
+
         // Re-run search to show new quicklink
         if !preservedSearchQuery.isEmpty {
             performSearch(preservedSearchQuery)
@@ -1385,7 +1422,7 @@ final class CommandPaletteWindow: NSPanel {
     private func updateSearchResults(_ results: [SearchResult], topY: CGFloat, screen _: NSScreen) {
         // Don't update results when in settings mode
         guard !isSettingsMode else { return }
-        
+
         let currentFrame = frame
 
         // Preserve current selection across reloads (e.g. when Phase 2 file results arrive)
@@ -1435,7 +1472,7 @@ final class CommandPaletteWindow: NSPanel {
             animateFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: newHeight))
         }
     }
-    
+
     // MARK: - Animated Resize
 
     private func animateFrame(_ newFrame: NSRect) {
@@ -1459,13 +1496,13 @@ final class CommandPaletteWindow: NSPanel {
         {
             return
         }
-        
+
         // Handle Cmd+Enter for reveal action (force quit processes, reveal files in Finder)
-        if Int(event.keyCode) == kVK_Return && event.modifierFlags.contains(.command) {
+        if Int(event.keyCode) == kVK_Return, event.modifierFlags.contains(.command) {
             revealCurrentResult()
             return
         }
-        
+
         super.keyDown(with: event)
     }
 
@@ -1497,7 +1534,7 @@ final class CommandPaletteWindow: NSPanel {
             let savedSelection = resultsTableView.selectedRow
             resultsTableView.reloadData()
             // Restore selection after reload
-            if savedSelection >= 0 && savedSelection < searchResults.count {
+            if savedSelection >= 0, savedSelection < searchResults.count {
                 resultsTableView.selectRowIndexes(IndexSet(integer: savedSelection), byExtendingSelection: false)
             }
         }
@@ -1520,7 +1557,7 @@ final class CommandPaletteWindow: NSPanel {
     /// Show the action bar above the search results
     private func showActionBar() {
         guard actionBarView == nil else { return }
-        guard let contentView = contentView else { return }
+        guard let contentView else { return }
 
         let actionBar = createActionBarView()
         actionBarView = actionBar
@@ -1545,12 +1582,12 @@ final class CommandPaletteWindow: NSPanel {
     /// Hide the action bar
     private func hideActionBar() {
         guard actionBarView != nil else { return }
-        
+
         // Restore original scroll view constraint
         actionBarScrollViewTopConstraint?.isActive = false
         actionBarScrollViewTopConstraint = nil
         originalScrollViewTopConstraint?.isActive = true
-        
+
         actionBarView?.removeFromSuperview()
         actionBarView = nil
     }
@@ -1753,7 +1790,7 @@ final class CommandPaletteWindow: NSPanel {
         removeQuickLookMonitors()
 
         let handler: (NSEvent) -> Void = { [weak self] event in
-            guard let self, self.isQuickLookOpen else { return }
+            guard let self, isQuickLookOpen else { return }
             let keyCode = Int(event.keyCode)
             if keyCode == kVK_Escape || keyCode == kVK_Space {
                 DispatchQueue.main.async { self.closeQuickLook() }
@@ -1765,10 +1802,10 @@ final class CommandPaletteWindow: NSPanel {
 
         // Local monitor: catches keys when Zest is frontmost
         quickLookLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, self.isQuickLookOpen else { return event }
+            guard let self, isQuickLookOpen else { return event }
             let keyCode = Int(event.keyCode)
             if keyCode == kVK_Escape || keyCode == kVK_Space {
-                self.closeQuickLook()
+                closeQuickLook()
                 return nil
             }
             return event
@@ -1776,8 +1813,12 @@ final class CommandPaletteWindow: NSPanel {
     }
 
     private func removeQuickLookMonitors() {
-        if let m = quickLookGlobalMonitor { NSEvent.removeMonitor(m); quickLookGlobalMonitor = nil }
-        if let m = quickLookLocalMonitor { NSEvent.removeMonitor(m); quickLookLocalMonitor = nil }
+        if let m = quickLookGlobalMonitor { NSEvent.removeMonitor(m)
+            quickLookGlobalMonitor = nil
+        }
+        if let m = quickLookLocalMonitor { NSEvent.removeMonitor(m)
+            quickLookLocalMonitor = nil
+        }
     }
 
     /// Get the currently selected result if it's a file result
@@ -1812,12 +1853,12 @@ extension CommandPaletteWindow: NSTextFieldDelegate {
             selectCurrentResult()
             return true
         }
-        
+
         // Allow Tab to move between fields (default behavior)
         if commandSelector == #selector(NSResponder.insertTab(_:)) {
             return false // Let system handle Tab
         }
-        
+
         // Allow Shift+Tab to move backwards
         if commandSelector == #selector(NSResponder.insertBacktab(_:)) {
             return false // Let system handle Shift+Tab
@@ -1844,12 +1885,12 @@ extension CommandPaletteWindow: NSTableViewDelegate, NSTableViewDataSource {
         searchResults.count
     }
 
-    func tableViewSelectionDidChange(_ notification: Notification) {
+    func tableViewSelectionDidChange(_: Notification) {
         // Update contextual action bar when selection changes
         updateContextualActionBar()
     }
 
-    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+    func tableView(_: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
         // Return custom row view with dual-state highlighting
         let rowView = ResultRowView()
         rowView.identifier = NSUserInterfaceItemIdentifier("ResultRow")
@@ -1868,7 +1909,7 @@ extension CommandPaletteWindow: NSTableViewDelegate, NSTableViewDataSource {
 
         let cellView = NSTableCellView()
         cellView.identifier = NSUserInterfaceItemIdentifier("ResultCell")
-        
+
         if result.category == .file, let filePath = result.filePath {
             return buildFileCellView(result: result, filePath: filePath, container: cellView, row: row)
         }
@@ -1930,8 +1971,13 @@ extension CommandPaletteWindow: NSTableViewDelegate, NSTableViewDataSource {
     func tableView(_: NSTableView, heightOfRow _: Int) -> CGFloat {
         rowHeight
     }
-    
-    private func buildFileCellView(result: SearchResult, filePath: String, container: NSTableCellView, row: Int) -> NSView {
+
+    private func buildFileCellView(
+        result: SearchResult,
+        filePath: String,
+        container: NSTableCellView,
+        row: Int
+    ) -> NSView {
         let imageView = NSImageView()
         imageView.image = result.icon
         imageView.translatesAutoresizingMaskIntoConstraints = false
@@ -2019,7 +2065,7 @@ extension CommandPaletteWindow: NSTableViewDelegate, NSTableViewDataSource {
 
         return container
     }
-    
+
     private func displayPathSuffix(for path: String) -> String {
         let url = URL(fileURLWithPath: path)
         let components = url.deletingLastPathComponent().pathComponents
@@ -2111,7 +2157,7 @@ extension CommandPaletteWindow {
         } else {
             scrollView.isHidden = true
         }
-        
+
         // Update action bar visibility based on results
         updateActionBarVisibility()
     }
@@ -2252,7 +2298,7 @@ extension CommandPaletteWindow: QLPreviewPanelDelegate {
         panel.delegate = nil
     }
 
-    func previewPanel(_ panel: QLPreviewPanel!, handle event: NSEvent!) -> Bool {
+    func previewPanel(_: QLPreviewPanel!, handle event: NSEvent!) -> Bool {
         guard event.type == .keyDown else { return false }
 
         let keyCode = Int(event.keyCode)

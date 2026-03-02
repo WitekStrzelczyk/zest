@@ -282,7 +282,7 @@ extension FileSearchService {
 
             let path = url.path
             if isPathInHiddenDirectory(path) { continue }
-            
+
             // Skip .app bundles - they're handled by app search, not file search
             // This prevents Activity Monitor, Calculator, etc. from appearing as "file" category
             if path.hasSuffix(".app") { continue }
@@ -316,7 +316,7 @@ extension FileSearchService {
             if results.count >= maxResults { break }
 
             if isPathInHiddenDirectory(path) { continue }
-            
+
             // Skip .app bundles - they're handled by app search, not file search
             // This prevents Activity Monitor, Calculator, etc. from appearing as "file" category
             if path.hasSuffix(".app") { continue }

@@ -25,7 +25,9 @@ enum LLMToolCatalog {
         }
 
         // Calendar event
-        if lower.contains("meeting") || lower.contains("event") || lower.contains("calendar") || lower.contains("schedule") {
+        if lower.contains("meeting") || lower.contains("event") || lower.contains("calendar") || lower
+            .contains("schedule")
+        {
             return LLMToolCall.createCalendarEvent(
                 title: inferEventTitle(from: input) ?? "Event",
                 date: inferDate(from: input),
@@ -87,7 +89,8 @@ enum LLMToolCatalog {
 
         case "find_files":
             guard let query = (fields["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !query.isEmpty else {
+                  !query.isEmpty
+            else {
                 return nil
             }
             return LLMToolCall.findFiles(
@@ -113,8 +116,9 @@ enum LLMToolCatalog {
             let toUnit = (fields["to_unit"] as? String)?.lowercased()
             let category = fields["category"] as? String
 
-            if let value = value, let fromUnit = fromUnit, !fromUnit.isEmpty,
-               let toUnit = toUnit, !toUnit.isEmpty {
+            if let value, let fromUnit, !fromUnit.isEmpty,
+               let toUnit, !toUnit.isEmpty
+            {
                 return LLMToolCall.convertUnits(
                     value: value,
                     fromUnit: fromUnit,
@@ -143,7 +147,7 @@ enum LLMToolCatalog {
             let sourceLanguage = fields["source_language"] as? String
 
             // If we have the required fields, use them
-            if !text.isEmpty && !targetLanguage.isEmpty {
+            if !text.isEmpty, !targetLanguage.isEmpty {
                 return LLMToolCall.translate(
                     text: text,
                     targetLanguage: TranslationService.normalizeLanguage(targetLanguage),
@@ -174,13 +178,13 @@ enum LLMToolCatalog {
     static func describe(_ toolCall: LLMToolCall) -> String {
         switch toolCall.parameters {
         case .createCalendarEvent(let params):
-            return "create_calendar_event(title: \(params.title), date: \(params.date ?? "nil"), time: \(params.time ?? "nil"))"
+            "create_calendar_event(title: \(params.title), date: \(params.date ?? "nil"), time: \(params.time ?? "nil"))"
         case .findFiles(let params):
-            return "find_files(query: \(params.query), extension: \(params.fileExtension ?? "nil"))"
+            "find_files(query: \(params.query), extension: \(params.fileExtension ?? "nil"))"
         case .convertUnits(let params):
-            return "convert_units(\(params.value) \(params.fromUnit) -> \(params.toUnit))"
+            "convert_units(\(params.value) \(params.fromUnit) -> \(params.toUnit))"
         case .translate(let params):
-            return "translate(text: \(params.text), sourceLanguage: \(params.sourceLanguage ?? "auto-detect"), targetLanguage: \(params.targetLanguage))"
+            "translate(text: \(params.text), sourceLanguage: \(params.sourceLanguage ?? "auto-detect"), targetLanguage: \(params.targetLanguage))"
         }
     }
 
@@ -190,14 +194,15 @@ enum LLMToolCatalog {
         let lower = input.lowercased()
         var text = ""
         var sourceLanguage: String?
-        var targetLanguage = "en"  // Default to English
+        var targetLanguage = "en" // Default to English
 
         // Pattern: "translate X from Y to Z"
         let fromToPattern = #"translate\s+(.+?)\s+from\s+(\w+)\s+to\s+(\w+)"#
         if firstRegexMatch(in: lower, pattern: fromToPattern, captureGroup: 0) != nil,
            let textMatch = firstRegexMatch(in: lower, pattern: fromToPattern, captureGroup: 1),
            let sourceMatch = firstRegexMatch(in: lower, pattern: fromToPattern, captureGroup: 2),
-           let targetMatch = firstRegexMatch(in: lower, pattern: fromToPattern, captureGroup: 3) {
+           let targetMatch = firstRegexMatch(in: lower, pattern: fromToPattern, captureGroup: 3)
+        {
             text = textMatch
             sourceLanguage = TranslationService.normalizeLanguage(sourceMatch)
             targetLanguage = TranslationService.normalizeLanguage(targetMatch)
@@ -208,14 +213,19 @@ enum LLMToolCatalog {
         let toPattern = #"translate\s+(.+?)\s+to\s+(\w+)"#
         if firstRegexMatch(in: lower, pattern: toPattern, captureGroup: 0) != nil,
            let textMatch = firstRegexMatch(in: lower, pattern: toPattern, captureGroup: 1),
-           let targetMatch = firstRegexMatch(in: lower, pattern: toPattern, captureGroup: 2) {
+           let targetMatch = firstRegexMatch(in: lower, pattern: toPattern, captureGroup: 2)
+        {
             text = textMatch
             targetLanguage = TranslationService.normalizeLanguage(targetMatch)
             return TranslationParams(text: text, targetLanguage: targetLanguage, sourceLanguage: nil)
         }
 
         // Fallback: just extract what we can
-        return TranslationParams(text: text.isEmpty ? input : text, targetLanguage: targetLanguage, sourceLanguage: sourceLanguage)
+        return TranslationParams(
+            text: text.isEmpty ? input : text,
+            targetLanguage: targetLanguage,
+            sourceLanguage: sourceLanguage
+        )
     }
 
     // MARK: - Calendar Event Inference
@@ -228,7 +238,10 @@ enum LLMToolCatalog {
     }
 
     private static func inferContact(from input: String) -> String? {
-        firstRegexMatch(in: input, pattern: #"(?i)\bwith\s+([A-Za-z][A-Za-z0-9 _'-]{0,40}?)(?=\s+(at|in|on|tomorrow|today|tonight|morning|afternoon|evening)\b|$)"#)
+        firstRegexMatch(
+            in: input,
+            pattern: #"(?i)\bwith\s+([A-Za-z][A-Za-z0-9 _'-]{0,40}?)(?=\s+(at|in|on|tomorrow|today|tonight|morning|afternoon|evening)\b|$)"#
+        )
     }
 
     private static func inferDate(from input: String) -> String? {
@@ -240,7 +253,11 @@ enum LLMToolCatalog {
     }
 
     private static func inferTime(from input: String) -> String? {
-        if let explicit = firstRegexMatch(in: input, pattern: #"(?i)\b(at\s+)?([0-1]?\d(:[0-5]\d)?\s?(am|pm))\b"#, captureGroup: 2) {
+        if let explicit = firstRegexMatch(
+            in: input,
+            pattern: #"(?i)\b(at\s+)?([0-1]?\d(:[0-5]\d)?\s?(am|pm))\b"#,
+            captureGroup: 2
+        ) {
             return explicit
         }
         let lower = input.lowercased()
@@ -252,10 +269,16 @@ enum LLMToolCatalog {
     }
 
     private static func inferLocation(from input: String) -> String? {
-        if let inLocation = firstRegexMatch(in: input, pattern: #"(?i)\bin\s+(?:the\s+)?([A-Za-z0-9][A-Za-z0-9 _'-]{1,60})\b"#) {
+        if let inLocation = firstRegexMatch(
+            in: input,
+            pattern: #"(?i)\bin\s+(?:the\s+)?([A-Za-z0-9][A-Za-z0-9 _'-]{1,60})\b"#
+        ) {
             return inLocation
         }
-        let raw = firstRegexMatch(in: input, pattern: #"(?i)\bat\s+(?:the\s+)?([A-Za-z][A-Za-z0-9 _'-]{1,60}?)(?=\s*$|\s+on\b|\s+tomorrow\b|\s+today\b|\s+tonight\b|\s+at\s+[0-1]?\d(:[0-5]\d)?\s?(am|pm)\b)"#)
+        let raw = firstRegexMatch(
+            in: input,
+            pattern: #"(?i)\bat\s+(?:the\s+)?([A-Za-z][A-Za-z0-9 _'-]{1,60}?)(?=\s*$|\s+on\b|\s+tomorrow\b|\s+today\b|\s+tonight\b|\s+at\s+[0-1]?\d(:[0-5]\d)?\s?(am|pm)\b)"#
+        )
         return sanitizeLocation(raw)
     }
 
@@ -274,21 +297,30 @@ enum LLMToolCatalog {
                 return max(1, hoursSinceStartOfToday())
             }
             if let hoursText = firstRegexMatch(in: lower, pattern: #"\b(?:last|past)\s+(\d+)\s+hours?\b"#),
-               let hours = Int(hoursText) {
+               let hours = Int(hoursText)
+            {
                 return max(1, hours)
             }
             if let hoursText = firstRegexMatch(in: lower, pattern: #"\b(\d+)\s+hours?\s+ago\b"#),
-               let hours = Int(hoursText) {
+               let hours = Int(hoursText)
+            {
                 return max(1, hours)
             }
-            if lower.contains("last hour") || lower.contains("past hour") || lower.contains("an hour ago") || lower.contains("1 hour ago") {
+            if lower.contains("last hour") || lower.contains("past hour") || lower.contains("an hour ago") || lower
+                .contains("1 hour ago")
+            {
                 return 1
             }
             return nil
         }()
 
         let query = inferFileQuery(from: input, fileExtension: fileExtension)
-        return FindFilesParams(query: query, searchInContent: lower.contains("content"), fileExtension: fileExtension, modifiedWithin: modifiedWithin)
+        return FindFilesParams(
+            query: query,
+            searchInContent: lower.contains("content"),
+            fileExtension: fileExtension,
+            modifiedWithin: modifiedWithin
+        )
     }
 
     private static func inferFileQuery(from input: String, fileExtension: String?) -> String {
@@ -319,9 +351,9 @@ enum LLMToolCatalog {
 
     private static func normalizedFileExtension(_ ext: String) -> String {
         switch ext.lowercased() {
-        case "markdown": return "md"
-        case "jpeg": return "jpg"
-        default: return ext.lowercased()
+        case "markdown": "md"
+        case "jpeg": "jpg"
+        default: ext.lowercased()
         }
     }
 
@@ -338,27 +370,37 @@ enum LLMToolCatalog {
     private static func isKnownUnit(_ unit: String) -> Bool {
         let knownUnits: Set<String> = [
             // Length
-            "km", "m", "cm", "mm", "mi", "mile", "miles", "ft", "foot", "feet", "yd", "yard", "yards", "in", "inch", "inches", "meter", "meters", "kilometer", "kilometers", "centimeter", "centimeters", "millimeter", "millimeters",
+            "km", "m", "cm", "mm", "mi", "mile", "miles", "ft", "foot", "feet", "yd", "yard", "yards", "in", "inch",
+            "inches",
+            "meter", "meters", "kilometer", "kilometers", "centimeter", "centimeters", "millimeter", "millimeters",
             // Weight
-            "kg", "g", "mg", "lb", "lbs", "pound", "pounds", "oz", "ounce", "ounces", "kilogram", "kilograms", "gram", "grams",
+            "kg", "g", "mg", "lb", "lbs", "pound", "pounds", "oz", "ounce", "ounces", "kilogram", "kilograms", "gram",
+            "grams",
             // Temperature
             "c", "f", "k", "celsius", "fahrenheit", "kelvin", "centigrade",
             // Volume
-            "l", "ml", "gal", "gallon", "gallons", "qt", "quart", "quarts", "pt", "pint", "cup", "cups", "floz", "liter", "liters", "litre", "litres", "milliliter", "milliliters",
+            "l", "ml", "gal", "gallon", "gallons", "qt", "quart", "quarts", "pt", "pint", "cup", "cups", "floz",
+            "liter",
+            "liters", "litre", "litres", "milliliter", "milliliters",
             // Area
             "sqm", "sqft", "sqyd", "acre", "acres", "ha", "hectare", "hectares", "sqkm", "sq m", "sq ft", "sq yd",
             // Speed
             "km/h", "kmh", "kph", "mph", "m/s", "fps", "knot", "knots",
             // Time
-            "s", "sec", "second", "seconds", "min", "minute", "minutes", "h", "hr", "hour", "hours", "day", "days", "week", "weeks", "year", "years",
+            "s", "sec", "second", "seconds", "min", "minute", "minutes", "h", "hr", "hour", "hours", "day", "days",
+            "week",
+            "weeks", "year", "years",
             // Data
-            "b", "kb", "mb", "gb", "tb", "byte", "bytes", "kilobyte", "kilobytes", "megabyte", "megabytes", "gigabyte", "gigabytes", "terabyte", "terabytes"
+            "b", "kb", "mb", "gb", "tb", "byte", "bytes", "kilobyte", "kilobytes", "megabyte", "megabytes", "gigabyte",
+            "gigabytes", "terabyte", "terabytes",
         ]
         return knownUnits.contains(unit.lowercased())
     }
 
     /// Infer unit conversion parameters from natural language input
-    private static func inferUnitConversionParams(from input: String) -> (value: Double, fromUnit: String, toUnit: String, category: String?)? {
+    private static func inferUnitConversionParams(from input: String)
+        -> (value: Double, fromUnit: String, toUnit: String, category: String?)?
+    {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Pattern: "convert X unit1 to unit2" or "X unit1 to unit2" or "how many unit2 in X unit1"
@@ -373,14 +415,14 @@ enum LLMToolCatalog {
 
         for (pattern, isHowMany) in patterns {
             guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
-            let range = NSRange(trimmed.startIndex ..< trimmed.endIndex, in: trimmed)
+            let range = NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)
 
             if let match = regex.firstMatch(in: trimmed, options: [], range: range),
                match.numberOfRanges >= 4,
                let group1Range = Range(match.range(at: 1), in: trimmed),
                let group2Range = Range(match.range(at: 2), in: trimmed),
-               let group3Range = Range(match.range(at: 3), in: trimmed) {
-
+               let group3Range = Range(match.range(at: 3), in: trimmed)
+            {
                 if isHowMany {
                     // Pattern: "how many miles in 100 km"
                     // group1=toUnit (miles), group2=value (100), group3=fromUnit (km)
@@ -420,14 +462,121 @@ enum LLMToolCatalog {
     private static func inferUnitCategory(from: String, to: String) -> String? {
         // Known unit categories and their abbreviations
         let categories: [String: Set<String>] = [
-            "length": ["km", "m", "cm", "mm", "mi", "mile", "miles", "ft", "foot", "feet", "yd", "yard", "yards", "in", "inch", "inches", "meter", "meters", "kilometer", "kilometers", "centimeter", "centimeters", "millimeter", "millimeters"],
-            "weight": ["kg", "g", "mg", "lb", "lbs", "pound", "pounds", "oz", "ounce", "ounces", "kilogram", "kilograms", "gram", "grams"],
+            "length": [
+                "km",
+                "m",
+                "cm",
+                "mm",
+                "mi",
+                "mile",
+                "miles",
+                "ft",
+                "foot",
+                "feet",
+                "yd",
+                "yard",
+                "yards",
+                "in",
+                "inch",
+                "inches",
+                "meter",
+                "meters",
+                "kilometer",
+                "kilometers",
+                "centimeter",
+                "centimeters",
+                "millimeter",
+                "millimeters",
+            ],
+            "weight": [
+                "kg",
+                "g",
+                "mg",
+                "lb",
+                "lbs",
+                "pound",
+                "pounds",
+                "oz",
+                "ounce",
+                "ounces",
+                "kilogram",
+                "kilograms",
+                "gram",
+                "grams",
+            ],
             "temperature": ["c", "f", "k", "celsius", "fahrenheit", "kelvin", "centigrade"],
-            "volume": ["l", "ml", "gal", "gallon", "gallons", "qt", "quart", "quarts", "pt", "pint", "cup", "cups", "floz", "liter", "liters", "litre", "litres", "milliliter", "milliliters"],
-            "area": ["sqm", "sqft", "sqyd", "acre", "acres", "ha", "hectare", "hectares", "sqkm", "sq m", "sq ft", "sq yd"],
+            "volume": [
+                "l",
+                "ml",
+                "gal",
+                "gallon",
+                "gallons",
+                "qt",
+                "quart",
+                "quarts",
+                "pt",
+                "pint",
+                "cup",
+                "cups",
+                "floz",
+                "liter",
+                "liters",
+                "litre",
+                "litres",
+                "milliliter",
+                "milliliters",
+            ],
+            "area": [
+                "sqm",
+                "sqft",
+                "sqyd",
+                "acre",
+                "acres",
+                "ha",
+                "hectare",
+                "hectares",
+                "sqkm",
+                "sq m",
+                "sq ft",
+                "sq yd",
+            ],
             "speed": ["km/h", "kmh", "kph", "mph", "m/s", "fps", "knot", "knots"],
-            "time": ["s", "sec", "second", "seconds", "min", "minute", "minutes", "h", "hr", "hour", "hours", "day", "days", "week", "weeks", "year", "years"],
-            "data": ["b", "kb", "mb", "gb", "tb", "byte", "bytes", "kilobyte", "kilobytes", "megabyte", "megabytes", "gigabyte", "gigabytes", "terabyte", "terabytes"]
+            "time": [
+                "s",
+                "sec",
+                "second",
+                "seconds",
+                "min",
+                "minute",
+                "minutes",
+                "h",
+                "hr",
+                "hour",
+                "hours",
+                "day",
+                "days",
+                "week",
+                "weeks",
+                "year",
+                "years",
+            ],
+            "data": [
+                "b",
+                "kb",
+                "mb",
+                "gb",
+                "tb",
+                "byte",
+                "bytes",
+                "kilobyte",
+                "kilobytes",
+                "megabyte",
+                "megabytes",
+                "gigabyte",
+                "gigabytes",
+                "terabyte",
+                "terabytes",
+            ],
         ]
 
         let fromLower = from.lowercased()
@@ -456,10 +605,11 @@ enum LLMToolCatalog {
 
     private static func firstRegexMatch(in text: String, pattern: String, captureGroup: Int = 1) -> String? {
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
-        let range = NSRange(text.startIndex ..< text.endIndex, in: text)
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
         guard let match = regex.firstMatch(in: text, options: [], range: range),
               match.numberOfRanges > captureGroup,
-              let capturedRange = Range(match.range(at: captureGroup), in: text) else {
+              let capturedRange = Range(match.range(at: captureGroup), in: text)
+        else {
             return nil
         }
         let value = String(text[capturedRange]).trimmingCharacters(in: .whitespacesAndNewlines)

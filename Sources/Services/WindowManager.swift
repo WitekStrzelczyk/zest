@@ -410,7 +410,8 @@ final class WindowManager {
 
         // Also check by comparing window frame to screen frame
         if let windowFrame = getWindowFrame(window),
-           let screen = getScreenForWindow(window) {
+           let screen = getScreenForWindow(window)
+        {
             // If window frame matches screen frame closely, it's likely full-screen
             let tolerance: CGFloat = 5
             return abs(windowFrame.width - screen.frame.width) < tolerance &&

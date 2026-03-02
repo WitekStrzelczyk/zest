@@ -58,7 +58,7 @@ final class FocusModeService {
     /// Turn off all focus modes
     func turnOffAllFocusModes() -> Bool {
         // Use shortcuts command to turn off focus mode
-        return runShortcutsCommand(focusMode: "Off")
+        runShortcutsCommand(focusMode: "Off")
     }
 
     /// Get current focus status

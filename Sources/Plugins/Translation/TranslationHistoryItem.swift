@@ -17,12 +17,12 @@ struct TranslationHistoryItem: Identifiable, Codable, Equatable {
         sourceLanguage: String,
         targetLanguage: String
     ) {
-        self.id = UUID()
+        id = UUID()
         self.originalQuery = originalQuery
         self.sourceText = sourceText
         self.translatedText = translatedText
         self.sourceLanguage = sourceLanguage
         self.targetLanguage = targetLanguage
-        self.timestamp = Date()
+        timestamp = Date()
     }
 }

@@ -14,7 +14,7 @@ final class AwakeService {
     private var currentAssertionType: String = ""
 
     private(set) var currentMode: AwakeMode = .disabled
-    
+
     /// Whether the system is currently caffeinated (by any app including Zest)
     private(set) var isSystemCaffeinated: Bool = false
 
@@ -27,23 +27,23 @@ final class AwakeService {
     deinit {
         disable()
     }
-    
+
     // MARK: - System Caffeination Detection
-    
+
     /// Check if system is currently caffeinated (sleep prevented by any app)
     func checkSystemCaffeination() {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/pmset")
         process.arguments = ["-g"]
-        
+
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe
-        
+
         do {
             try process.run()
             process.waitUntilExit()
-            
+
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8) {
                 // Check if "sleep prevented by" appears in output
@@ -57,15 +57,15 @@ final class AwakeService {
             isSystemCaffeinated = false
         }
     }
-    
+
     /// Apply saved preference on app launch
     /// - If system is already caffeinated, respect that state and show in UI
     /// - If system is NOT caffeinated, apply user's saved preference
     func applySavedPreference() {
         checkSystemCaffeination()
-        
+
         print("=== AwakeService: isSystemCaffeinated = \(isSystemCaffeinated) ===")
-        
+
         if isSystemCaffeinated {
             // System is already caffeinated - set our internal state to match saved preference
             // This ensures UI shows the correct green indicator
@@ -90,7 +90,7 @@ final class AwakeService {
             }
         }
     }
-    
+
     /// Enable mode without creating IOPMAssertion (used when system is already caffeinated externally)
     private func enableWithoutAssertion(mode: AwakeMode) {
         currentMode = mode
@@ -157,7 +157,7 @@ final class AwakeService {
             currentAssertionID = assertionID
             currentAssertionType = assertionType
             currentMode = mode
-            
+
             // Save preference
             PreferencesManager.shared.savedAwakeMode = mode
         } else {
@@ -175,7 +175,7 @@ final class AwakeService {
             currentAssertionID = 0
             currentAssertionType = ""
             currentMode = .disabled
-            
+
             // Save preference
             PreferencesManager.shared.savedAwakeMode = .disabled
         } else {

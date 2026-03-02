@@ -49,7 +49,7 @@ final class SearchResultScoring {
         var score = calculateFuzzyScore(query: lowercasedQuery, target: lowercasedTitle)
 
         // If fuzzy didn't match all characters, check substring contains
-        if score == 0 && lowercasedTitle.contains(lowercasedQuery) {
+        if score == 0, lowercasedTitle.contains(lowercasedQuery) {
             score = 30 // Low score for middle-of-word substring
         }
 
@@ -61,7 +61,7 @@ final class SearchResultScoring {
                 score = max(subtitleScore - 100, score)
             }
         }
-        
+
         // Also check category name if provided
         if let category, score < 700 {
             let categoryScore = scoreResult(query: query, title: category.displayName)
@@ -85,41 +85,41 @@ final class SearchResultScoring {
 
         return nil
     }
-    
+
     /// Calculate fuzzy score with gap penalties
     /// Key principle: consecutive matches score MUCH higher than matches with gaps
     private func calculateFuzzyScore(query: String, target: String) -> Int {
         guard !query.isEmpty else { return 0 }
-        
+
         // Find all match positions
         var matchPositions: [Int] = []
         var queryIndex = query.startIndex
         var targetIndex = target.startIndex
-        
-        while queryIndex < query.endIndex && targetIndex < target.endIndex {
+
+        while queryIndex < query.endIndex, targetIndex < target.endIndex {
             if query[queryIndex] == target[targetIndex] {
                 matchPositions.append(target.distance(from: target.startIndex, to: targetIndex))
                 queryIndex = query.index(after: queryIndex)
             }
             targetIndex = target.index(after: targetIndex)
         }
-        
+
         // All characters must be matched
         guard matchPositions.count == query.count else { return 0 }
-        
+
         // Calculate score based on match quality
         var score = 0.0
-        
+
         // 1. Base score for matching all characters
         score += 100
-        
+
         // 2. Calculate gap penalties
         var totalGapPenalty = 0.0
         var consecutiveBonus = 0.0
-        
+
         for i in 1..<matchPositions.count {
             let gap = matchPositions[i] - matchPositions[i - 1]
-            
+
             if gap == 1 {
                 // Consecutive match - big bonus!
                 consecutiveBonus += 20
@@ -130,15 +130,15 @@ final class SearchResultScoring {
                 totalGapPenalty += gapPenalty
             }
         }
-        
+
         score += consecutiveBonus
         score -= totalGapPenalty
-        
+
         // 3. Bonus for early position (first match close to start)
         let firstMatchPosition = matchPositions.first ?? 0
         let earlyPositionBonus = max(0, 50 - firstMatchPosition * 2)
         score += Double(earlyPositionBonus)
-        
+
         // 4. Bonus for word boundary matches
         var wordBoundaryBonus = 0.0
         for position in matchPositions {
@@ -153,7 +153,7 @@ final class SearchResultScoring {
             }
         }
         score += wordBoundaryBonus
-        
+
         // Ensure score is positive and within bounds
         return max(0, min(500, Int(score)))
     }

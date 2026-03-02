@@ -18,11 +18,11 @@ enum KillResult: Equatable {
 
     static func == (lhs: KillResult, rhs: KillResult) -> Bool {
         switch (lhs, rhs) {
-        case (.sigtermSent, .sigtermSent): return true
-        case (.sigkillSent, .sigkillSent): return true
-        case (.success, .success): return true
-        case (.failed, .failed): return true
-        default: return false
+        case (.sigtermSent, .sigtermSent): true
+        case (.sigkillSent, .sigkillSent): true
+        case (.success, .success): true
+        case (.failed, .failed): true
+        default: false
         }
     }
 }
@@ -91,7 +91,7 @@ struct RunningProcess: Identifiable, Equatable {
         isUserApp: Bool,
         attemptedKill: Bool = false
     ) {
-        self.id = UUID()
+        id = UUID()
         self.name = name
         self.pid = pid
         self.memoryBytes = memoryBytes
@@ -117,9 +117,9 @@ struct RunningProcess: Identifiable, Equatable {
     /// Formats CPU as percentage (e.g., "5%", "12.3%")
     var cpuFormatted: String {
         if cpuPercent == floor(cpuPercent) {
-            return String(format: "%.0f%%", cpuPercent)
+            String(format: "%.0f%%", cpuPercent)
         } else {
-            return String(format: "%.1f%%", cpuPercent)
+            String(format: "%.1f%%", cpuPercent)
         }
     }
 
@@ -159,7 +159,7 @@ final class ProcessSearchService {
 
         // Get list of all PIDs using sysctl
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0]
-        var size: Int = 0
+        var size = 0
 
         guard sysctl(&mib, UInt32(mib.count), nil, &size, nil, 0) == 0 else {
             logger.error("Failed to get process list size")
@@ -178,7 +178,7 @@ final class ProcessSearchService {
 
         // Get running applications from NSWorkspace for user app info
         let runningApps = NSWorkspace.shared.runningApplications
-        let runningAppPIDs = Set(runningApps.map { $0.processIdentifier })
+        let runningAppPIDs = Set(runningApps.map(\.processIdentifier))
 
         // Process each entry
         for i in 0..<actualCount {
@@ -218,7 +218,7 @@ final class ProcessSearchService {
         }
 
         var memoryBytes: UInt64 = 0
-        var cpuPercent: Double = 0.0
+        var cpuPercent = 0.0
 
         if result == taskInfoSize {
             // pti_resident_size is in bytes
@@ -283,7 +283,7 @@ final class ProcessSearchService {
             let nameWithoutExtension = lowercaseName.replacingOccurrences(of: ".app", with: "")
 
             return lowercaseName.contains(lowercaseQuery) ||
-                   nameWithoutExtension.contains(lowercaseQuery)
+                nameWithoutExtension.contains(lowercaseQuery)
         }
 
         // Sort by CPU descending and limit
@@ -348,7 +348,7 @@ final class ProcessSearchService {
         "configd",
         "SystemUIServer",
         "Finder",
-        "Dock"
+        "Dock",
     ]
 
     /// Checks if a process is a critical system process
@@ -359,7 +359,7 @@ final class ProcessSearchService {
     static func isSystemProcess(name: String, pid: pid_t) -> Bool {
         // PID 0 is always kernel_task
         if pid == 0 { return true }
-        
+
         // Check against known system process names
         return systemProcessNames.contains(name)
     }
@@ -370,7 +370,7 @@ final class ProcessSearchService {
     static func forceQuitProcess(pid: pid_t) -> Bool {
         // Send SIGKILL to the process
         let result = kill(pid, SIGKILL)
-        
+
         if result == 0 {
             return true
         } else {
@@ -413,7 +413,7 @@ final class ProcessSearchService {
             } else {
                 // Failed to kill
                 let error = NSError(domain: NSPOSIXErrorDomain, code: Int(errno), userInfo: [
-                    NSLocalizedDescriptionKey: "Failed to send SIGKILL to process \(pid)"
+                    NSLocalizedDescriptionKey: "Failed to send SIGKILL to process \(pid)",
                 ])
                 return .failed(error)
             }
@@ -427,7 +427,7 @@ final class ProcessSearchService {
             } else {
                 // Failed to send SIGTERM
                 let error = NSError(domain: NSPOSIXErrorDomain, code: Int(errno), userInfo: [
-                    NSLocalizedDescriptionKey: "Failed to send SIGTERM to process \(pid)"
+                    NSLocalizedDescriptionKey: "Failed to send SIGTERM to process \(pid)",
                 ])
                 return .failed(error)
             }
@@ -457,7 +457,7 @@ final class ProcessSearchService {
             alert.messageText = "Force Kill \(process.name)?"
             alert.informativeText = """
             \(process.name) is a system process that has already received a termination request.
-            
+
             Force killing it may cause system instability. Are you sure you want to continue?
             """
         } else {

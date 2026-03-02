@@ -69,7 +69,7 @@ final class SchedulerService: @unchecked Sendable {
         }
 
         // Schedule periodic checks on main thread
-        let interval = self.checkInterval
+        let interval = checkInterval
         DispatchQueue.main.async { [weak self] in
             self?.timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
                 Task {
@@ -190,6 +190,6 @@ extension SchedulerService {
 
     /// Common task IDs
     enum TaskID {
-        public static let calendarCacheRefresh = "calendar-cache-refresh"
+        static let calendarCacheRefresh = "calendar-cache-refresh"
     }
 }

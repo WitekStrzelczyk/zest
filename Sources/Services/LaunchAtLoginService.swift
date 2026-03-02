@@ -1,11 +1,11 @@
 import Foundation
-import ServiceManagement
 import OSLog
+import ServiceManagement
 
 /// Service for managing launch at login functionality
 final class LaunchAtLoginService {
     static let shared: LaunchAtLoginService = .init()
-    
+
     private let logger = Logger(subsystem: "com.zestapp.launchAtLogin", category: "Service")
 
     private init() {}

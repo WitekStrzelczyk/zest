@@ -22,7 +22,7 @@ final class ColorPickerService: @unchecked Sendable {
                 completion(nil)
                 return
             }
-            let info = self.getColorInfo(color)
+            let info = getColorInfo(color)
             completion(info)
         }
     }

@@ -14,7 +14,7 @@ final class Calculator {
         let hasOperator = operators.contains { trimmed.contains($0) }
 
         // Must not contain letters (except for function names)
-        let letters = trimmed.filter { $0.isLetter }
+        let letters = trimmed.filter(\.isLetter)
         let validFunctions = ["sqrt", "sin", "cos", "tan", "pi", "e"]
         let hasOnlyValidLetters = validFunctions.contains { letters.lowercased().contains($0) } || letters.isEmpty
 
@@ -30,7 +30,7 @@ final class Calculator {
         // These have the pattern: <number> <unit> to <unit>
         let conversionIndicators = ["to ", " in ", "->"]
         let hasConversionIndicator = conversionIndicators.contains { trimmed.lowercased().contains($0) }
-        
+
         // If it looks like a conversion, it's not a math expression
         if hasConversionIndicator {
             return false

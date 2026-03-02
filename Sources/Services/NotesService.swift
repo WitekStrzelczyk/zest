@@ -129,7 +129,9 @@ final class NotesService {
         let script = """
         tell application "Notes"
             tell account "iCloud"
-                set newNote to make new note at folder "Notes" with properties {name:"\(escapedTitle)", body:"\(escapedContent)"}
+                set newNote to make new note at folder "Notes" with properties {name:"\(escapedTitle)", body:"\(
+                    escapedContent
+                )"}
                 return id of newNote
             end tell
         end tell

@@ -48,7 +48,7 @@ final class CommandPaletteController {
         llmTask = Task { [weak self] in
             guard let self else { return }
             try? await Task.sleep(nanoseconds: llmDebounceNanoseconds)
-            guard !Task.isCancelled, self.currentQuery == originalQuery else { return }
+            guard !Task.isCancelled, currentQuery == originalQuery else { return }
             print("🧠 Calling parseWithLLM with: \(normalizedQuery)")
             guard let toolCall = await LLMToolCallingService.shared.parseWithLLM(input: normalizedQuery) else {
                 print("🧠 No toolCall returned from LLM")
@@ -70,17 +70,19 @@ final class CommandPaletteController {
             let baseResults: [SearchResult]
             switch toolCall.parameters {
             case .findFiles(let params):
-                print("🧠 LLM find_files intent: query='\(params.query)' ext='\(params.fileExtension ?? "nil")' modifiedWithin='\(params.modifiedWithin.map(String.init) ?? "nil")'")
+                print(
+                    "🧠 LLM find_files intent: query='\(params.query)' ext='\(params.fileExtension ?? "nil")' modifiedWithin='\(params.modifiedWithin.map(String.init) ?? "nil")'"
+                )
                 let rawIntentResults = await Task.detached(priority: .utility) {
                     CommandPaletteController.searchFilesFromIntent(params)
                 }.value
                 baseResults = prioritizeIntentFileResults(rawIntentResults)
             case .createCalendarEvent(let params):
-                baseResults = [self.syntheticCalendarResult(params: params)]
+                baseResults = [syntheticCalendarResult(params: params)]
             case .convertUnits(let params):
-                baseResults = [self.syntheticUnitConversionResult(params: params)]
+                baseResults = [syntheticUnitConversionResult(params: params)]
             case .translate(let params):
-                baseResults = await self.syntheticTranslationResult(params: params)
+                baseResults = await syntheticTranslationResult(params: params)
             }
 
             let intentResults = enrichResults(baseResults: baseResults, intent: toolCall)
@@ -101,21 +103,21 @@ final class CommandPaletteController {
         fileSearchTask = Task { [weak self] in
             guard let self else { return }
             try? await Task.sleep(nanoseconds: 100_000_000)
-            guard !Task.isCancelled, self.currentQuery == query else { return }
+            guard !Task.isCancelled, currentQuery == query else { return }
 
             let fileResults = await Task.detached(priority: .utility) {
                 SearchEngine.shared.searchFiles(query: query)
             }.value
 
-            guard self.currentQuery == query else { return }
+            guard currentQuery == query else { return }
 
-            let combined = self.mergeAndRank(base: fastResults, extras: fileResults, limit: self.maxDisplayedResults)
-            self.baseResults = combined
-            self.publishMergedResults()
+            let combined = mergeAndRank(base: fastResults, extras: fileResults, limit: maxDisplayedResults)
+            baseResults = combined
+            publishMergedResults()
         }
     }
 
-    nonisolated private static func searchFilesFromIntent(_ params: FindFilesParams) -> [SearchResult] {
+    private nonisolated static func searchFilesFromIntent(_ params: FindFilesParams) -> [SearchResult] {
         print("🧠 File intent search started")
         var results: [SearchResult]
 
@@ -152,13 +154,17 @@ final class CommandPaletteController {
         return results
     }
 
-    nonisolated private static func fileModificationDate(for path: String?) -> Date {
+    private nonisolated static func fileModificationDate(for path: String?) -> Date {
         guard let path else { return .distantPast }
         let attrs = try? FileManager.default.attributesOfItem(atPath: path)
         return (attrs?[.modificationDate] as? Date) ?? .distantPast
     }
 
-    nonisolated private static func recentFileResults(modifiedWithin hours: Int, fileExtension: String?, maxResults: Int) -> [SearchResult] {
+    private nonisolated static func recentFileResults(
+        modifiedWithin hours: Int,
+        fileExtension: String?,
+        maxResults: Int
+    ) -> [SearchResult] {
         var predicate: String
         if hours >= 24 {
             let days = max(1, hours / 24)
@@ -218,7 +224,11 @@ final class CommandPaletteController {
         return fallbackRecentFileScan(modifiedWithin: hours, fileExtension: fileExtension, maxResults: maxResults)
     }
 
-    nonisolated private static func fallbackRecentFileScan(modifiedWithin hours: Int, fileExtension: String?, maxResults: Int) -> [SearchResult] {
+    private nonisolated static func fallbackRecentFileScan(
+        modifiedWithin hours: Int,
+        fileExtension: String?,
+        maxResults: Int
+    ) -> [SearchResult] {
         let fm = FileManager.default
         let cutoff = Date().addingTimeInterval(-Double(hours) * 3600)
         let home = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
@@ -226,7 +236,7 @@ final class CommandPaletteController {
 
         var collected: [(path: String, modified: Date)] = []
         var visited = 0
-        let maxVisited = 50_000
+        let maxVisited = 50000
         let keys: Set<URLResourceKey> = [.isRegularFileKey, .contentModificationDateKey, .isHiddenKey]
 
         guard let enumerator = fm.enumerator(
@@ -311,7 +321,7 @@ final class CommandPaletteController {
                 action: result.action,
                 revealAction: result.revealAction,
                 filePath: result.filePath,
-                score: 10_000 - index,
+                score: 10000 - index,
                 isActive: result.isActive,
                 tintColor: result.tintColor,
                 trailingIcon: result.trailingIcon,
@@ -402,13 +412,13 @@ final class CommandPaletteController {
                 confidence: 0.9
             )
         )
-        
+
         switch result {
         case .success(let executionResult):
             // Show the translated text as the main result
             let translatedText = executionResult.message
             let sourceLang = params.sourceLanguage ?? "auto"
-            
+
             return [SearchResult(
                 title: translatedText,
                 subtitle: "Translated from \(sourceLang) to \(params.targetLanguage.uppercased()) • Click to copy",
@@ -454,7 +464,8 @@ final class CommandPaletteController {
                     icon: NSImage(systemSymbolName: "map", accessibilityDescription: "Maps"),
                     category: .action,
                     action: {
-                        let encoded = location.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? location
+                        let encoded = location
+                            .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? location
                         if let url = URL(string: "maps://?q=\(encoded)") {
                             NSWorkspace.shared.open(url)
                         }
@@ -479,13 +490,13 @@ final class CommandPaletteController {
     private func describe(_ toolCall: LLMToolCall) -> String {
         switch toolCall.parameters {
         case .createCalendarEvent(let params):
-            return "create_calendar_event(title: \(params.title), date: \(params.date ?? "nil"), time: \(params.time ?? "nil"), location: \(params.location ?? "nil"), contact: \(params.contact ?? "nil"), confidence: \(toolCall.confidence))"
+            "create_calendar_event(title: \(params.title), date: \(params.date ?? "nil"), time: \(params.time ?? "nil"), location: \(params.location ?? "nil"), contact: \(params.contact ?? "nil"), confidence: \(toolCall.confidence))"
         case .findFiles(let params):
-            return "find_files(query: \(params.query), searchInContent: \(params.searchInContent), fileExtension: \(params.fileExtension ?? "nil"), modifiedWithin: \(params.modifiedWithin.map(String.init) ?? "nil"), confidence: \(toolCall.confidence))"
+            "find_files(query: \(params.query), searchInContent: \(params.searchInContent), fileExtension: \(params.fileExtension ?? "nil"), modifiedWithin: \(params.modifiedWithin.map(String.init) ?? "nil"), confidence: \(toolCall.confidence))"
         case .convertUnits(let params):
-            return "convert_units(value: \(params.value), fromUnit: \(params.fromUnit), toUnit: \(params.toUnit), category: \(params.category ?? "nil"), confidence: \(toolCall.confidence))"
+            "convert_units(value: \(params.value), fromUnit: \(params.fromUnit), toUnit: \(params.toUnit), category: \(params.category ?? "nil"), confidence: \(toolCall.confidence))"
         case .translate(let params):
-            return "translate(text: \(params.text), sourceLanguage: \(params.sourceLanguage ?? "auto"), targetLanguage: \(params.targetLanguage), confidence: \(toolCall.confidence))"
+            "translate(text: \(params.text), sourceLanguage: \(params.sourceLanguage ?? "auto"), targetLanguage: \(params.targetLanguage), confidence: \(toolCall.confidence))"
         }
     }
 }

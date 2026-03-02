@@ -33,7 +33,7 @@ final class SearchEngine {
 
     /// Ensure apps are loaded (lazy initialization)
     private func ensureAppsLoaded() {
-        guard !appsLoaded && !Self.disableAppLoading else { return }
+        guard !appsLoaded, !Self.disableAppLoading else { return }
         appsLoaded = true
         refreshInstalledApps()
     }
@@ -43,7 +43,7 @@ final class SearchEngine {
         currentSearchTask?.cancel()
         currentSearchTask = nil
     }
-    
+
     /// Get the last search trace for displaying stats
     func getLastTrace() -> SearchSpan? {
         lastSearchTrace
@@ -85,11 +85,11 @@ final class SearchEngine {
             let processResults = performProcessSearch(query: lowercasedQuery)
             processSpan.setTag("results", processResults.count)
             processSpan.finish()
-            
+
             if !processResults.isEmpty {
                 results.append(contentsOf: processResults)
                 // Return early if process search matched - processes take priority
-                return results.sorted { (a, b) -> Bool in
+                return results.sorted { a, b -> Bool in
                     SearchResult.rankedBefore(a, b)
                 }
             }
@@ -125,7 +125,10 @@ final class SearchEngine {
                 results.append(SearchResult(
                     title: result,
                     subtitle: "Conversion",
-                    icon: NSImage(systemSymbolName: "arrow.left.arrow.right", accessibilityDescription: "Unit Converter"),
+                    icon: NSImage(
+                        systemSymbolName: "arrow.left.arrow.right",
+                        accessibilityDescription: "Unit Converter"
+                    ),
                     category: .conversion,
                     action: {
                         NSPasteboard.general.clearContents()
@@ -142,9 +145,12 @@ final class SearchEngine {
                 results.append(SearchResult(
                     title: hint,
                     subtitle: "Unit Conversion Example",
-                    icon: NSImage(systemSymbolName: "arrow.left.arrow.right", accessibilityDescription: "Unit Converter"),
+                    icon: NSImage(
+                        systemSymbolName: "arrow.left.arrow.right",
+                        accessibilityDescription: "Unit Converter"
+                    ),
                     category: .conversion,
-                    action: { },
+                    action: {},
                     score: 2000
                 ))
             }
@@ -161,12 +167,12 @@ final class SearchEngine {
         // Fuzzy search through installed apps
         let appSpan = span.createChild(operationName: "applications")
         appSpan.setTag("total_apps", installedApps.count)
-        
+
         // Trace fuzzy matching
         let fuzzyMatchSpan = appSpan.createChild(operationName: "fuzzy.match")
         fuzzyMatchSpan.setTag("query_length", lowercasedQuery.count)
         fuzzyMatchSpan.setTag("items_to_match", installedApps.count)
-        
+
         let matchedApps = installedApps.compactMap { app -> (app: InstalledApp, score: Int)? in
             let score = SearchScoreCalculator.shared.calculateScore(
                 query: lowercasedQuery,
@@ -175,14 +181,14 @@ final class SearchEngine {
             )
             return score > 0 ? (app, score) : nil
         }
-        
+
         fuzzyMatchSpan.setTag("matches_found", matchedApps.count)
         fuzzyMatchSpan.finish()
-        
+
         // Trace sorting
         let sortSpan = appSpan.createChild(operationName: "sort")
         sortSpan.setTag("items_to_sort", matchedApps.count)
-        
+
         let finalAppResults = matchedApps
             .sorted { $0.score > $1.score }
             .prefix(10)
@@ -246,7 +252,7 @@ final class SearchEngine {
         systemInfoSpan.setTag("results", systemInfoResults.count)
         systemInfoSpan.finish()
         results.append(contentsOf: systemInfoResults)
-        
+
         // Network info (IP addresses, WiFi)
         let networkSpan = span.createChild(operationName: "network_info")
         let networkResults = NetworkInfoService.shared.search(query: query)
@@ -256,11 +262,13 @@ final class SearchEngine {
 
         // Clipboard history (only when explicitly prefixed with "clip")
         let clipSpan = span.createChild(operationName: "clipboard")
-        let clipboardResults: [SearchResult]
-        if let clipboardQuery = clipboardQueryIfTriggered(from: query, lowercasedQuery: lowercasedQuery) {
-            clipboardResults = ClipboardManager.shared.search(query: clipboardQuery)
+        let clipboardResults: [SearchResult] = if let clipboardQuery = clipboardQueryIfTriggered(
+            from: query,
+            lowercasedQuery: lowercasedQuery
+        ) {
+            ClipboardManager.shared.search(query: clipboardQuery)
         } else {
-            clipboardResults = []
+            []
         }
         clipSpan.setTag("results", clipboardResults.count)
         clipSpan.finish()
@@ -301,7 +309,7 @@ final class SearchEngine {
             results.append(contentsOf: settingsResults)
         }
 
-        return results.sorted { (a, b) -> Bool in
+        return results.sorted { a, b -> Bool in
             SearchResult.rankedBefore(a, b)
         }
     }
@@ -357,7 +365,7 @@ final class SearchEngine {
             fileSearchQuery = query
         }
 
-        if !fileSearchQuery.isEmpty && !Self.disableFileSearch {
+        if !fileSearchQuery.isEmpty, !Self.disableFileSearch {
             return FileSearchService.shared.searchSync(query: fileSearchQuery, maxResults: 5)
         }
 
@@ -424,7 +432,7 @@ final class SearchEngine {
 
                     // Skip system paths
                     if appPath.hasPrefix("/Library") { continue }
-                    if appPath.hasPrefix("/System") && !appPath.hasPrefix("/System/Applications") { continue }
+                    if appPath.hasPrefix("/System"), !appPath.hasPrefix("/System/Applications") { continue }
 
                     let icon = NSWorkspace.shared.icon(forFile: appPath)
                     apps.append(InstalledApp(name: name, bundleID: appPath, icon: icon))
@@ -472,11 +480,11 @@ final class SearchEngine {
             let processResults = performProcessSearch(query: lowercasedQuery)
             processSpan.setTag("results", processResults.count)
             processSpan.finish()
-            
+
             if !processResults.isEmpty {
                 results.append(contentsOf: processResults)
                 // Return early if process search matched - processes take priority
-                return results.sorted { (a, b) -> Bool in
+                return results.sorted { a, b -> Bool in
                     SearchResult.rankedBefore(a, b)
                 }
             }
@@ -512,7 +520,10 @@ final class SearchEngine {
                 results.append(SearchResult(
                     title: result,
                     subtitle: "Conversion",
-                    icon: NSImage(systemSymbolName: "arrow.left.arrow.right", accessibilityDescription: "Unit Converter"),
+                    icon: NSImage(
+                        systemSymbolName: "arrow.left.arrow.right",
+                        accessibilityDescription: "Unit Converter"
+                    ),
                     category: .conversion,
                     action: {
                         NSPasteboard.general.clearContents()
@@ -529,9 +540,12 @@ final class SearchEngine {
                 results.append(SearchResult(
                     title: hint,
                     subtitle: "Unit Conversion Example",
-                    icon: NSImage(systemSymbolName: "arrow.left.arrow.right", accessibilityDescription: "Unit Converter"),
+                    icon: NSImage(
+                        systemSymbolName: "arrow.left.arrow.right",
+                        accessibilityDescription: "Unit Converter"
+                    ),
                     category: .conversion,
-                    action: { },
+                    action: {},
                     score: 2000
                 ))
             }
@@ -548,7 +562,7 @@ final class SearchEngine {
         // Fuzzy search through installed apps
         let appSpan = span.createChild(operationName: "applications")
         appSpan.setTag("total_apps", installedApps.count)
-        
+
         let appResults = installedApps
             .compactMap { app -> (app: InstalledApp, score: Int)? in
                 let score = SearchScoreCalculator.shared.calculateScore(
@@ -619,7 +633,7 @@ final class SearchEngine {
         systemInfoSpan.setTag("results", systemInfoResults.count)
         systemInfoSpan.finish()
         results.append(contentsOf: systemInfoResults)
-        
+
         // Network info (IP addresses, WiFi)
         let networkSpan = span.createChild(operationName: "network_info")
         let networkResults = NetworkInfoService.shared.search(query: query)
@@ -629,11 +643,13 @@ final class SearchEngine {
 
         // Clipboard history (only when explicitly prefixed with "clip")
         let clipSpan = span.createChild(operationName: "clipboard")
-        let clipboardResults: [SearchResult]
-        if let clipboardQuery = clipboardQueryIfTriggered(from: query, lowercasedQuery: lowercasedQuery) {
-            clipboardResults = ClipboardManager.shared.search(query: clipboardQuery)
+        let clipboardResults: [SearchResult] = if let clipboardQuery = clipboardQueryIfTriggered(
+            from: query,
+            lowercasedQuery: lowercasedQuery
+        ) {
+            ClipboardManager.shared.search(query: clipboardQuery)
         } else {
-            clipboardResults = []
+            []
         }
         clipSpan.setTag("results", clipboardResults.count)
         clipSpan.finish()
@@ -712,7 +728,7 @@ final class SearchEngine {
         dedupSpan.finish()
 
         // Sort by score (descending), then category (ascending for priority)
-        return Array(finalResults.sorted { (a, b) -> Bool in
+        return Array(finalResults.sorted { a, b -> Bool in
             SearchResult.rankedBefore(a, b)
         }.prefix(10))
     }
@@ -725,10 +741,10 @@ final class SearchEngine {
 
         // Search keywords for toggles
         let toggleKeywords = ["caffeinate", "awake", "sleep prevention", "keep awake"]
-        let matchesQuery = toggleKeywords.contains { $0.contains(query) } || 
-                           query.contains("caffeinate") || 
-                           query.contains("awake") ||
-                           query.contains("sleep")
+        let matchesQuery = toggleKeywords.contains { $0.contains(query) } ||
+            query.contains("caffeinate") ||
+            query.contains("awake") ||
+            query.contains("sleep")
 
         guard matchesQuery else { return [] }
 
@@ -787,22 +803,20 @@ final class SearchEngine {
 
         // If query contains "quicklink" keyword, show all quicklinks
         let showAllQuicklinks = query.lowercased().contains("quicklink")
-        
+
         // Get quicklinks - either filtered by query or all if "quicklink" keyword
-        let quicklinks: [Quicklink]
-        if showAllQuicklinks {
-            quicklinks = quicklinkManager.getAllQuicklinks()
+        let quicklinks: [Quicklink] = if showAllQuicklinks {
+            quicklinkManager.getAllQuicklinks()
         } else {
-            quicklinks = quicklinkManager.searchQuicklinks(query: query)
+            quicklinkManager.searchQuicklinks(query: query)
         }
 
         return quicklinks.compactMap { quicklink -> SearchResult? in
-            let score: Int
-            if showAllQuicklinks {
-                score = 2000 // High score when showing all quicklinks
+            let score: Int = if showAllQuicklinks {
+                2000 // High score when showing all quicklinks
             } else {
                 // Use the calculator for proper scoring
-                score = SearchScoreCalculator.shared.calculateScore(
+                SearchScoreCalculator.shared.calculateScore(
                     query: query,
                     title: quicklink.name,
                     subtitle: quicklink.url,
@@ -810,9 +824,9 @@ final class SearchEngine {
                     identifier: quicklink.url
                 )
             }
-            
+
             guard score > 0 || showAllQuicklinks else { return nil }
-            
+
             return SearchResult(
                 title: quicklink.name,
                 subtitle: quicklink.url,
@@ -837,7 +851,7 @@ final class SearchEngine {
             title: "Add Quicklink",
             category: .settings
         )
-        
+
         results.append(SearchResult(
             title: "Add Quicklink",
             subtitle: "Create a new quicklink",
@@ -865,4 +879,5 @@ final class SearchEngine {
         }
     }
 }
+
 // test

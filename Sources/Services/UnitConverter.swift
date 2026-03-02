@@ -37,6 +37,7 @@ final class UnitConverter {
     /// All supported units
     private let units: [Unit] = [
         // MARK: - Length (base: meters)
+
         Unit(
             name: "kilometers",
             abbreviations: ["km", "kilometer", "kilometers"],
@@ -95,6 +96,7 @@ final class UnitConverter {
         ),
 
         // MARK: - Weight (base: kilograms)
+
         Unit(
             name: "kilograms",
             abbreviations: ["kg", "kilogram", "kilograms"],
@@ -125,6 +127,7 @@ final class UnitConverter {
         ),
 
         // MARK: - Temperature (base: Celsius)
+
         Unit(
             name: "celsius",
             abbreviations: ["c", "celsius", "centigrade"],
@@ -148,6 +151,7 @@ final class UnitConverter {
         ),
 
         // MARK: - Volume (base: liters)
+
         Unit(
             name: "liters",
             abbreviations: ["l", "liter", "liters", "litre", "litres"],
@@ -185,6 +189,7 @@ final class UnitConverter {
         ),
 
         // MARK: - Area (base: square meters)
+
         Unit(
             name: "square meters",
             abbreviations: ["sq m", "sqm", "m2", "m^2", "square meter", "square meters"],
@@ -222,6 +227,7 @@ final class UnitConverter {
         ),
 
         // MARK: - Speed (base: meters per second)
+
         Unit(
             name: "meters per second",
             abbreviations: ["m/s", "mps"],
@@ -252,6 +258,7 @@ final class UnitConverter {
         ),
 
         // MARK: - Time (base: seconds)
+
         Unit(
             name: "seconds",
             abbreviations: ["s", "sec", "second", "seconds"],
@@ -284,11 +291,12 @@ final class UnitConverter {
             name: "weeks",
             abbreviations: ["w", "week", "weeks"],
             category: .time,
-            toBaseUnit: { $0 * 604800 },
-            fromBaseUnit: { $0 / 604800 }
+            toBaseUnit: { $0 * 604_800 },
+            fromBaseUnit: { $0 / 604_800 }
         ),
 
         // MARK: - Data (base: bytes, binary 1024)
+
         Unit(
             name: "bytes",
             abbreviations: ["b", "byte", "bytes"],
@@ -366,7 +374,8 @@ final class UnitConverter {
 
         // Extract unit abbreviations
         guard let fromAbbrevRange = Range(match.range(at: 2), in: trimmed),
-              let toAbbrevRange = Range(match.range(at: 3), in: trimmed) else {
+              let toAbbrevRange = Range(match.range(at: 3), in: trimmed)
+        else {
             return false
         }
 
@@ -398,7 +407,8 @@ final class UnitConverter {
         // Extract value and units
         guard let valueRange = Range(match.range(at: 1), in: trimmed),
               let fromAbbrevRange = Range(match.range(at: 2), in: trimmed),
-              let toAbbrevRange = Range(match.range(at: 3), in: trimmed) else {
+              let toAbbrevRange = Range(match.range(at: 3), in: trimmed)
+        else {
             return nil
         }
 
@@ -413,7 +423,8 @@ final class UnitConverter {
 
         // Find the units
         guard let fromUnit = findUnit(fromAbbrev),
-              let toUnit = findUnit(toAbbrev) else {
+              let toUnit = findUnit(toAbbrev)
+        else {
             return nil
         }
 
@@ -455,7 +466,7 @@ final class UnitConverter {
             // Use scientific notation for very large or very small numbers
             let formatter = ScientificNotationFormatter.shared
             return formatter.format(value)
-        } else if value == value.rounded() && abs(value) < 1e6 {
+        } else if value == value.rounded(), abs(value) < 1e6 {
             // Whole number
             return String(Int(value.rounded()))
         } else {
@@ -474,7 +485,7 @@ final class UnitConverter {
     /// Get the display string for a unit
     private func getUnitDisplay(_ unit: Unit) -> String {
         // Add degree symbol for temperature
-        if unit.category == .temperature && unit.name == "celsius" {
+        if unit.category == .temperature, unit.name == "celsius" {
             return "\(formatValue(0))°C".replacingOccurrences(of: "0°C", with: "°C")
         }
 
@@ -496,49 +507,49 @@ final class UnitConverter {
 
     private func temperatureDisplay(_ unit: Unit) -> String {
         switch unit.name {
-        case "celsius": return "°C"
-        case "fahrenheit": return "°F"
-        case "kelvin": return "K"
-        default: return unit.name
+        case "celsius": "°C"
+        case "fahrenheit": "°F"
+        case "kelvin": "K"
+        default: unit.name
         }
     }
 
     private func dataDisplay(_ unit: Unit) -> String {
         switch unit.name {
-        case "bytes": return "B"
-        case "kilobytes": return "KB"
-        case "megabytes": return "MB"
-        case "gigabytes": return "GB"
-        case "terabytes": return "TB"
-        default: return unit.name.uppercased()
+        case "bytes": "B"
+        case "kilobytes": "KB"
+        case "megabytes": "MB"
+        case "gigabytes": "GB"
+        case "terabytes": "TB"
+        default: unit.name.uppercased()
         }
     }
 
     private func weightDisplay(_ unit: Unit) -> String {
         switch unit.name {
-        case "pounds": return "lbs"
-        case "ounces": return "oz"
-        default: return unit.name
+        case "pounds": "lbs"
+        case "ounces": "oz"
+        default: unit.name
         }
     }
 
     private func speedDisplay(_ unit: Unit) -> String {
         switch unit.name {
-        case "kilometers per hour": return "km/h"
-        case "miles per hour": return "mph"
-        case "meters per second": return "m/s"
-        case "knots": return "knots"
-        default: return unit.name
+        case "kilometers per hour": "km/h"
+        case "miles per hour": "mph"
+        case "meters per second": "m/s"
+        case "knots": "knots"
+        default: unit.name
         }
     }
 
     private func timeDisplay(_ unit: Unit) -> String {
         switch unit.name {
-        case "seconds": return "seconds"
-        case "minutes": return "minutes"
-        case "hours": return "hours"
-        case "days": return "days"
-        default: return unit.name
+        case "seconds": "seconds"
+        case "minutes": "minutes"
+        case "hours": "hours"
+        case "days": "days"
+        default: unit.name
         }
     }
 
@@ -546,7 +557,7 @@ final class UnitConverter {
 
     /// Get example conversion hints
     func getHints() -> [String] {
-        return [
+        [
             "100 km to miles",
             "50 kg to lbs",
             "72 f to c",
@@ -557,7 +568,7 @@ final class UnitConverter {
             "500 g to oz",
             "100 km/h to mph",
             "2 hours to minutes",
-            "10 acres to hectares"
+            "10 acres to hectares",
         ]
     }
 }

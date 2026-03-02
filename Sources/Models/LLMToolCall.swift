@@ -7,19 +7,19 @@ enum LLMTool: String, CaseIterable {
     case createCalendarEvent = "create_calendar_event"
     case findFiles = "find_files"
     case convertUnits = "convert_units"
-    case translate = "translate"
+    case translate
 
     /// Human-readable description of the tool
     var description: String {
         switch self {
         case .createCalendarEvent:
-            return "Create a calendar event"
+            "Create a calendar event"
         case .findFiles:
-            return "Search for files"
+            "Search for files"
         case .convertUnits:
-            return "Convert units of measurement"
+            "Convert units of measurement"
         case .translate:
-            return "Translate text between languages"
+            "Translate text between languages"
         }
     }
 
@@ -27,13 +27,13 @@ enum LLMTool: String, CaseIterable {
     var iconName: String {
         switch self {
         case .createCalendarEvent:
-            return "calendar.badge.plus"
+            "calendar.badge.plus"
         case .findFiles:
-            return "folder.badge.questionmark"
+            "folder.badge.questionmark"
         case .convertUnits:
-            return "ruler"
+            "ruler"
         case .translate:
-            return "character.bubble"
+            "character.bubble"
         }
     }
 }
@@ -64,25 +64,25 @@ struct FindFilesParams: Equatable {
     let query: String
     let searchInContent: Bool
     let fileExtension: String?
-    
+
     // Date filters (in hours)
-    let modifiedWithin: Int?  // Modified within N hours ago
-    let createdWithin: Int?   // Created within N hours ago
-    let openedWithin: Int?    // Last opened within N hours ago
-    
+    let modifiedWithin: Int? // Modified within N hours ago
+    let createdWithin: Int? // Created within N hours ago
+    let openedWithin: Int? // Last opened within N hours ago
+
     // Size filters (in bytes)
-    let sizeMin: Int?         // Minimum file size in bytes
-    let sizeMax: Int?         // Maximum file size in bytes
-    
+    let sizeMin: Int? // Minimum file size in bytes
+    let sizeMax: Int? // Maximum file size in bytes
+
     // Creator/Author filters
-    let creator: String?       // App that created the file (e.g., "Pages", "Terminal")
-    let author: String?        // Document author
-    
-    // Tag/Color filter
-    let tag: String?           // Finder tag name (e.g., "Important", "Red")
-    
-    // Kind filter
-    let kind: String?          // User-readable kind (e.g., "Log", "PDF document")
+    let creator: String? // App that created the file (e.g., "Pages", "Terminal")
+    let author: String? // Document author
+
+    /// Tag/Color filter
+    let tag: String? // Finder tag name (e.g., "Important", "Red")
+
+    /// Kind filter
+    let kind: String? // User-readable kind (e.g., "Log", "PDF document")
 
     init(
         query: String,
@@ -132,7 +132,7 @@ struct UnitConversionParams: Equatable {
 struct TranslationParams: Equatable {
     let text: String
     let targetLanguage: String
-    let sourceLanguage: String?  // nil = auto-detect
+    let sourceLanguage: String? // nil = auto-detect
 
     init(text: String, targetLanguage: String, sourceLanguage: String? = nil) {
         self.text = text
@@ -160,13 +160,13 @@ struct LLMToolCall: Equatable {
         var isComplete: Bool {
             switch self {
             case .createCalendarEvent(let params):
-                return !params.title.isEmpty
+                !params.title.isEmpty
             case .findFiles(let params):
-                return !params.query.isEmpty
+                !params.query.isEmpty
             case .convertUnits(let params):
-                return params.value != 0 && !params.fromUnit.isEmpty && !params.toUnit.isEmpty
+                params.value != 0 && !params.fromUnit.isEmpty && !params.toUnit.isEmpty
             case .translate(let params):
-                return !params.text.isEmpty && !params.targetLanguage.isEmpty
+                !params.text.isEmpty && !params.targetLanguage.isEmpty
             }
         }
     }
@@ -180,7 +180,13 @@ struct LLMToolCall: Equatable {
         contact: String? = nil,
         confidence: Double = 1.0
     ) -> LLMToolCall {
-        let params = CreateCalendarEventParams(title: title, date: date, time: time, location: location, contact: contact)
+        let params = CreateCalendarEventParams(
+            title: title,
+            date: date,
+            time: time,
+            location: location,
+            contact: contact
+        )
         return LLMToolCall(tool: .createCalendarEvent, parameters: .createCalendarEvent(params), confidence: confidence)
     }
 
@@ -192,7 +198,12 @@ struct LLMToolCall: Equatable {
         modifiedWithin: Int? = nil,
         confidence: Double = 1.0
     ) -> LLMToolCall {
-        let params = FindFilesParams(query: query, searchInContent: searchInContent, fileExtension: fileExtension, modifiedWithin: modifiedWithin)
+        let params = FindFilesParams(
+            query: query,
+            searchInContent: searchInContent,
+            fileExtension: fileExtension,
+            modifiedWithin: modifiedWithin
+        )
         return LLMToolCall(tool: .findFiles, parameters: .findFiles(params), confidence: confidence)
     }
 

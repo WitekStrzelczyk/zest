@@ -24,7 +24,7 @@ final class TimeZoneConverterService {
         "houston": "America/Chicago",
         "dallas": "America/Chicago",
         "atlanta": "America/New_York",
-        
+
         // Europe
         "london": "Europe/London",
         "paris": "Europe/Paris",
@@ -34,7 +34,7 @@ final class TimeZoneConverterService {
         "amsterdam": "Europe/Amsterdam",
         "zurich": "Europe/Zurich",
         "moscow": "Europe/Moscow",
-        
+
         // Asia
         "tokyo": "Asia/Tokyo",
         "shanghai": "Asia/Shanghai",
@@ -49,21 +49,21 @@ final class TimeZoneConverterService {
         "bangkok": "Asia/Bangkok",
         "jakarta": "Asia/Jakarta",
         "manila": "Asia/Manila",
-        
+
         // Oceania
         "sydney": "Australia/Sydney",
         "melbourne": "Australia/Melbourne",
         "auckland": "Pacific/Auckland",
         "perth": "Australia/Perth",
         "brisbane": "Australia/Brisbane",
-        
+
         // Others
         "toronto": "America/Toronto",
         "vancouver": "America/Vancouver",
         "sao paulo": "America/Sao_Paulo",
         "cairo": "Africa/Cairo",
         "johannesburg": "Africa/Johannesburg",
-        "tel aviv": "Asia/Jerusalem"
+        "tel aviv": "Asia/Jerusalem",
     ]
 
     /// Time zone abbreviation mapping
@@ -85,7 +85,7 @@ final class TimeZoneConverterService {
         "aest": "Australia/Sydney",
         "aedt": "Australia/Sydney",
         "nzst": "Pacific/Auckland",
-        "nzdt": "Pacific/Auckland"
+        "nzdt": "Pacific/Auckland",
     ]
 
     /// Frequent time zones for display
@@ -99,7 +99,7 @@ final class TimeZoneConverterService {
         ("Paris", "Europe/Paris"),
         ("Tokyo", "Asia/Tokyo"),
         ("Sydney", "Australia/Sydney"),
-        ("Auckland", "Pacific/Auckland")
+        ("Auckland", "Pacific/Auckland"),
     ]
 
     // MARK: - Pattern Matching
@@ -128,7 +128,8 @@ final class TimeZoneConverterService {
 
         // Extract time zones
         guard let fromZoneRange = Range(match.range(at: 4), in: trimmed),
-              let toZoneRange = Range(match.range(at: 5), in: trimmed) else {
+              let toZoneRange = Range(match.range(at: 5), in: trimmed)
+        else {
             return false
         }
 
@@ -146,7 +147,8 @@ final class TimeZoneConverterService {
         }
         let range = NSRange(trimmed.startIndex..., in: trimmed)
         guard let match = regex.firstMatch(in: trimmed, options: [], range: range),
-              let cityRange = Range(match.range(at: 1), in: trimmed) else {
+              let cityRange = Range(match.range(at: 1), in: trimmed)
+        else {
             return false
         }
         let city = String(trimmed[cityRange])
@@ -165,7 +167,8 @@ final class TimeZoneConverterService {
 
         // Resolve time zones
         guard let sourceTimeZone = resolveTimeZone(parsed.fromZone),
-              let destTimeZone = resolveTimeZone(parsed.toZone) else {
+              let destTimeZone = resolveTimeZone(parsed.toZone)
+        else {
             return nil
         }
 
@@ -201,7 +204,8 @@ final class TimeZoneConverterService {
         // Extract components
         guard let hourRange = Range(match.range(at: 1), in: input),
               let fromZoneRange = Range(match.range(at: 4), in: input),
-              let toZoneRange = Range(match.range(at: 5), in: input) else {
+              let toZoneRange = Range(match.range(at: 5), in: input)
+        else {
             return nil
         }
 
@@ -215,7 +219,8 @@ final class TimeZoneConverterService {
         // Parse hour
         guard var hour = Int(hourStr),
               let minute = Int(minuteStr),
-              minute >= 0, minute < 60 else {
+              minute >= 0, minute < 60
+        else {
             return nil
         }
 
@@ -245,19 +250,19 @@ final class TimeZoneConverterService {
         return false
     }
 
-    private func validateHour(_ hour: Int, isPM: Bool, hasAmPm: Bool) -> Bool {
+    private func validateHour(_ hour: Int, isPM _: Bool, hasAmPm: Bool) -> Bool {
         if hasAmPm {
-            return hour >= 1 && hour <= 12
+            hour >= 1 && hour <= 12
         } else {
-            return hour >= 0 && hour <= 23
+            hour >= 0 && hour <= 23
         }
     }
 
     private func convertTo24Hour(hour: Int, isPM: Bool, hasAmPm: Bool) -> Int {
         var hour24 = hour
-        if isPM && hour != 12 {
+        if isPM, hour != 12 {
             hour24 += 12
-        } else if !isPM && hour == 12 && hasAmPm {
+        } else if !isPM, hour == 12, hasAmPm {
             hour24 = 0
         }
         return hour24
@@ -267,7 +272,8 @@ final class TimeZoneConverterService {
     func currentTime(in city: String) -> String? {
         let trimmed = city.trimmingCharacters(in: .whitespaces).lowercased()
         guard let timeZoneIdentifier = resolveTimeZone(trimmed),
-              let timeZone = TimeZone(identifier: timeZoneIdentifier) else {
+              let timeZone = TimeZone(identifier: timeZoneIdentifier)
+        else {
             return nil
         }
 
@@ -347,7 +353,8 @@ final class TimeZoneConverterService {
             let range = NSRange(lowercased.startIndex..., in: lowercased)
             guard let regex = try? NSRegularExpression(pattern: timeInPattern, options: .caseInsensitive),
                   let match = regex.firstMatch(in: lowercased, options: [], range: range),
-                  let cityRange = Range(match.range(at: 1), in: lowercased) else {
+                  let cityRange = Range(match.range(at: 1), in: lowercased)
+            else {
                 return []
             }
             let city = String(lowercased[cityRange])
@@ -406,7 +413,7 @@ final class TimeZoneConverterService {
         }
         // Capitalize city name
         return lowercased.split(separator: " ")
-            .map { $0.capitalized }
+            .map(\.capitalized)
             .joined(separator: " ")
     }
 
@@ -419,7 +426,8 @@ final class TimeZoneConverterService {
         toZoneName: String
     ) -> String? {
         guard let sourceTZ = TimeZone(identifier: sourceTimeZone),
-              let destTZ = TimeZone(identifier: destTimeZone) else {
+              let destTZ = TimeZone(identifier: destTimeZone)
+        else {
             return nil
         }
 

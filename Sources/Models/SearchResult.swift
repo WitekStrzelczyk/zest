@@ -8,9 +8,9 @@ enum SearchResultSource {
 /// Display priority: lower rawValue appears higher in results
 enum SearchResultCategory: Int, Comparable {
     case application = 0
-    case conversion = 1  // Unit conversions - high priority
+    case conversion = 1 // Unit conversions - high priority
     case process = 2
-    case calendar = 3    // Calendar events and meetings
+    case calendar = 3 // Calendar events and meetings
     case action = 4
     case contact = 5
     case clipboard = 6
@@ -24,23 +24,23 @@ enum SearchResultCategory: Int, Comparable {
     static func < (lhs: SearchResultCategory, rhs: SearchResultCategory) -> Bool {
         lhs.rawValue < rhs.rawValue
     }
-    
+
     /// Human-readable name for search matching
     var displayName: String {
         switch self {
-        case .application: return "application app"
-        case .conversion: return "conversion unit"
-        case .process: return "process system monitor"
-        case .calendar: return "calendar meeting event schedule"
-        case .action: return "action command shortcut"
-        case .contact: return "contact"
-        case .clipboard: return "clipboard history"
-        case .file: return "file document"
-        case .emoji: return "emoji"
-        case .globalAction: return "command shortcut hotkey"
-        case .quicklink: return "quicklink bookmark"
-        case .settings: return "settings preference"
-        case .toggle: return "toggle switch"
+        case .application: "application app"
+        case .conversion: "conversion unit"
+        case .process: "process system monitor"
+        case .calendar: "calendar meeting event schedule"
+        case .action: "action command shortcut"
+        case .contact: "contact"
+        case .clipboard: "clipboard history"
+        case .file: "file document"
+        case .emoji: "emoji"
+        case .globalAction: "command shortcut hotkey"
+        case .quicklink: "quicklink bookmark"
+        case .settings: "settings preference"
+        case .toggle: "toggle switch"
         }
     }
 }
@@ -70,7 +70,7 @@ struct SearchResult {
 
     /// Origin of the result used for ranking boosts.
     let source: SearchResultSource
-    
+
     /// Whether a kill attempt has been made (for process results - two-phase kill)
     let isKillAttempted: Bool
 
@@ -148,7 +148,7 @@ struct InstalledApp {
 extension Notification.Name {
     /// Posted when user selects "Add Quicklink" from settings
     static let showAddQuicklink = Notification.Name("showAddQuicklink")
-    
+
     /// Posted when user navigates back from quicklink creation
     static let hideAddQuicklink = Notification.Name("hideAddQuicklink")
 }

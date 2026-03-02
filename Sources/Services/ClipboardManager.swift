@@ -88,7 +88,8 @@ final class ClipboardManager {
         if let string = pasteboard.string(forType: .string), !string.isEmpty {
             addItem(ClipboardItem(text: string, isImage: false))
         } else if let image = pasteboard.readObjects(forClasses: [NSImage.self], options: nil)?.first as? NSImage,
-                  let tiffData = image.tiffRepresentation {
+                  let tiffData = image.tiffRepresentation
+        {
             addItem(ClipboardItem(imageData: tiffData, isImage: true))
         }
     }

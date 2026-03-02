@@ -94,9 +94,9 @@ final class DateTimeParser {
             // Handle AM/PM conversion
             let ampm = ampmStr.lowercased()
             if !ampm.isEmpty {
-                if ampm == "pm" && hour != 12 {
+                if ampm == "pm", hour != 12 {
                     hour += 12
-                } else if ampm == "am" && hour == 12 {
+                } else if ampm == "am", hour == 12 {
                     hour = 0
                 }
             }
@@ -115,9 +115,9 @@ final class DateTimeParser {
             }
 
             // Handle AM/PM conversion
-            if ampm == "pm" && hour != 12 {
+            if ampm == "pm", hour != 12 {
                 hour += 12
-            } else if ampm == "am" && hour == 12 {
+            } else if ampm == "am", hour == 12 {
                 hour = 0
             }
 
@@ -159,13 +159,14 @@ final class DateTimeParser {
         guard parts.count == 3,
               let first = parts[0],
               let second = parts[1],
-              let year = parts[2] else {
+              let year = parts[2]
+        else {
             return nil
         }
 
         // Determine format: DD/MM/YYYY vs MM/DD/YYYY
         // - If first > 12: first is day (DD/MM/YYYY)
-        // - If second > 12: second is day (MM/DD/YYYY) 
+        // - If second > 12: second is day (MM/DD/YYYY)
         // - If both <= 12: use DD/MM/YYYY (most common worldwide)
         let month: Int
         let day: Int
@@ -198,7 +199,7 @@ final class DateTimeParser {
         let monthNames = [
             "january": 1, "february": 2, "march": 3, "april": 4,
             "may": 5, "june": 6, "july": 7, "august": 8,
-            "september": 9, "october": 10, "november": 11, "december": 12
+            "september": 9, "october": 10, "november": 11, "december": 12,
         ]
 
         // Pattern: "Month Day" (e.g., "March 15")
@@ -229,7 +230,7 @@ final class DateTimeParser {
     private func parseNextWeekday(_ weekdayString: String) -> Date? {
         let weekdays = [
             "sunday": 1, "monday": 2, "tuesday": 3, "wednesday": 4,
-            "thursday": 5, "friday": 6, "saturday": 7
+            "thursday": 5, "friday": 6, "saturday": 7,
         ]
 
         guard let targetWeekday = weekdays[weekdayString] else {
@@ -256,7 +257,7 @@ final class DateTimeParser {
     private func parseThisWeekday(_ weekdayString: String) -> Date? {
         let weekdays = [
             "sunday": 1, "monday": 2, "tuesday": 3, "wednesday": 4,
-            "thursday": 5, "friday": 6, "saturday": 7
+            "thursday": 5, "friday": 6, "saturday": 7,
         ]
 
         guard let targetWeekday = weekdays[weekdayString] else {
@@ -305,7 +306,8 @@ private extension String {
     /// Match against a regex pattern and return capture groups
     func firstMatch(of pattern: String) -> (Substring, Substring, Substring, Substring)? {
         guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
-              let match = regex.firstMatch(in: self, range: NSRange(startIndex..., in: self)) else {
+              let match = regex.firstMatch(in: self, range: NSRange(startIndex..., in: self))
+        else {
             return nil
         }
 

@@ -36,21 +36,21 @@ enum ToolExecutionError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .calendarAccessDenied:
-            return "Calendar access was denied"
+            "Calendar access was denied"
         case .eventCreationFailed(let reason):
-            return "Failed to create event: \(reason)"
+            "Failed to create event: \(reason)"
         case .invalidParameters(let reason):
-            return "Invalid parameters: \(reason)"
+            "Invalid parameters: \(reason)"
         case .searchFailed(let reason):
-            return "Search failed: \(reason)"
+            "Search failed: \(reason)"
         case .conversionFailed(let reason):
-            return "Conversion failed: \(reason)"
+            "Conversion failed: \(reason)"
         case .translationNotAvailable(let reason):
-            return "Translation not available: \(reason)"
+            "Translation not available: \(reason)"
         case .translationFailed(let reason):
-            return "Translation failed: \(reason)"
+            "Translation failed: \(reason)"
         case .unknown(let reason):
-            return "Unknown error: \(reason)"
+            "Unknown error: \(reason)"
         }
     }
 }
@@ -242,7 +242,7 @@ final class LLMToolExecutor {
         var results: [SearchResult] = []
 
         // Handle wildcard query with modifiedWithin - search for recently modified files
-        if params.query == "*" && params.modifiedWithin != nil {
+        if params.query == "*", params.modifiedWithin != nil {
             print("🔍 Using mdfind for recently modified files")
             results = searchRecentlyModifiedFiles(hours: params.modifiedWithin!, extension: params.fileExtension)
         } else {

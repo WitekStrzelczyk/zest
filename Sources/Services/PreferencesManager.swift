@@ -80,7 +80,7 @@ final class PreferencesManager: ObservableObject {
             }
         }
     }
-    
+
     @Published var savedAwakeMode: AwakeMode = .disabled {
         didSet {
             defaults.set(savedAwakeMode.rawValue, forKey: Keys.savedAwakeMode)
@@ -112,7 +112,7 @@ final class PreferencesManager: ObservableObject {
         // The system state is the source of truth
         let storedLaunchAtLogin = defaults.bool(forKey: Keys.launchAtLogin)
         let systemLaunchAtLogin = LaunchAtLoginService.shared.isEnabled
-        
+
         // If they differ, the system state wins (e.g., user changed in System Settings)
         if storedLaunchAtLogin != systemLaunchAtLogin {
             defaults.set(systemLaunchAtLogin, forKey: Keys.launchAtLogin)
@@ -134,13 +134,15 @@ final class PreferencesManager: ObservableObject {
 
         // Load theme
         if let themeRaw = defaults.string(forKey: Keys.theme),
-           let themeValue = AppTheme(rawValue: themeRaw) {
+           let themeValue = AppTheme(rawValue: themeRaw)
+        {
             theme = themeValue
         }
 
         // Load saved awake mode
         if let modeRaw = defaults.string(forKey: Keys.savedAwakeMode),
-           let modeValue = AwakeMode(rawValue: modeRaw) {
+           let modeValue = AwakeMode(rawValue: modeRaw)
+        {
             savedAwakeMode = modeValue
         }
     }

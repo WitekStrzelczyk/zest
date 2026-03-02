@@ -48,6 +48,7 @@ struct CommandPaletteState {
 extension Notification.Name {
     static let commandPaletteStateDidChange = Notification.Name("commandPaletteStateDidChange")
 }
+
 let commandPaletteStateUserInfoKey = "commandPaletteState"
 
 @MainActor
@@ -107,7 +108,7 @@ final class CommandPaletteStateStore {
             var entities = [
                 ContextEntity(type: .value, value: String(params.value)),
                 ContextEntity(type: .fromUnit, value: params.fromUnit),
-                ContextEntity(type: .toUnit, value: params.toUnit)
+                ContextEntity(type: .toUnit, value: params.toUnit),
             ]
             if let category = params.category {
                 entities.append(ContextEntity(type: .category, value: category))
@@ -121,7 +122,7 @@ final class CommandPaletteStateStore {
         case .translate(let params):
             var entities = [
                 ContextEntity(type: .sourceText, value: params.text),
-                ContextEntity(type: .targetLanguage, value: params.targetLanguage)
+                ContextEntity(type: .targetLanguage, value: params.targetLanguage),
             ]
             if let sourceLanguage = params.sourceLanguage {
                 entities.append(ContextEntity(type: .sourceLanguage, value: sourceLanguage))

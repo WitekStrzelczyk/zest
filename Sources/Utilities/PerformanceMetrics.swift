@@ -145,8 +145,15 @@ final class PerformanceMetrics: @unchecked Sendable {
         let duration = (CFAbsoluteTimeGetCurrent() - start) * 1000
 
         if #available(macOS 12.0, *) {
-            os_signpost(.end, log: log, name: "Operation", signpostID: signpostID,
-                        "%{public}s: %.2fms", label, duration)
+            os_signpost(
+                .end,
+                log: log,
+                name: "Operation",
+                signpostID: signpostID,
+                "%{public}s: %.2fms",
+                label,
+                duration
+            )
         } else {
             os_signpost(.end, log: log, name: "Operation", signpostID: signpostID)
         }

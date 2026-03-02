@@ -11,10 +11,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_: Notification) {
         // Sync launch at login preference with system
         LaunchAtLoginService.shared.enabled = PreferencesManager.shared.launchAtLogin
-        
+
         // Apply saved awake preference if system is not already caffeinated
         AwakeService.shared.applySavedPreference()
-        
+
         setupMainMenu()
         setupMenuBar()
         setupGlobalCommandHotkeys()
@@ -68,7 +68,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu()
-        appMenu.addItem(NSMenuItem(title: "Quit Zest", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        appMenu.addItem(NSMenuItem(
+            title: "Quit Zest",
+            action: #selector(NSApplication.terminate(_:)),
+            keyEquivalent: "q"
+        ))
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
 

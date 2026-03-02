@@ -80,7 +80,8 @@ final class ScriptManager {
         default:
             // Check shebang if no extension matches
             if let shebang = try? String(contentsOfFile: path, encoding: .utf8).split(separator: "\n").first,
-               shebang.hasPrefix("#!") {
+               shebang.hasPrefix("#!")
+            {
                 if shebang.contains("python") {
                     return .python
                 } else if shebang.contains("ruby") {

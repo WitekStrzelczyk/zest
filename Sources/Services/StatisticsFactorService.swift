@@ -5,9 +5,9 @@ import Foundation
 /// Future: Will track user selections and boost frequently used items
 final class StatisticsFactorService {
     static let shared = StatisticsFactorService()
-    
+
     private init() {}
-    
+
     /// Calculate statistics factor for a search result
     /// - Parameters:
     ///   - category: The category of the result
@@ -19,18 +19,18 @@ final class StatisticsFactorService {
     /// - Boost frequently selected items
     /// - Decay old selections over time
     /// - Consider time-of-day patterns (e.g., Slack selected more during work hours)
-    func factor(category: SearchResultCategory, identifier: String) -> Double {
+    func factor(category _: SearchResultCategory, identifier _: String) -> Double {
         // Stub implementation - always return 1.0
-        return 1.0
+        1.0
     }
-    
+
     /// Record that an item was selected
     /// - Parameters:
     ///   - category: The category of the selected item
     ///   - identifier: Unique identifier for the selected item
     ///
     /// Call this when a user selects a result to track usage patterns
-    func recordSelection(category: SearchResultCategory, identifier: String) {
+    func recordSelection(category _: SearchResultCategory, identifier _: String) {
         // TODO: Implement persistent storage for selection tracking
     }
 }

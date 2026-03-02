@@ -7,31 +7,31 @@ import Foundation
 /// 4. StatisticsFactor - user usage patterns (stub - always 1.0)
 final class SearchScoreCalculator {
     static let shared = SearchScoreCalculator()
-    
+
     private let analyzer = SearchMatchAnalyzer.shared
     private let statisticsService = StatisticsFactorService.shared
     private var weights: SearchScoringWeights
-    
+
     private init() {
         weights = SearchScoringWeights.load()
     }
-    
+
     /// Reload weights from storage
     func reloadWeights() {
         weights = SearchScoringWeights.load()
     }
-    
+
     /// Update weights
     func updateWeights(_ newWeights: SearchScoringWeights) {
         weights = newWeights
         weights.save()
     }
-    
+
     /// Get current weights
     func getWeights() -> SearchScoringWeights {
         weights
     }
-    
+
     /// Calculate final score for a search result
     /// - Parameters:
     ///   - query: The search query
@@ -47,26 +47,26 @@ final class SearchScoreCalculator {
     ) -> Int {
         // Layer 1 & 2: Match quality and type
         let matchResult = analyzer.analyze(query: query, target: title)
-        
+
         guard matchResult.isMatch else { return 0 }
-        
+
         // Layer 3: Category weight
         let categoryWeight = weights.weight(for: category)
-        
+
         // Layer 4: Statistics factor
         let statsFactor = statisticsService.factor(
             category: category,
             identifier: identifier ?? title
         )
-        
+
         // Combine all layers
         let matchTypeBonus = matchResult.matchType.rawValue
         let finalScore = matchResult.quality * matchTypeBonus * categoryWeight * statsFactor
-        
+
         // Scale to 0-1000 range for backwards compatibility
         return Int(finalScore * 1000)
     }
-    
+
     /// Calculate score with subtitle consideration
     /// - Parameters:
     ///   - query: The search query
@@ -89,12 +89,12 @@ final class SearchScoreCalculator {
             category: category,
             identifier: identifier
         )
-        
+
         // If title match is good enough, use it
         if titleScore >= 700 {
             return titleScore
         }
-        
+
         // Otherwise, also check subtitle
         if let subtitle {
             let subtitleScore = calculateScore(
@@ -106,10 +106,10 @@ final class SearchScoreCalculator {
             // Subtitle matches are slightly penalized
             return max(titleScore, Int(Double(subtitleScore) * 0.9))
         }
-        
+
         return titleScore
     }
-    
+
     /// Get match result for a query against a title
     /// Useful for debugging or displaying match info
     func getMatchResult(query: String, title: String) -> SearchMatchResult {

@@ -21,15 +21,15 @@ struct SearchMatchResult {
     /// Quality of the match (0.0 - 1.0)
     /// Pure fuzzy match quality, no category bias
     let quality: Double
-    
+
     /// Type of match found
     let matchType: SearchMatchType
-    
+
     /// Whether this is a valid match
     var isMatch: Bool {
         matchType != .none && quality > 0
     }
-    
+
     /// Create a no-match result
     static let noMatch = SearchMatchResult(quality: 0, matchType: .none)
 }
@@ -38,9 +38,9 @@ struct SearchMatchResult {
 /// Returns pure match quality without category or statistics bias
 final class SearchMatchAnalyzer {
     static let shared = SearchMatchAnalyzer()
-    
+
     private init() {}
-    
+
     /// Analyze how well a query matches a target string
     /// - Parameters:
     ///   - query: The search query
@@ -48,41 +48,41 @@ final class SearchMatchAnalyzer {
     /// - Returns: A SearchMatchResult with quality and match type
     func analyze(query: String, target: String) -> SearchMatchResult {
         guard !query.isEmpty, !target.isEmpty else { return .noMatch }
-        
+
         let lowercasedQuery = query.lowercased()
         let lowercasedTarget = target.lowercased()
-        
+
         // Exact match
         if lowercasedTarget == lowercasedQuery {
             return SearchMatchResult(quality: 1.0, matchType: .exact)
         }
-        
+
         // Prefix of entire title
         if lowercasedTarget.hasPrefix(lowercasedQuery) {
             return SearchMatchResult(quality: 0.9, matchType: .prefix)
         }
-        
+
         // Word start match
         if let wordStartResult = analyzeWordStartMatch(query: lowercasedQuery, target: lowercasedTarget) {
             return wordStartResult
         }
-        
+
         // Fuzzy match
         let fuzzyResult = analyzeFuzzyMatch(query: lowercasedQuery, target: lowercasedTarget)
         if fuzzyResult.isMatch {
             return fuzzyResult
         }
-        
+
         // Substring match (lowest priority)
         if lowercasedTarget.contains(lowercasedQuery) {
             return SearchMatchResult(quality: 0.03, matchType: .substring)
         }
-        
+
         return .noMatch
     }
-    
+
     // MARK: - Word Start Match
-    
+
     private func analyzeWordStartMatch(query: String, target: String) -> SearchMatchResult? {
         let words = target.components(separatedBy: CharacterSet(charactersIn: " -_"))
 
@@ -96,41 +96,41 @@ final class SearchMatchAnalyzer {
 
         return nil
     }
-    
+
     // MARK: - Fuzzy Match
-    
+
     private func analyzeFuzzyMatch(query: String, target: String) -> SearchMatchResult {
         guard !query.isEmpty else { return .noMatch }
-        
+
         // Find all match positions
         var matchPositions: [Int] = []
         var queryIndex = query.startIndex
         var targetIndex = target.startIndex
-        
-        while queryIndex < query.endIndex && targetIndex < target.endIndex {
+
+        while queryIndex < query.endIndex, targetIndex < target.endIndex {
             if query[queryIndex] == target[targetIndex] {
                 matchPositions.append(target.distance(from: target.startIndex, to: targetIndex))
                 queryIndex = query.index(after: queryIndex)
             }
             targetIndex = target.index(after: targetIndex)
         }
-        
+
         // All characters must be matched
         guard matchPositions.count == query.count else { return .noMatch }
-        
+
         // Calculate quality based on match quality
         var quality = 0.0
-        
+
         // 1. Base quality for matching all characters
         quality += 0.3
-        
+
         // 2. Calculate gap penalties and consecutive bonuses
         var totalGapPenalty = 0.0
         var consecutiveBonus = 0.0
-        
+
         for i in 1..<matchPositions.count {
             let gap = matchPositions[i] - matchPositions[i - 1]
-            
+
             if gap == 1 {
                 // Consecutive match - bonus!
                 consecutiveBonus += 0.1
@@ -140,15 +140,15 @@ final class SearchMatchAnalyzer {
                 totalGapPenalty += gapPenalty
             }
         }
-        
+
         quality += consecutiveBonus
         quality -= totalGapPenalty
-        
+
         // 3. Bonus for early position
         let firstMatchPosition = matchPositions.first ?? 0
         let earlyPositionBonus = max(0, 0.2 - Double(firstMatchPosition) * 0.01)
         quality += earlyPositionBonus
-        
+
         // 4. Bonus for word boundary matches
         var wordBoundaryBonus = 0.0
         for position in matchPositions {
@@ -163,10 +163,10 @@ final class SearchMatchAnalyzer {
             }
         }
         quality += wordBoundaryBonus
-        
+
         // Clamp quality to valid range
         quality = max(0.05, min(0.6, quality))
-        
+
         return SearchMatchResult(quality: quality, matchType: .fuzzy)
     }
 }

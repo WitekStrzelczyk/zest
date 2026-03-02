@@ -7,12 +7,12 @@ import os.log
 
 /// Represents the type of video conferencing platform
 enum VideoLinkType: String, CaseIterable {
-    case zoom = "zoom"
-    case googleMeet = "googleMeet"
-    case teams = "teams"
-    case webex = "webex"
-    case slack = "slack"
-    case unknown = "unknown"
+    case zoom
+    case googleMeet
+    case teams
+    case webex
+    case slack
+    case unknown
 
     /// Detect video link type from URL string
     static func from(urlString: String) -> VideoLinkType {
@@ -24,7 +24,8 @@ enum VideoLinkType: String, CaseIterable {
             lowercased.contains("zoom.us/w/") ||
             lowercased.contains("zoom.us/my/") ||
             lowercased.contains(".zoom.us/j/") ||
-            lowercased.contains(".zoom.us/s/") {
+            lowercased.contains(".zoom.us/s/")
+        {
             return .zoom
         }
 
@@ -54,36 +55,36 @@ enum VideoLinkType: String, CaseIterable {
     /// Display name for the video platform
     var displayName: String {
         switch self {
-        case .zoom: return "Zoom"
-        case .googleMeet: return "Google Meet"
-        case .teams: return "Microsoft Teams"
-        case .webex: return "WebEx"
-        case .slack: return "Slack"
-        case .unknown: return "Video Call"
+        case .zoom: "Zoom"
+        case .googleMeet: "Google Meet"
+        case .teams: "Microsoft Teams"
+        case .webex: "WebEx"
+        case .slack: "Slack"
+        case .unknown: "Video Call"
         }
     }
 
     /// SF Symbol icon name - platform-specific icons (fallback if favicon not available)
     var iconName: String {
         switch self {
-        case .zoom: return "video.bubble.left.fill"
-        case .googleMeet: return "person.3.fill"
-        case .teams: return "rectangle.3.group.fill"
-        case .webex: return "network"
-        case .slack: return "bubble.left.and.bubble.right.fill"
-        case .unknown: return "video.fill"
+        case .zoom: "video.bubble.left.fill"
+        case .googleMeet: "person.3.fill"
+        case .teams: "rectangle.3.group.fill"
+        case .webex: "network"
+        case .slack: "bubble.left.and.bubble.right.fill"
+        case .unknown: "video.fill"
         }
     }
 
     /// Favicon URL for the platform (for fetching actual icons)
     var faviconURL: URL? {
         switch self {
-        case .zoom: return URL(string: "https://zoom.us/favicon.ico")
-        case .googleMeet: return URL(string: "https://meet.google.com/favicon.ico")
-        case .teams: return URL(string: "https://statics.teams.cdn.office.net/evergreen-assets/favicon.ico")
-        case .webex: return URL(string: "https://webex.com/favicon.ico")
-        case .slack: return URL(string: "https://slack.com/favicon.ico")
-        case .unknown: return nil
+        case .zoom: URL(string: "https://zoom.us/favicon.ico")
+        case .googleMeet: URL(string: "https://meet.google.com/favicon.ico")
+        case .teams: URL(string: "https://statics.teams.cdn.office.net/evergreen-assets/favicon.ico")
+        case .webex: URL(string: "https://webex.com/favicon.ico")
+        case .slack: URL(string: "https://slack.com/favicon.ico")
+        case .unknown: nil
         }
     }
 
@@ -104,13 +105,17 @@ enum VideoLinkType: String, CaseIterable {
 
         // Try to fetch favicon
         if let url = type.faviconURL,
-           let image = fetchFavicon(from: url) {
+           let image = fetchFavicon(from: url)
+        {
             iconCache[type] = image
             return image
         }
 
         // Fallback to SF Symbol
-        let fallback = NSImage(systemSymbolName: type.iconName, accessibilityDescription: type.displayName) ?? NSImage(systemSymbolName: "video.fill", accessibilityDescription: "Video")!
+        let fallback = NSImage(systemSymbolName: type.iconName, accessibilityDescription: type.displayName) ?? NSImage(
+            systemSymbolName: "video.fill",
+            accessibilityDescription: "Video"
+        )!
         iconCache[type] = fallback
         return fallback
     }
@@ -200,13 +205,13 @@ struct CalendarEvent: Identifiable, Hashable {
         guard let endedAgo = endedMinutesAgo else { return false }
         return endedAgo <= minutes
     }
-    
+
     // MARK: - Formatted Display Properties
-    
+
     /// Humanized time until event (e.g., "in 6h", "in 32 min", "started 20 min ago")
     var humanizedTimeUntil: String {
         let now = Date()
-        
+
         if isActive {
             let elapsed = Int(now.timeIntervalSince(startDate) / 60)
             if elapsed < 1 {
@@ -248,11 +253,11 @@ struct CalendarEvent: Identifiable, Hashable {
             }
         }
     }
-    
+
     /// Formatted date (e.g., "Today", "Tomorrow", "Wed, Feb 26")
     var formattedDate: String {
         let calendar = Calendar.current
-        
+
         if calendar.isDateInToday(startDate) {
             return "Today"
         } else if calendar.isDateInTomorrow(startDate) {
@@ -263,7 +268,7 @@ struct CalendarEvent: Identifiable, Hashable {
             return formatter.string(from: startDate)
         }
     }
-    
+
     /// Formatted time range (e.g., "6:00 PM - 6:15 PM")
     var formattedTimeRange: String {
         let formatter = DateFormatter()
@@ -271,7 +276,7 @@ struct CalendarEvent: Identifiable, Hashable {
         formatter.timeStyle = .short
         return "\(formatter.string(from: startDate)) - \(formatter.string(from: endDate))"
     }
-    
+
     /// Duration text (e.g., "15 min", "1h 30m")
     var durationText: String {
         let mins = durationMinutes
@@ -286,7 +291,7 @@ struct CalendarEvent: Identifiable, Hashable {
             return "\(hours)h \(remainMins)m"
         }
     }
-    
+
     /// Video platform display name (e.g., "Zoom", "Google Meet")
     var videoPlatformName: String {
         videoType.displayName
@@ -366,7 +371,7 @@ final class CalendarService: @unchecked Sendable {
     /// Calendar search keywords
     private let calendarKeywords = [
         "calendar", "schedule", "meeting", "meetings", "event", "events",
-        "join", "call", "video", "zoom", "teams", "meet"
+        "join", "call", "video", "zoom", "teams", "meet",
     ]
 
     // MARK: - Initialization
@@ -427,7 +432,11 @@ final class CalendarService: @unchecked Sendable {
             let granted = await requestCalendarAccess()
             guard granted else {
                 logger.error("Calendar access denied when trying to create event")
-                throw NSError(domain: "CalendarService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Calendar access denied"])
+                throw NSError(
+                    domain: "CalendarService",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Calendar access denied"]
+                )
             }
         }
 
@@ -444,7 +453,9 @@ final class CalendarService: @unchecked Sendable {
 
         let calendarName = targetCalendar?.title ?? "Unknown"
         print("📅 Creating event in calendar: \(calendarName)")
-        print("📅 Event details - Title: \(title), Start: \(startDate), End: \(endDate ?? startDate.addingTimeInterval(3600))")
+        print(
+            "📅 Event details - Title: \(title), Start: \(startDate), End: \(endDate ?? startDate.addingTimeInterval(3600))"
+        )
 
         do {
             try eventStore.save(event, span: .thisEvent)
@@ -472,11 +483,10 @@ final class CalendarService: @unchecked Sendable {
         guard hasAccess else { return }
 
         // Check if cache needs refresh (stale or empty)
-        let needsRefresh: Bool
-        if let lastTime = lastCacheTime {
-            needsRefresh = Date().timeIntervalSince(lastTime) >= cacheTimeout
+        let needsRefresh: Bool = if let lastTime = lastCacheTime {
+            Date().timeIntervalSince(lastTime) >= cacheTimeout
         } else {
-            needsRefresh = true
+            true
         }
 
         guard needsRefresh else { return }
@@ -513,7 +523,8 @@ final class CalendarService: @unchecked Sendable {
         let now = Date()
 
         guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
-              let endOfTomorrow = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: tomorrow) else {
+              let endOfTomorrow = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: tomorrow)
+        else {
             isRefreshingInBackground = false
             return
         }
@@ -547,7 +558,8 @@ final class CalendarService: @unchecked Sendable {
 
         // Check cache
         if let lastTime = lastCacheTime,
-           Date().timeIntervalSince(lastTime) < cacheTimeout {
+           Date().timeIntervalSince(lastTime) < cacheTimeout
+        {
             return cachedEvents.filter { $0.startDate >= Date() }
         }
 
@@ -557,7 +569,8 @@ final class CalendarService: @unchecked Sendable {
         // Calculate end of next day (23:59:59 tomorrow)
         // Start from tomorrow, then add 1 day - 1 second to get end of tomorrow
         guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
-              let endOfTomorrow = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: tomorrow) else {
+              let endOfTomorrow = calendar.date(bySettingHour: 23, minute: 59, second: 59, of: tomorrow)
+        else {
             return []
         }
 
@@ -588,7 +601,7 @@ final class CalendarService: @unchecked Sendable {
     /// Get meetings that are currently in progress
     func getActiveMeetings() async -> [CalendarEvent] {
         let events = await getUpcomingEvents(days: 1)
-        return events.filter { $0.isActive }
+        return events.filter(\.isActive)
     }
 
     /// Get meetings that ended recently (within specified minutes)
@@ -619,7 +632,12 @@ final class CalendarService: @unchecked Sendable {
         if !hasAccess {
             let granted = await requestCalendarAccess()
             guard granted else {
-                return MeetingInsights(totalMeetingsToday: 0, totalMeetingMinutes: 0, nextFreeSlotStart: nil, nextFreeSlotEnd: nil)
+                return MeetingInsights(
+                    totalMeetingsToday: 0,
+                    totalMeetingMinutes: 0,
+                    nextFreeSlotStart: nil,
+                    nextFreeSlotEnd: nil
+                )
             }
         }
 
@@ -629,7 +647,12 @@ final class CalendarService: @unchecked Sendable {
         // Get start and end of today
         let startOfDay = calendar.startOfDay(for: now)
         guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
-            return MeetingInsights(totalMeetingsToday: 0, totalMeetingMinutes: 0, nextFreeSlotStart: nil, nextFreeSlotEnd: nil)
+            return MeetingInsights(
+                totalMeetingsToday: 0,
+                totalMeetingMinutes: 0,
+                nextFreeSlotStart: nil,
+                nextFreeSlotEnd: nil
+            )
         }
 
         let calendars = eventStore.calendars(for: .event)
@@ -673,7 +696,7 @@ final class CalendarService: @unchecked Sendable {
             // WebEx
             #"https?://[^\s]*?\.?webex\.com/[^\s]+"#,
             // Slack
-            #"https?://slack\.com/call/[^\s]+"#
+            #"https?://slack\.com/call/[^\s]+"#,
         ]
 
         for pattern in patterns {
@@ -745,8 +768,8 @@ final class CalendarService: @unchecked Sendable {
         if lowercasedQuery.contains("calendar") ||
             lowercasedQuery.contains("schedule") ||
             lowercasedQuery.contains("meeting") ||
-            lowercasedQuery.contains("event") {
-
+            lowercasedQuery.contains("event")
+        {
             // Get active meetings
             let activeMeetings = await getActiveMeetings()
             for meeting in activeMeetings {
@@ -810,10 +833,10 @@ final class CalendarService: @unchecked Sendable {
         if lowercasedQuery.contains("calendar") ||
             lowercasedQuery.contains("schedule") ||
             lowercasedQuery.contains("meeting") ||
-            lowercasedQuery.contains("event") {
-
+            lowercasedQuery.contains("event")
+        {
             // Get active meetings
-            let activeMeetings = cachedEvents.filter { $0.isActive }
+            let activeMeetings = cachedEvents.filter(\.isActive)
             for meeting in activeMeetings {
                 results.append(createActiveMeetingResult(for: meeting))
             }
@@ -904,19 +927,17 @@ final class CalendarService: @unchecked Sendable {
         }
 
         // Determine video type
-        let videoType: VideoLinkType
-        if let link = videoLink {
-            videoType = VideoLinkType.from(urlString: link.absoluteString)
+        let videoType: VideoLinkType = if let link = videoLink {
+            VideoLinkType.from(urlString: link.absoluteString)
         } else {
-            videoType = .unknown
+            .unknown
         }
 
         // Get calendar color
-        let calendarColor: NSColor
-        if let cgColor = ekEvent.calendar?.cgColor {
-            calendarColor = NSColor(cgColor: cgColor) ?? .systemBlue
+        let calendarColor: NSColor = if let cgColor = ekEvent.calendar?.cgColor {
+            NSColor(cgColor: cgColor) ?? .systemBlue
         } else {
-            calendarColor = .systemBlue
+            .systemBlue
         }
 
         return CalendarEvent(
@@ -936,7 +957,8 @@ final class CalendarService: @unchecked Sendable {
     private func findNextFreeSlot(duration: Int, events: [CalendarEvent]) -> (start: Date, end: Date)? {
         let now = Date()
         let calendar = Calendar.current
-        let endOfWorkDay = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: now) ?? now.addingTimeInterval(28800)
+        let endOfWorkDay = calendar.date(bySettingHour: 18, minute: 0, second: 0, of: now) ?? now
+            .addingTimeInterval(28800)
 
         // Get upcoming events sorted by start time
         let upcomingEvents = events
@@ -970,7 +992,7 @@ final class CalendarService: @unchecked Sendable {
     // MARK: - Search Result Creation
 
     private func createJoinMeetingResult(for event: CalendarEvent) -> SearchResult {
-        return SearchResult(
+        SearchResult(
             title: event.title,
             subtitle: "\(event.formattedDate) • \(event.formattedTimeRange) • \(event.humanizedTimeUntil)",
             icon: NSImage(systemSymbolName: "calendar", accessibilityDescription: "Calendar Event")!,
@@ -987,7 +1009,7 @@ final class CalendarService: @unchecked Sendable {
     }
 
     private func createActiveMeetingResult(for event: CalendarEvent) -> SearchResult {
-        return SearchResult(
+        SearchResult(
             title: "🔴 \(event.title)",
             subtitle: "\(event.formattedDate) • \(event.formattedTimeRange) • \(event.durationText) • In Progress",
             icon: NSImage(systemSymbolName: "calendar", accessibilityDescription: "Calendar Event")!,
@@ -1025,17 +1047,17 @@ final class CalendarService: @unchecked Sendable {
 
     private func createEventResult(for event: CalendarEvent) -> SearchResult {
         // Filter out video URLs from location - don't show Zoom links
-        let locationText: String
-        if let location = event.location {
+        let locationText = if let location = event.location {
             // Check if location contains a video URL, if so don't show it
             if location.contains("zoom.us") || location.contains("meet.google.com") ||
-               location.contains("teams.microsoft.com") || location.contains("webex.com") {
-                locationText = ""
+                location.contains("teams.microsoft.com") || location.contains("webex.com")
+            {
+                ""
             } else {
-                locationText = " • \(location)"
+                " • \(location)"
             }
         } else {
-            locationText = ""
+            ""
         }
 
         return SearchResult(

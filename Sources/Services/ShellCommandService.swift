@@ -157,7 +157,7 @@ final class ShellCommandService {
         processQueue.async { [weak self] in
             guard let self else { return }
 
-            let result = self.runShellCommand(command)
+            let result = runShellCommand(command)
 
             DispatchQueue.main.async {
                 completion?(result)
