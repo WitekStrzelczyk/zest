@@ -124,13 +124,16 @@ final class LLMToolExecutor {
                 return .failure(ToolExecutionError.translationFailed(error.localizedDescription))
             }
         } else {
-            return .failure(ToolExecutionError.translationNotAvailable("Translation requires macOS 26 or later (Sequoia)"))
+            let msg = "Translation requires macOS 26 or later (Sequoia)"
+            return .failure(ToolExecutionError.translationNotAvailable(msg))
         }
     }
 
     // MARK: - Calendar Event Creation
 
-    private func executeCalendarEventCreation(params: CreateCalendarEventParams) async -> Result<ToolExecutionResult, Error> {
+    private func executeCalendarEventCreation(
+        params: CreateCalendarEventParams
+    ) async -> Result<ToolExecutionResult, Error> {
         print("🚀 LLMToolExecutor: Creating calendar event")
         print("   Title: \(params.title)")
         print("   Date: \(params.date ?? "nil")")
@@ -185,7 +188,10 @@ final class LLMToolExecutor {
         }
 
         // Calculate end date (default 1 hour)
-        let endDate = Calendar.current.date(byAdding: .hour, value: 1, to: startDate) ?? startDate.addingTimeInterval(3600)
+        let oneHour: TimeInterval = 3600
+        let calendar = Calendar.current
+        let endDate = calendar.date(byAdding: .hour, value: 1, to: startDate) ??
+            startDate.addingTimeInterval(oneHour)
         print("📅 End date/time: \(endDate)")
 
         // Create the event
@@ -205,14 +211,17 @@ final class LLMToolExecutor {
             let calendarName = event.calendar?.title ?? "Unknown"
             let message = "Created event: \(event.title ?? params.title)"
 
-            var details = "\(formatter.string(from: startDate)) - \(formatter.string(from: endDate))\nCalendar: \(calendarName)"
+            let startStr = formatter.string(from: startDate)
+            let endStr = formatter.string(from: endDate)
+            var details = "\(startStr) - \(endStr)\nCalendar: \(calendarName)"
 
             // Add warning if event is in the past
             if isPastEvent {
                 details += "\n\n⚠️ Warning: This event is in the past!"
             }
 
-            print("✅ LLMToolExecutor: Successfully created event '\(event.title ?? "Untitled")' in calendar: \(calendarName)")
+            let eventTitle = event.title ?? "Untitled"
+            print("✅ LLMToolExecutor: Successfully created event '\(eventTitle)' in calendar: \(calendarName)")
 
             return .success(ToolExecutionResult.success(message, details: details))
         } catch {
