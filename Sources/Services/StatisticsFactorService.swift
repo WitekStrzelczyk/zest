@@ -32,5 +32,6 @@ final class StatisticsFactorService {
     /// Call this when a user selects a result to track usage patterns
     func recordSelection(category _: SearchResultCategory, identifier _: String) {
         // TODO: Implement persistent storage for selection tracking
+        // swiftlint:disable:next todo
     }
 }
