@@ -138,10 +138,8 @@ final class WindowManager {
     /// - Parameter point: The point to check
     /// - Returns: The screen containing the point, or nil
     static func screen(containing point: CGPoint) -> NSScreen? {
-        for screen in NSScreen.screens {
-            if screen.frame.contains(point) {
-                return screen
-            }
+        for screen in NSScreen.screens where screen.frame.contains(point) {
+            return screen
         }
         return NSScreen.main
     }
@@ -412,8 +410,7 @@ final class WindowManager {
 
         // Also check by comparing window frame to screen frame
         if let windowFrame = getWindowFrame(window),
-           let screen = getScreenForWindow(window)
-        {
+           let screen = getScreenForWindow(window) {
             // If window frame matches screen frame closely, it's likely full-screen
             let tolerance: CGFloat = 5
             return abs(windowFrame.width - screen.frame.width) < tolerance &&
