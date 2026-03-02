@@ -441,80 +441,105 @@ final class UnitConverter {
         }
 
         // Format based on value magnitude
-        let formatted: String
+        let formatted = formatValue(value)
+        let unitDisplay = getUnitDisplay(unit)
 
+        return "\(formatted) \(unitDisplay)"
+    }
+
+    /// Format the numeric value based on its magnitude
+    private func formatValue(_ value: Double) -> String {
         if value == 0 {
-            formatted = "0"
+            return "0"
         } else if abs(value) >= 1e9 || (abs(value) < 0.001 && value != 0) {
             // Use scientific notation for very large or very small numbers
             let formatter = ScientificNotationFormatter.shared
-            formatted = formatter.format(value)
+            return formatter.format(value)
         } else if value == value.rounded() && abs(value) < 1e6 {
             // Whole number
-            formatted = String(Int(value.rounded()))
+            return String(Int(value.rounded()))
         } else {
             // Regular decimal with appropriate precision
             let formatter = NumberFormatter()
             formatter.numberStyle = .decimal
             formatter.maximumFractionDigits = 2
-            formatter.minimumFractionDigits = 2
 
             // Remove trailing zeros
             formatter.minimumFractionDigits = 0
 
-            formatted = formatter.string(from: NSNumber(value: value)) ?? String(value)
+            return formatter.string(from: NSNumber(value: value)) ?? String(value)
         }
+    }
 
-        // Get appropriate unit display name based on category and unit
-        let unitDisplay: String
-
+    /// Get the display string for a unit
+    private func getUnitDisplay(_ unit: Unit) -> String {
         // Add degree symbol for temperature
         if unit.category == .temperature && unit.name == "celsius" {
-            return "\(formatted)°C"
-        } else if unit.category == .temperature && unit.name == "fahrenheit" {
-            return "\(formatted)°F"
-        } else if unit.category == .temperature && unit.name == "kelvin" {
-            return "\(formatted)K"
-        } else if unit.category == .data {
-            // Use standard data abbreviations
-            switch unit.name {
-            case "bytes": unitDisplay = "B"
-            case "kilobytes": unitDisplay = "KB"
-            case "megabytes": unitDisplay = "MB"
-            case "gigabytes": unitDisplay = "GB"
-            case "terabytes": unitDisplay = "TB"
-            default: unitDisplay = unit.name.uppercased()
-            }
-        } else if unit.category == .weight {
-            // Use common abbreviations for weight
-            switch unit.name {
-            case "pounds": unitDisplay = "lbs"
-            case "ounces": unitDisplay = "oz"
-            default: unitDisplay = unit.name
-            }
-        } else if unit.category == .speed {
-            // Use common abbreviations for speed
-            switch unit.name {
-            case "kilometers per hour": unitDisplay = "km/h"
-            case "miles per hour": unitDisplay = "mph"
-            case "meters per second": unitDisplay = "m/s"
-            case "knots": unitDisplay = "knots"
-            default: unitDisplay = unit.name
-            }
-        } else if unit.category == .time {
-            // Use common abbreviations for time
-            switch unit.name {
-            case "seconds": unitDisplay = "seconds"
-            case "minutes": unitDisplay = "minutes"
-            case "hours": unitDisplay = "hours"
-            case "days": unitDisplay = "days"
-            default: unitDisplay = unit.name
-            }
-        } else {
-            unitDisplay = unit.name
+            return "\(formatValue(0))°C".replacingOccurrences(of: "0°C", with: "°C")
         }
 
-        return "\(formatted) \(unitDisplay)"
+        switch unit.category {
+        case .temperature:
+            return temperatureDisplay(unit)
+        case .data:
+            return dataDisplay(unit)
+        case .weight:
+            return weightDisplay(unit)
+        case .speed:
+            return speedDisplay(unit)
+        case .time:
+            return timeDisplay(unit)
+        default:
+            return unit.name
+        }
+    }
+
+    private func temperatureDisplay(_ unit: Unit) -> String {
+        switch unit.name {
+        case "celsius": return "°C"
+        case "fahrenheit": return "°F"
+        case "kelvin": return "K"
+        default: return unit.name
+        }
+    }
+
+    private func dataDisplay(_ unit: Unit) -> String {
+        switch unit.name {
+        case "bytes": return "B"
+        case "kilobytes": return "KB"
+        case "megabytes": return "MB"
+        case "gigabytes": return "GB"
+        case "terabytes": return "TB"
+        default: return unit.name.uppercased()
+        }
+    }
+
+    private func weightDisplay(_ unit: Unit) -> String {
+        switch unit.name {
+        case "pounds": return "lbs"
+        case "ounces": return "oz"
+        default: return unit.name
+        }
+    }
+
+    private func speedDisplay(_ unit: Unit) -> String {
+        switch unit.name {
+        case "kilometers per hour": return "km/h"
+        case "miles per hour": return "mph"
+        case "meters per second": return "m/s"
+        case "knots": return "knots"
+        default: return unit.name
+        }
+    }
+
+    private func timeDisplay(_ unit: Unit) -> String {
+        switch unit.name {
+        case "seconds": return "seconds"
+        case "minutes": return "minutes"
+        case "hours": return "hours"
+        case "days": return "days"
+        default: return unit.name
+        }
     }
 
     // MARK: - Hints
