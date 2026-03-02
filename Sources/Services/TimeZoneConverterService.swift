@@ -160,39 +160,57 @@ final class TimeZoneConverterService {
         let trimmed = input.trimmingCharacters(in: .whitespaces)
         guard isTimeConversionExpression(trimmed) else { return nil }
 
+        // Parse the time expression
+        guard let parsed = parseTimeConversion(trimmed) else { return nil }
+
+        // Resolve time zones
+        guard let sourceTimeZone = resolveTimeZone(parsed.fromZone),
+              let destTimeZone = resolveTimeZone(parsed.toZone) else {
+            return nil
+        }
+
+        // Perform conversion
+        return convertTime(
+            hour: parsed.hour24,
+            minute: parsed.minute,
+            from: sourceTimeZone,
+            to: destTimeZone,
+            toZoneName: parsed.toZone
+        )
+    }
+
+    /// Parsed time conversion components
+    private struct ParsedTimeConversion {
+        let hour24: Int
+        let minute: Int
+        let fromZone: String
+        let toZone: String
+    }
+
+    /// Parse time conversion expression into components
+    private func parseTimeConversion(_ input: String) -> ParsedTimeConversion? {
         guard let regex = try? NSRegularExpression(pattern: timeConversionPattern, options: .caseInsensitive) else {
             return nil
         }
 
-        let range = NSRange(trimmed.startIndex..., in: trimmed)
-        guard let match = regex.firstMatch(in: trimmed, options: [], range: range) else {
+        let range = NSRange(input.startIndex..., in: input)
+        guard let match = regex.firstMatch(in: input, options: [], range: range) else {
             return nil
         }
 
         // Extract components
-        guard let hourRange = Range(match.range(at: 1), in: trimmed),
-              let fromZoneRange = Range(match.range(at: 4), in: trimmed),
-              let toZoneRange = Range(match.range(at: 5), in: trimmed) else {
+        guard let hourRange = Range(match.range(at: 1), in: input),
+              let fromZoneRange = Range(match.range(at: 4), in: input),
+              let toZoneRange = Range(match.range(at: 5), in: input) else {
             return nil
         }
 
-        let hourStr = String(trimmed[hourRange])
-        let minuteRange = match.range(at: 2)
-        let minuteStr: String
-        if minuteRange.location != NSNotFound, let minRange = Range(minuteRange, in: trimmed) {
-            minuteStr = String(trimmed[minRange])
-        } else {
-            minuteStr = "0"
-        }
+        let hourStr = String(input[hourRange])
+        let minuteStr = extractMinute(from: input, match: match)
+        let isPM = extractAmPm(from: input, match: match)
 
-        let ampmRange = match.range(at: 3)
-        var isPM = false
-        if ampmRange.location != NSNotFound, let ampm = Range(ampmRange, in: trimmed) {
-            isPM = String(trimmed[ampm]).lowercased() == "pm"
-        }
-
-        let fromZoneStr = String(trimmed[fromZoneRange])
-        let toZoneStr = String(trimmed[toZoneRange])
+        let fromZoneStr = String(input[fromZoneRange])
+        let toZoneStr = String(input[toZoneRange])
 
         // Parse hour
         guard var hour = Int(hourStr),
@@ -201,37 +219,48 @@ final class TimeZoneConverterService {
             return nil
         }
 
-        // Validate hour based on AM/PM presence
-        let hasAmPm = ampmRange.location != NSNotFound
+        // Validate hour
+        let hasAmPm = match.range(at: 3).location != NSNotFound
+        guard validateHour(hour, isPM: isPM, hasAmPm: hasAmPm) else { return nil }
+
+        // Convert to 24-hour format
+        hour = convertTo24Hour(hour: hour, isPM: isPM, hasAmPm: hasAmPm)
+
+        return ParsedTimeConversion(hour24: hour, minute: minute, fromZone: fromZoneStr, toZone: toZoneStr)
+    }
+
+    private func extractMinute(from input: String, match: NSTextCheckingResult) -> String {
+        let minuteRange = match.range(at: 2)
+        if minuteRange.location != NSNotFound, let minRange = Range(minuteRange, in: input) {
+            return String(input[minRange])
+        }
+        return "0"
+    }
+
+    private func extractAmPm(from input: String, match: NSTextCheckingResult) -> Bool {
+        let ampmRange = match.range(at: 3)
+        if ampmRange.location != NSNotFound, let ampm = Range(ampmRange, in: input) {
+            return String(input[ampm]).lowercased() == "pm"
+        }
+        return false
+    }
+
+    private func validateHour(_ hour: Int, isPM: Bool, hasAmPm: Bool) -> Bool {
         if hasAmPm {
-            // 12-hour format: 1-12
-            guard hour >= 1, hour <= 12 else { return nil }
+            return hour >= 1 && hour <= 12
         } else {
-            // 24-hour format: 0-23
-            guard hour >= 0, hour <= 23 else { return nil }
+            return hour >= 0 && hour <= 23
         }
+    }
 
-        // Convert to 24-hour format for calculation
+    private func convertTo24Hour(hour: Int, isPM: Bool, hasAmPm: Bool) -> Int {
+        var hour24 = hour
         if isPM && hour != 12 {
-            hour += 12
+            hour24 += 12
         } else if !isPM && hour == 12 && hasAmPm {
-            hour = 0
+            hour24 = 0
         }
-
-        // Resolve time zones
-        guard let sourceTimeZone = resolveTimeZone(fromZoneStr),
-              let destTimeZone = resolveTimeZone(toZoneStr) else {
-            return nil
-        }
-
-        // Perform conversion
-        return convertTime(
-            hour: hour,
-            minute: minute,
-            from: sourceTimeZone,
-            to: destTimeZone,
-            toZoneName: toZoneStr
-        )
+        return hour24
     }
 
     /// Get current time in a city
