@@ -28,7 +28,7 @@ enum ZestTranslationError: Error, LocalizedError {
         case .unsupportedLanguage(let language):
             "Unsupported language: \(language)"
         case .noTranslationsInstalled:
-            "No translations installed. Please download languages in System Settings > General > Language & Region > Translation Languages."
+            "No translations installed. Download languages in System Settings > General > Language & Region."
         }
     }
 }

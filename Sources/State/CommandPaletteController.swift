@@ -70,9 +70,9 @@ final class CommandPaletteController {
             let baseResults: [SearchResult]
             switch toolCall.parameters {
             case .findFiles(let params):
-                print(
-                    "🧠 LLM find_files intent: query='\(params.query)' ext='\(params.fileExtension ?? "nil")' modifiedWithin='\(params.modifiedWithin.map(String.init) ?? "nil")'"
-                )
+                let ext = params.fileExtension ?? "nil"
+                let modified = params.modifiedWithin.map(String.init) ?? "nil"
+                print("🧠 LLM find_files: query='\(params.query)' ext='\(ext)' modified='\(modified)'")
                 let rawIntentResults = await Task.detached(priority: .utility) {
                     CommandPaletteController.searchFilesFromIntent(params)
                 }.value
@@ -490,13 +490,25 @@ final class CommandPaletteController {
     private func describe(_ toolCall: LLMToolCall) -> String {
         switch toolCall.parameters {
         case .createCalendarEvent(let params):
-            "create_calendar_event(title: \(params.title), date: \(params.date ?? "nil"), time: \(params.time ?? "nil"), location: \(params.location ?? "nil"), contact: \(params.contact ?? "nil"), confidence: \(toolCall.confidence))"
+            let date = params.date ?? "nil"
+            let time = params.time ?? "nil"
+            let loc = params.location ?? "nil"
+            let conf = String(format: "%.2f", toolCall.confidence)
+            return "create_event(t:\(params.title), d:\(date), tm:\(time), l:\(loc), c:\(conf))"
         case .findFiles(let params):
-            "find_files(query: \(params.query), searchInContent: \(params.searchInContent), fileExtension: \(params.fileExtension ?? "nil"), modifiedWithin: \(params.modifiedWithin.map(String.init) ?? "nil"), confidence: \(toolCall.confidence))"
+            let ext = params.fileExtension ?? "nil"
+            let modified = params.modifiedWithin.map(String.init) ?? "nil"
+            let conf = String(format: "%.2f", toolCall.confidence)
+            return "find(q:\(params.query), in:\(params.searchInContent), ext:\(ext), mod:\(modified), c:\(conf))"
         case .convertUnits(let params):
-            "convert_units(value: \(params.value), fromUnit: \(params.fromUnit), toUnit: \(params.toUnit), category: \(params.category ?? "nil"), confidence: \(toolCall.confidence))"
+            let category = params.category ?? "nil"
+            let conf = String(format: "%.2f", toolCall.confidence)
+            return "convert(v:\(params.value), f:\(params.fromUnit), t:\(params.toUnit), cat:\(category), c:\(conf))"
         case .translate(let params):
-            "translate(text: \(params.text), sourceLanguage: \(params.sourceLanguage ?? "auto"), targetLanguage: \(params.targetLanguage), confidence: \(toolCall.confidence))"
+            let source = params.sourceLanguage ?? "auto"
+            let conf = String(format: "%.2f", toolCall.confidence)
+            let text = String(params.text.prefix(20))
+            return "translate(\(text)... src:\(source) tgt:\(params.targetLanguage) c:\(conf))"
         }
     }
 }

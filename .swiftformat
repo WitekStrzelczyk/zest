@@ -20,12 +20,18 @@
 --wrapcollections before-first
 --wraparguments before-first
 --closingparen balanced
+--allman false
 
-# Enabled rules
+# Enable all format rules
 --enable isEmpty
 --enable redundantSelf
 --enable sortImports
 --enable duplicateImports
+--enable spaceAroundBraces
+--enable braces
+
+# Wrap at 120 (matches SwiftLint line_length warning)
+--maxwidth 120
 
 # Exclude paths
 --exclude .build

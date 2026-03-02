@@ -78,20 +78,27 @@ final class ScriptManager {
         case "rb":
             return .ruby
         default:
-            // Check shebang if no extension matches
-            if let shebang = try? String(contentsOfFile: path, encoding: .utf8).split(separator: "\n").first,
-               shebang.hasPrefix("#!")
-            {
-                if shebang.contains("python") {
-                    return .python
-                } else if shebang.contains("ruby") {
-                    return .ruby
-                } else if shebang.contains("bash") || shebang.contains("sh") {
-                    return .shell
-                }
-            }
+            return detectScriptTypeFromShebang(path: path)
+        }
+    }
+
+    private func detectScriptTypeFromShebang(path: String) -> ScriptType {
+        guard let content = try? String(contentsOfFile: path, encoding: .utf8),
+              let firstLine = content.split(separator: "\n").first,
+              firstLine.hasPrefix("#!")
+        else {
             return .unknown
         }
+
+        let shebang = String(firstLine)
+        if shebang.contains("python") {
+            return .python
+        } else if shebang.contains("ruby") {
+            return .ruby
+        } else if shebang.contains("bash") || shebang.contains("sh") {
+            return .shell
+        }
+        return .unknown
     }
 
     /// Executes a script at the given path
@@ -113,95 +120,107 @@ final class ScriptManager {
             guard let self else { return }
 
             let scriptType = scriptType(for: path)
-            let process = Process()
-
-            stateLock.lock()
-            currentProcess = process
-            stateLock.unlock()
-
-            // Configure output pipes
-            let outputPipe = Pipe()
-            let errorPipe = Pipe()
-            process.standardOutput = outputPipe
-            process.standardError = errorPipe
-
-            // Configure process based on script type
-            switch scriptType {
-            case .shell:
-                process.executableURL = URL(fileURLWithPath: "/bin/bash")
-                process.arguments = [path]
-            case .appleScript:
-                process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-                process.arguments = [path]
-            case .python:
-                process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
-                process.arguments = [path]
-            case .ruby:
-                process.executableURL = URL(fileURLWithPath: "/usr/bin/ruby")
-                process.arguments = [path]
-            case .unknown:
-                // Default to shell
-                process.executableURL = URL(fileURLWithPath: "/bin/bash")
-                process.arguments = [path]
-            }
+            let process = configureProcess(for: scriptType, scriptPath: path)
 
             logger.info("Executing script: \(path)")
 
-            // Set up environment
-            var environment = ProcessInfo.processInfo.environment
-            environment["PATH"] = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-            process.environment = environment
+            // Execute and handle result
+            executeProcess(process, completion: completion)
+        }
+    }
 
-            // Handle termination
-            process.terminationHandler = { [weak self] proc in
-                self?.logger.info("Script terminated with exit code: \(proc.terminationStatus)")
-                self?.stateLock.lock()
-                self?.currentProcess = nil
-                self?.stateLock.unlock()
+    private func configureProcess(for scriptType: ScriptType, scriptPath: String) -> Process {
+        let process = Process()
+
+        stateLock.lock()
+        currentProcess = process
+        stateLock.unlock()
+
+        // Configure output pipes
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+
+        // Configure process based on script type
+        switch scriptType {
+        case .shell:
+            process.executableURL = URL(fileURLWithPath: "/bin/bash")
+            process.arguments = [scriptPath]
+        case .appleScript:
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+            process.arguments = [scriptPath]
+        case .python:
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+            process.arguments = [scriptPath]
+        case .ruby:
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/ruby")
+            process.arguments = [scriptPath]
+        case .unknown:
+            process.executableURL = URL(fileURLWithPath: "/bin/bash")
+            process.arguments = [scriptPath]
+        }
+
+        // Set up environment
+        var environment = ProcessInfo.processInfo.environment
+        environment["PATH"] = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+        process.environment = environment
+
+        return process
+    }
+
+    private func executeProcess(_ process: Process, completion: @escaping (ScriptExecutionResult) -> Void) {
+        let outputPipe = process.standardOutput as? Pipe
+        let errorPipe = process.standardError as? Pipe
+
+        process.terminationHandler = { [weak self] proc in
+            self?.logger.info("Script terminated with exit code: \(proc.terminationStatus)")
+            self?.stateLock.lock()
+            self?.currentProcess = nil
+            self?.stateLock.unlock()
+        }
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+
+            // Read output
+            let outputData = outputPipe?.fileHandleForReading.readDataToEndOfFile() ?? Data()
+            let errorData = errorPipe?.fileHandleForReading.readDataToEndOfFile() ?? Data()
+
+            let output = String(data: outputData, encoding: .utf8) ?? ""
+            let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
+
+            logger.info("Script completed with output: \(output)")
+
+            // Clear current process
+            stateLock.lock()
+            currentProcess = nil
+            stateLock.unlock()
+
+            let result = ScriptExecutionResult(
+                output: output,
+                errorOutput: errorOutput,
+                exitCode: process.terminationStatus
+            )
+
+            DispatchQueue.main.async {
+                completion(result)
             }
+        } catch {
+            logger.error("Failed to execute script: \(error.localizedDescription)")
+            stateLock.lock()
+            currentProcess = nil
+            stateLock.unlock()
 
-            do {
-                try process.run()
-                process.waitUntilExit()
+            let result = ScriptExecutionResult(
+                output: "",
+                errorOutput: error.localizedDescription,
+                exitCode: -1
+            )
 
-                // Read output
-                let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-
-                let output = String(data: outputData, encoding: .utf8) ?? ""
-                let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
-
-                logger.info("Script completed with output: \(output)")
-
-                // Clear current process
-                stateLock.lock()
-                currentProcess = nil
-                stateLock.unlock()
-
-                let result = ScriptExecutionResult(
-                    output: output,
-                    errorOutput: errorOutput,
-                    exitCode: process.terminationStatus
-                )
-
-                DispatchQueue.main.async {
-                    completion(result)
-                }
-            } catch {
-                logger.error("Failed to execute script: \(error.localizedDescription)")
-                stateLock.lock()
-                currentProcess = nil
-                stateLock.unlock()
-
-                let result = ScriptExecutionResult(
-                    output: "",
-                    errorOutput: error.localizedDescription,
-                    exitCode: -1
-                )
-
-                DispatchQueue.main.async {
-                    completion(result)
-                }
+            DispatchQueue.main.async {
+                completion(result)
             }
         }
     }

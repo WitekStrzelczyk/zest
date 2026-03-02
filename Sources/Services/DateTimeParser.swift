@@ -80,51 +80,70 @@ final class DateTimeParser {
     func parseTime(_ timeString: String) -> TimeComponents? {
         let trimmed = timeString.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
 
-        // Pattern: HH:MM AM/PM (with or without space)
-        let withMinutesPattern = #"^(\d{1,2}):(\d{2})\s*(am|pm)?$"#
-        if let match = trimmed.firstMatch(of: withMinutesPattern) {
-            let hourStr = String(match.1)
-            let minuteStr = String(match.2)
-            let ampmStr = String(match.3)
-
-            guard var hour = Int(hourStr), let minute = Int(minuteStr) else {
-                return nil
-            }
-
-            // Handle AM/PM conversion
-            let ampm = ampmStr.lowercased()
-            if !ampm.isEmpty {
-                if ampm == "pm", hour != 12 {
-                    hour += 12
-                } else if ampm == "am", hour == 12 {
-                    hour = 0
-                }
-            }
-
-            return TimeComponents(hour: hour, minute: minute)
+        // Try pattern: HH:MM AM/PM (with or without space)
+        if let time = parseTimeWithMinutes(trimmed) {
+            return time
         }
 
-        // Pattern: H AM/PM (e.g., "3pm")
-        let hourOnlyPattern = #"^(\d{1,2})\s*(am|pm)$"#
-        if let match = trimmed.firstMatch(of: hourOnlyPattern) {
-            let hourStr = String(match.1)
-            let ampm = match.2
-
-            guard var hour = Int(hourStr) else {
-                return nil
-            }
-
-            // Handle AM/PM conversion
-            if ampm == "pm", hour != 12 {
-                hour += 12
-            } else if ampm == "am", hour == 12 {
-                hour = 0
-            }
-
-            return TimeComponents(hour: hour, minute: 0)
+        // Try pattern: H AM/PM (e.g., "3pm")
+        if let time = parseHourOnly(trimmed) {
+            return time
         }
 
         return nil
+    }
+
+    private func parseTimeWithMinutes(_ trimmed: String) -> TimeComponents? {
+        let withMinutesPattern = #"^(\d{1,2}):(\d{2})\s*(am|pm)?$"#
+        guard let match = trimmed.firstMatch(of: withMinutesPattern) else {
+            return nil
+        }
+
+        let hourStr = String(match.1)
+        let minuteStr = String(match.2)
+        let ampmStr = String(match.3)
+
+        guard var hour = Int(hourStr), let minute = Int(minuteStr) else {
+            return nil
+        }
+
+        // Handle AM/PM conversion
+        hour = convertTo24Hour(hour: hour, ampm: ampmStr.lowercased())
+
+        return TimeComponents(hour: hour, minute: minute)
+    }
+
+    private func parseHourOnly(_ trimmed: String) -> TimeComponents? {
+        let hourOnlyPattern = #"^(\d{1,2})\s*(am|pm)$"#
+        guard let match = trimmed.firstMatch(of: hourOnlyPattern) else {
+            return nil
+        }
+
+        let hourStr = String(match.1)
+        let ampm = match.2
+
+        guard var hour = Int(hourStr) else {
+            return nil
+        }
+
+        // Handle AM/PM conversion
+        hour = convertTo24Hour(hour: hour, ampm: String(ampm))
+
+        return TimeComponents(hour: hour, minute: 0)
+    }
+
+    private func convertTo24Hour(hour: Int, ampm: String) -> Int {
+        if ampm.isEmpty {
+            return hour
+        }
+
+        if ampm == "pm", hour != 12 {
+            return hour + 12
+        } else if ampm == "am", hour == 12 {
+            return 0
+        }
+
+        return hour
     }
 
     // MARK: - Combine Date and Time

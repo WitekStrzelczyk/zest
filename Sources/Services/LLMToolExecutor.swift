@@ -135,11 +135,7 @@ final class LLMToolExecutor {
         params: CreateCalendarEventParams
     ) async -> Result<ToolExecutionResult, Error> {
         print("🚀 LLMToolExecutor: Creating calendar event")
-        print("   Title: \(params.title)")
-        print("   Date: \(params.date ?? "nil")")
-        print("   Time: \(params.time ?? "nil")")
-        print("   Location: \(params.location ?? "nil")")
-        print("   Contact: \(params.contact ?? "nil")")
+        printEventParams(params)
 
         // Request calendar access if needed
         let calendarService = CalendarService.shared
@@ -151,33 +147,65 @@ final class LLMToolExecutor {
         }
 
         // Parse date
-        let date: Date
-        if let dateString = params.date {
-            guard let parsedDate = dateTimeParser.parseDate(dateString) else {
-                print("❌ Could not parse date: \(dateString)")
-                return .failure(ToolExecutionError.invalidParameters("Could not parse date: \(dateString)"))
-            }
-            date = parsedDate
-            print("📅 Parsed date: \(dateString) -> \(parsedDate)")
-        } else {
-            // Default to tomorrow
-            date = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
-            print("📅 Using default date (tomorrow): \(date)")
-        }
+        let date = parseEventDate(params: params)
 
         // Parse time
         let timeComponents = params.time.flatMap { dateTimeParser.parseTime($0) }
-        if let tc = timeComponents {
-            print("⏰ Parsed time: \(params.time ?? "") -> hour:\(tc.hour), minute:\(tc.minute)")
-        } else {
-            print("⏰ No time parsed, will use default (9:00 AM)")
-        }
+        printTimeParsing(timeComponents: timeComponents, originalTime: params.time)
 
         // Combine date and time
         let startDate = dateTimeParser.combine(date: date, withTime: timeComponents)
         print("📅 Final start date/time: \(startDate)")
 
         // Check if date is in the past
+        let (isPastEvent, now) = checkIfEventIsPast(startDate: startDate)
+
+        // Calculate end date (default 1 hour)
+        let endDate = calculateEndDate(startDate: startDate)
+        print("📅 End date/time: \(endDate)")
+
+        // Create the event
+        return await createCalendarEvent(
+            calendarService: calendarService,
+            params: params,
+            startDate: startDate,
+            endDate: endDate,
+            isPastEvent: isPastEvent
+        )
+    }
+
+    private func printEventParams(_ params: CreateCalendarEventParams) {
+        print("   Title: \(params.title)")
+        print("   Date: \(params.date ?? "nil")")
+        print("   Time: \(params.time ?? "nil")")
+        print("   Location: \(params.location ?? "nil")")
+        print("   Contact: \(params.contact ?? "nil")")
+    }
+
+    private func parseEventDate(params: CreateCalendarEventParams) -> Date {
+        if let dateString = params.date {
+            if let parsedDate = dateTimeParser.parseDate(dateString) {
+                print("📅 Parsed date: \(dateString) -> \(parsedDate)")
+                return parsedDate
+            } else {
+                print("❌ Could not parse date: \(dateString)")
+            }
+        }
+        // Default to tomorrow
+        let date = Calendar.current.date(byAdding: .day, value: 1, to: Date()) ?? Date()
+        print("📅 Using default date (tomorrow): \(date)")
+        return date
+    }
+
+    private func printTimeParsing(timeComponents: TimeComponents?, originalTime: String?) {
+        if let tc = timeComponents {
+            print("⏰ Parsed time: \(originalTime ?? "") -> hour:\(tc.hour), minute:\(tc.minute)")
+        } else {
+            print("⏰ No time parsed, will use default (9:00 AM)")
+        }
+    }
+
+    private func checkIfEventIsPast(startDate: Date) -> (Bool, Date) {
         let now = Date()
         let isPastEvent = startDate < now
 
@@ -187,14 +215,23 @@ final class LLMToolExecutor {
             print("   Current time: \(now)")
         }
 
-        // Calculate end date (default 1 hour)
+        return (isPastEvent, now)
+    }
+
+    private func calculateEndDate(startDate: Date) -> Date {
         let oneHour: TimeInterval = 3600
         let calendar = Calendar.current
-        let endDate = calendar.date(byAdding: .hour, value: 1, to: startDate) ??
+        return calendar.date(byAdding: .hour, value: 1, to: startDate) ??
             startDate.addingTimeInterval(oneHour)
-        print("📅 End date/time: \(endDate)")
+    }
 
-        // Create the event
+    private func createCalendarEvent(
+        calendarService: CalendarService,
+        params: CreateCalendarEventParams,
+        startDate: Date,
+        endDate: Date,
+        isPastEvent: Bool
+    ) async -> Result<ToolExecutionResult, Error> {
         do {
             let event = try await calendarService.createEvent(
                 title: params.title,
@@ -244,7 +281,7 @@ final class LLMToolExecutor {
         // Handle wildcard query with modifiedWithin - search for recently modified files
         if params.query == "*", params.modifiedWithin != nil {
             print("🔍 Using mdfind for recently modified files")
-            results = searchRecentlyModifiedFiles(hours: params.modifiedWithin!, extension: params.fileExtension)
+            results = searchRecentlyModifiedFiles(hours: params.modifiedWithin!, ext: params.fileExtension)
         } else {
             // Normal search
             results = fileSearchService.searchSync(query: params.query, maxResults: 20)
@@ -305,28 +342,30 @@ final class LLMToolExecutor {
     // MARK: - Recently Modified Files Search
 
     /// Search for recently modified files using mdfind with date predicate
-    private func searchRecentlyModifiedFiles(hours: Int, extension: String?) -> [SearchResult] {
-        // Build mdfind query for recently modified files
-        // Use $time.today(-N) for days or calculate for hours
-        var query: String
-
-        if hours >= 24 {
-            // Use days for cleaner syntax
-            let days = hours / 24
-            query = "kMDItemFSContentChangeDate >= $time.today(-\(days))"
-        } else {
-            // For hours, use $time.now with offset
-            query = "kMDItemFSContentChangeDate >= $time.now(-\(hours * 3600))"
-        }
-
-        // Add extension filter if specified
-        if let ext = `extension` {
-            query += " && kMDItemFSExtension == '\(ext)'"
-        }
-
+    private func searchRecentlyModifiedFiles(hours: Int, ext: String?) -> [SearchResult] {
+        let query = buildRecentlyModifiedQuery(hours: hours, ext: ext)
         print("🔍 mdfind query: \(query)")
 
-        // Execute mdfind
+        let paths = executeMdfindQuery(query)
+        return convertPathsToSearchResults(paths)
+    }
+
+    private func buildRecentlyModifiedQuery(hours: Int, ext: String?) -> String {
+        let dateQuery: String
+        if hours >= 24 {
+            let days = hours / 24
+            dateQuery = "kMDItemFSContentChangeDate >= $time.today(-\(days))"
+        } else {
+            dateQuery = "kMDItemFSContentChangeDate >= $time.now(-\(hours * 3600))"
+        }
+
+        if let ext {
+            return dateQuery + " && kMDItemFSExtension == '\(ext)'"
+        }
+        return dateQuery
+    }
+
+    private func executeMdfindQuery(_ query: String) -> [String] {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/mdfind")
         process.arguments = ["-onlyin", NSHomeDirectory(), query]
@@ -335,28 +374,28 @@ final class LLMToolExecutor {
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
 
-        var paths: [String] = []
-
         do {
             try process.run()
             process.waitUntilExit()
 
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8) {
-                paths = output.components(separatedBy: "\n").filter { !$0.isEmpty }
+                let paths = output.components(separatedBy: "\n").filter { !$0.isEmpty }
                 print("🔍 mdfind returned \(paths.count) paths")
+                return paths
             }
         } catch {
             print("❌ mdfind failed: \(error)")
         }
 
-        // Convert paths to SearchResult
+        return []
+    }
+
+    private func convertPathsToSearchResults(_ paths: [String]) -> [SearchResult] {
         var results: [SearchResult] = []
         for path in paths.prefix(20) {
-            // Skip hidden directories
-            if path.contains("/.") { continue }
-            // Skip .app bundles
-            if path.hasSuffix(".app") { continue }
+            // Skip hidden directories and .app bundles
+            if path.contains("/.") || path.hasSuffix(".app") { continue }
 
             let url = URL(fileURLWithPath: path)
             let name = url.lastPathComponent

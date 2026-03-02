@@ -63,7 +63,8 @@ final class NotesService {
                 set noteId to id of n
                 set noteMod to modification date of n
                 set noteCre to creation date of n
-                set end of noteList to noteTitle & "|||" & noteBody & "|||" & noteId & "|||" & noteMod as string & "|||" & noteCre as string
+                set end of noteList to noteTitle & "|||" & noteBody & "|||" &
+                    noteId & "|||" & noteMod as string & "|||" & noteCre as string
             end repeat
             return noteList as text
         end tell

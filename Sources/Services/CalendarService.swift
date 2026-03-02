@@ -453,9 +453,8 @@ final class CalendarService: @unchecked Sendable {
 
         let calendarName = targetCalendar?.title ?? "Unknown"
         print("📅 Creating event in calendar: \(calendarName)")
-        print(
-            "📅 Event details - Title: \(title), Start: \(startDate), End: \(endDate ?? startDate.addingTimeInterval(3600))"
-        )
+        let end = endDate ?? startDate.addingTimeInterval(3600)
+        print("Event details - Title: \(title), Start: \(startDate), End: \(end)")
 
         do {
             try eventStore.save(event, span: .thisEvent)
@@ -1060,9 +1059,12 @@ final class CalendarService: @unchecked Sendable {
             ""
         }
 
+        let dateRange = "\(event.formattedDate) • \(event.formattedTimeRange)"
+        let durationUntil = "\(event.durationText) • \(event.humanizedTimeUntil)\(locationText)"
+        let subtitle = "\(dateRange) • \(durationUntil)"
         return SearchResult(
             title: event.title,
-            subtitle: "\(event.formattedDate) • \(event.formattedTimeRange) • \(event.durationText) • \(event.humanizedTimeUntil)\(locationText)",
+            subtitle: subtitle,
             icon: NSImage(systemSymbolName: "calendar", accessibilityDescription: "Calendar Event")!,
             category: .calendar,
             action: { [weak self] in

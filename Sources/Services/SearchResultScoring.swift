@@ -30,39 +30,70 @@ final class SearchResultScoring {
         let lowercasedQuery = query.lowercased()
         let lowercasedTitle = title.lowercased()
 
-        // Exact match (case-insensitive) - highest score
-        if lowercasedTitle == lowercasedQuery {
-            return 1000
+        // Check for exact and prefix matches first
+        if let score = checkExactAndPrefixMatches(query: lowercasedQuery, title: lowercasedTitle) {
+            return score
         }
 
-        // Exact prefix of entire title
-        if lowercasedTitle.hasPrefix(lowercasedQuery) {
-            return 900
-        }
-
-        // Check if query matches at the START of any word (major boost!)
+        // Check word start match
         if let wordStartScore = scoreWordStartMatch(query: lowercasedQuery, target: lowercasedTitle) {
             return wordStartScore
         }
 
-        // Fuzzy match with proper gap penalties
+        // Calculate fuzzy score
         var score = calculateFuzzyScore(query: lowercasedQuery, target: lowercasedTitle)
 
-        // If fuzzy didn't match all characters, check substring contains
-        if score == 0, lowercasedTitle.contains(lowercasedQuery) {
-            score = 30 // Low score for middle-of-word substring
+        // Check substring if fuzzy didn't match
+        score = checkSubstringMatch(query: lowercasedQuery, title: lowercasedTitle, score: score)
+
+        // Check subtitle and category for additional scoring
+        score = applyContextScoring(query: query, subtitle: subtitle, category: category, currentScore: score)
+
+        return score
+    }
+
+    private func checkExactAndPrefixMatches(query: String, title: String) -> Int? {
+        // Exact match (case-insensitive) - highest score
+        if title == query {
+            return 1000
         }
 
-        // Also check subtitle if provided
-        if let subtitle, score < 700 {
+        // Exact prefix of entire title
+        if title.hasPrefix(query) {
+            return 900
+        }
+
+        return nil
+    }
+
+    private func checkSubstringMatch(query: String, title: String, score: Int) -> Int {
+        if score == 0, title.contains(query) {
+            return 30 // Low score for middle-of-word substring
+        }
+        return score
+    }
+
+    private func applyContextScoring(
+        query: String,
+        subtitle: String?,
+        category: SearchResultCategory?,
+        currentScore: Int
+    ) -> Int {
+        var score = currentScore
+
+        if score >= 700 {
+            return score
+        }
+
+        // Check subtitle if provided
+        if let subtitle {
             let subtitleScore = scoreResult(query: query, title: subtitle)
-            // Subtitle matches should be lower than title matches
             if subtitleScore > score {
                 score = max(subtitleScore - 100, score)
             }
         }
 
-        // Also check category name if provided
+        // Check category name if provided
         if let category, score < 700 {
             let categoryScore = scoreResult(query: query, title: category.displayName)
             if categoryScore > 0 {
@@ -108,12 +139,34 @@ final class SearchResultScoring {
         guard matchPositions.count == query.count else { return 0 }
 
         // Calculate score based on match quality
+        let baseScore = calculateBaseScore(matchPositions: matchPositions, target: target)
+        return max(0, min(500, Int(baseScore)))
+    }
+
+    private func calculateBaseScore(matchPositions: [Int], target: String) -> Double {
         var score = 0.0
 
         // 1. Base score for matching all characters
         score += 100
 
-        // 2. Calculate gap penalties
+        // 2. Calculate gap penalties and consecutive bonuses
+        let (totalGapPenalty, consecutiveBonus) = calculateGapPenalties(matchPositions: matchPositions)
+        score += consecutiveBonus
+        score -= totalGapPenalty
+
+        // 3. Bonus for early position (first match close to start)
+        let firstMatchPosition = matchPositions.first ?? 0
+        let earlyPositionBonus = max(0, 50 - firstMatchPosition * 2)
+        score += Double(earlyPositionBonus)
+
+        // 4. Bonus for word boundary matches
+        let wordBoundaryBonus = calculateWordBoundaryBonus(matchPositions: matchPositions, target: target)
+        score += wordBoundaryBonus
+
+        return score
+    }
+
+    private func calculateGapPenalties(matchPositions: [Int]) -> (penalty: Double, bonus: Double) {
         var totalGapPenalty = 0.0
         var consecutiveBonus = 0.0
 
@@ -125,36 +178,30 @@ final class SearchResultScoring {
                 consecutiveBonus += 20
             } else {
                 // Gap penalty: exponential penalty for larger gaps
-                // gap of 2 = -2, gap of 5 = -32, gap of 10 = -162
                 let gapPenalty = Double(gap - 1) * Double(gap - 1) * 2
                 totalGapPenalty += gapPenalty
             }
         }
 
-        score += consecutiveBonus
-        score -= totalGapPenalty
+        return (totalGapPenalty, consecutiveBonus)
+    }
 
-        // 3. Bonus for early position (first match close to start)
-        let firstMatchPosition = matchPositions.first ?? 0
-        let earlyPositionBonus = max(0, 50 - firstMatchPosition * 2)
-        score += Double(earlyPositionBonus)
-
-        // 4. Bonus for word boundary matches
+    private func calculateWordBoundaryBonus(matchPositions: [Int], target: String) -> Double {
         var wordBoundaryBonus = 0.0
         for position in matchPositions {
             if position == 0 {
                 wordBoundaryBonus += 15 // Match at very start
-            } else {
-                let prevCharIndex = target.index(target.startIndex, offsetBy: position - 1)
-                let prevChar = target[prevCharIndex]
-                if prevChar == " " || prevChar == "-" || prevChar == "_" {
-                    wordBoundaryBonus += 10 // Match at word boundary
-                }
+            } else if isWordBoundary(position: position, target: target) {
+                wordBoundaryBonus += 10 // Match at word boundary
             }
         }
-        score += wordBoundaryBonus
+        return wordBoundaryBonus
+    }
 
-        // Ensure score is positive and within bounds
-        return max(0, min(500, Int(score)))
+    private func isWordBoundary(position: Int, target: String) -> Bool {
+        guard position > 0 else { return false }
+        let prevCharIndex = target.index(target.startIndex, offsetBy: position - 1)
+        let prevChar = target[prevCharIndex]
+        return prevChar == " " || prevChar == "-" || prevChar == "_"
     }
 }

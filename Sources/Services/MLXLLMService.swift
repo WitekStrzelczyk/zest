@@ -226,67 +226,78 @@ final class MLXLLMService: ObservableObject {
         var result: [String: Any] = [:]
         var index = body.startIndex
 
-        func skipWhitespaceAndCommas() {
-            while index < body.endIndex {
-                let c = body[index]
-                if c == " " || c == "\n" || c == "\t" || c == "," {
-                    index = body.index(after: index)
-                } else {
-                    break
-                }
-            }
-        }
-
-        func parseKey() -> String? {
-            skipWhitespaceAndCommas()
-            let start = index
-            while index < body.endIndex {
-                let c = body[index]
-                if c == ":" {
-                    let key = body[start..<index].trimmingCharacters(in: .whitespacesAndNewlines)
-                    index = body.index(after: index)
-                    return key.isEmpty ? nil : String(key)
-                }
-                index = body.index(after: index)
-            }
-            return nil
-        }
-
-        func parseValue() -> Any? {
-            skipWhitespaceAndCommas()
-            guard index < body.endIndex else { return nil }
-            if body[index...].hasPrefix("<escape>") {
-                index = body.index(index, offsetBy: "<escape>".count)
-                guard let endRange = body[index...].range(of: "<escape>") else { return nil }
-                let value = body[index..<endRange.lowerBound]
-                index = endRange.upperBound
-                return String(value)
-            }
-
-            let start = index
-            while index < body.endIndex {
-                let c = body[index]
-                if c == "," || c == "}" {
-                    break
-                }
-                index = body.index(after: index)
-            }
-            let raw = body[start..<index].trimmingCharacters(in: .whitespacesAndNewlines)
-            if raw == "true" { return true }
-            if raw == "false" { return false }
-            if let intValue = Int(raw) { return intValue }
-            if raw.isEmpty { return nil }
-            return String(raw)
-        }
-
         while index < body.endIndex {
-            guard let key = parseKey() else { break }
-            guard let value = parseValue() else { break }
+            guard let key = parseKeyFromBody(body, index: &index) else { break }
+            guard let value = parseValueFromBody(body, index: &index) else { break }
             result[key] = value
-            skipWhitespaceAndCommas()
         }
 
         return result.isEmpty ? nil : result
+    }
+
+    private func parseKeyFromBody(_ body: Substring, index: inout Substring.Index) -> String? {
+        skipWhitespaceAndCommas(&index, in: body)
+        let start = index
+        while index < body.endIndex {
+            let c = body[index]
+            if c == ":" {
+                let key = body[start..<index].trimmingCharacters(in: .whitespacesAndNewlines)
+                index = body.index(after: index)
+                return key.isEmpty ? nil : String(key)
+            }
+            index = body.index(after: index)
+        }
+        return nil
+    }
+
+    private func parseValueFromBody(_ body: Substring, index: inout Substring.Index) -> Any? {
+        skipWhitespaceAndCommas(&index, in: body)
+        guard index < body.endIndex else { return nil }
+
+        // Check for escaped string
+        if let value = parseEscapedValue(body, index: &index) {
+            return value
+        }
+
+        // Parse regular value
+        let start = index
+        while index < body.endIndex {
+            let c = body[index]
+            if c == "," || c == "}" {
+                break
+            }
+            index = body.index(after: index)
+        }
+        let raw = body[start..<index].trimmingCharacters(in: .whitespacesAndNewlines)
+        return convertToTypedValue(raw)
+    }
+
+    private func parseEscapedValue(_ body: Substring, index: inout Substring.Index) -> Any? {
+        guard body[index...].hasPrefix("<escape>") else { return nil }
+        index = body.index(index, offsetBy: "<escape>".count)
+        guard let endRange = body[index...].range(of: "<escape>") else { return nil }
+        let value = body[index..<endRange.lowerBound]
+        index = endRange.upperBound
+        return String(value)
+    }
+
+    private func convertToTypedValue(_ raw: String) -> Any? {
+        if raw == "true" { return true }
+        if raw == "false" { return false }
+        if let intValue = Int(raw) { return intValue }
+        if raw.isEmpty { return nil }
+        return String(raw)
+    }
+
+    private func skipWhitespaceAndCommas(_ index: inout Substring.Index, in body: Substring) {
+        while index < body.endIndex {
+            let c = body[index]
+            if c == " " || c == "\n" || c == "\t" || c == "," {
+                index = body.index(after: index)
+            } else {
+                break
+            }
+        }
     }
 
     private func trimAtStopMarkers(_ response: String) -> String {

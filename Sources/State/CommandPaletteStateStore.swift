@@ -76,66 +76,103 @@ final class CommandPaletteStateStore {
     }
 
     func setIntentContext(from toolCall: LLMToolCall, rawQuery: String) {
-        let context: ParsedIntentContext
-        switch toolCall.parameters {
-        case .createCalendarEvent(let params):
-            var entities = [ContextEntity(type: .title, value: params.title)]
-            if let contact = params.contact { entities.append(ContextEntity(type: .contact, value: contact)) }
-            if let location = params.location { entities.append(ContextEntity(type: .location, value: location)) }
-            if let date = params.date { entities.append(ContextEntity(type: .date, value: date)) }
-            if let time = params.time { entities.append(ContextEntity(type: .time, value: time)) }
-            context = ParsedIntentContext(
-                intent: .createCalendar,
-                entities: entities,
-                confidence: toolCall.confidence,
-                rawQuery: rawQuery
-            )
-        case .findFiles(let params):
-            var entities = [ContextEntity(type: .query, value: params.query)]
-            if let fileExtension = params.fileExtension {
-                entities.append(ContextEntity(type: .fileExtension, value: fileExtension))
-            }
-            if let modifiedWithin = params.modifiedWithin {
-                entities.append(ContextEntity(type: .modifiedWithinHours, value: String(modifiedWithin)))
-            }
-            context = ParsedIntentContext(
-                intent: .findFiles,
-                entities: entities,
-                confidence: toolCall.confidence,
-                rawQuery: rawQuery
-            )
-        case .convertUnits(let params):
-            var entities = [
-                ContextEntity(type: .value, value: String(params.value)),
-                ContextEntity(type: .fromUnit, value: params.fromUnit),
-                ContextEntity(type: .toUnit, value: params.toUnit),
-            ]
-            if let category = params.category {
-                entities.append(ContextEntity(type: .category, value: category))
-            }
-            context = ParsedIntentContext(
-                intent: .convertUnits,
-                entities: entities,
-                confidence: toolCall.confidence,
-                rawQuery: rawQuery
-            )
-        case .translate(let params):
-            var entities = [
-                ContextEntity(type: .sourceText, value: params.text),
-                ContextEntity(type: .targetLanguage, value: params.targetLanguage),
-            ]
-            if let sourceLanguage = params.sourceLanguage {
-                entities.append(ContextEntity(type: .sourceLanguage, value: sourceLanguage))
-            }
-            context = ParsedIntentContext(
-                intent: .translate,
-                entities: entities,
-                confidence: toolCall.confidence,
-                rawQuery: rawQuery
-            )
-        }
+        let context = buildIntentContext(from: toolCall, rawQuery: rawQuery)
         state.intentContext = context
         notify()
+    }
+
+    private func buildIntentContext(from toolCall: LLMToolCall, rawQuery: String) -> ParsedIntentContext {
+        switch toolCall.parameters {
+        case .createCalendarEvent(let params):
+            buildCalendarEventContext(params: params, toolCall: toolCall, rawQuery: rawQuery)
+        case .findFiles(let params):
+            buildFindFilesContext(params: params, toolCall: toolCall, rawQuery: rawQuery)
+        case .convertUnits(let params):
+            buildConvertUnitsContext(params: params, toolCall: toolCall, rawQuery: rawQuery)
+        case .translate(let params):
+            buildTranslateContext(params: params, toolCall: toolCall, rawQuery: rawQuery)
+        }
+    }
+
+    private func buildCalendarEventContext(
+        params: CreateCalendarEventParams,
+        toolCall: LLMToolCall,
+        rawQuery: String
+    ) -> ParsedIntentContext {
+        var entities = [ContextEntity(type: .title, value: params.title)]
+        addOptionalEntity(value: params.contact, type: .contact, to: &entities)
+        addOptionalEntity(value: params.location, type: .location, to: &entities)
+        addOptionalEntity(value: params.date, type: .date, to: &entities)
+        addOptionalEntity(value: params.time, type: .time, to: &entities)
+
+        return ParsedIntentContext(
+            intent: .createCalendar,
+            entities: entities,
+            confidence: toolCall.confidence,
+            rawQuery: rawQuery
+        )
+    }
+
+    private func buildFindFilesContext(
+        params: FindFilesParams,
+        toolCall: LLMToolCall,
+        rawQuery: String
+    ) -> ParsedIntentContext {
+        var entities = [ContextEntity(type: .query, value: params.query)]
+        addOptionalEntity(value: params.fileExtension, type: .fileExtension, to: &entities)
+        addOptionalEntity(value: params.modifiedWithin.map(String.init), type: .modifiedWithinHours, to: &entities)
+
+        return ParsedIntentContext(
+            intent: .findFiles,
+            entities: entities,
+            confidence: toolCall.confidence,
+            rawQuery: rawQuery
+        )
+    }
+
+    private func buildConvertUnitsContext(
+        params: UnitConversionParams,
+        toolCall: LLMToolCall,
+        rawQuery: String
+    ) -> ParsedIntentContext {
+        var entities = [
+            ContextEntity(type: .value, value: String(params.value)),
+            ContextEntity(type: .fromUnit, value: params.fromUnit),
+            ContextEntity(type: .toUnit, value: params.toUnit),
+        ]
+        addOptionalEntity(value: params.category, type: .category, to: &entities)
+
+        return ParsedIntentContext(
+            intent: .convertUnits,
+            entities: entities,
+            confidence: toolCall.confidence,
+            rawQuery: rawQuery
+        )
+    }
+
+    private func buildTranslateContext(
+        params: TranslationParams,
+        toolCall: LLMToolCall,
+        rawQuery: String
+    ) -> ParsedIntentContext {
+        var entities = [
+            ContextEntity(type: .sourceText, value: params.text),
+            ContextEntity(type: .targetLanguage, value: params.targetLanguage),
+        ]
+        addOptionalEntity(value: params.sourceLanguage, type: .sourceLanguage, to: &entities)
+
+        return ParsedIntentContext(
+            intent: .translate,
+            entities: entities,
+            confidence: toolCall.confidence,
+            rawQuery: rawQuery
+        )
+    }
+
+    private func addOptionalEntity(value: String?, type: ContextEntityType, to entities: inout [ContextEntity]) {
+        if let value {
+            entities.append(ContextEntity(type: type, value: value))
+        }
     }
 
     private func notify() {

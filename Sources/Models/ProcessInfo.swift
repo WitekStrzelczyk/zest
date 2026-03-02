@@ -287,9 +287,11 @@ final class ProcessSearchService {
         }
 
         // Sort by CPU descending and limit
-        return Array(filtered
-            .sorted { $0.cpuPercent > $1.cpuPercent }
-            .prefix(maxResults))
+        return Array(
+            filtered
+                .sorted { $0.cpuPercent > $1.cpuPercent }
+                .prefix(maxResults)
+        )
     }
 
     // MARK: - Search Results Conversion

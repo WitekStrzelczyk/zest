@@ -311,69 +311,82 @@ final class TimeZoneConverterService {
 
         // Check for "time zones" keyword
         if lowercased == "time zones" || lowercased == "timezone" || lowercased == "time zone" {
-            let zones = getFrequentTimeZones()
-            return zones.map { zone in
-                SearchResult(
-                    title: zone,
-                    subtitle: "Frequent Time Zone",
-                    icon: NSImage(systemSymbolName: "clock", accessibilityDescription: "Time Zone"),
-                    category: .conversion,
-                    action: {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(zone, forType: .string)
-                    },
-                    score: 2000
-                )
-            }
+            return buildTimeZoneSearchResults()
         }
 
         // Check for time conversion expression
         if isTimeConversionExpression(trimmed) {
             if let result = convert(trimmed) {
-                let icon = NSImage(
-                    systemSymbolName: "clock.arrow.circlepath",
-                    accessibilityDescription: "Time Zone Converter"
-                )
-                return [SearchResult(
-                    title: result,
-                    subtitle: "Time Zone Conversion",
-                    icon: icon,
-                    category: .conversion,
-                    action: {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(result, forType: .string)
-                    },
-                    score: 2000
-                )]
+                return buildConversionResult(result)
             }
         }
 
         // Check for "time in" expression
         if isTimeInExpression(trimmed) {
-            let range = NSRange(lowercased.startIndex..., in: lowercased)
-            guard let regex = try? NSRegularExpression(pattern: timeInPattern, options: .caseInsensitive),
-                  let match = regex.firstMatch(in: lowercased, options: [], range: range),
-                  let cityRange = Range(match.range(at: 1), in: lowercased)
-            else {
-                return []
-            }
-            let city = String(lowercased[cityRange])
-            if let result = currentTime(in: city) {
-                return [SearchResult(
-                    title: result,
-                    subtitle: "Current Time",
-                    icon: NSImage(systemSymbolName: "clock", accessibilityDescription: "Time"),
-                    category: .conversion,
-                    action: {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(result, forType: .string)
-                    },
-                    score: 2000
-                )]
-            }
+            return searchTimeIn(city: extractCity(from: lowercased))
         }
 
         return []
+    }
+
+    private func buildTimeZoneSearchResults() -> [SearchResult] {
+        let zones = getFrequentTimeZones()
+        return zones.map { zone in
+            SearchResult(
+                title: zone,
+                subtitle: "Frequent Time Zone",
+                icon: NSImage(systemSymbolName: "clock", accessibilityDescription: "Time Zone"),
+                category: .conversion,
+                action: {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(zone, forType: .string)
+                },
+                score: 2000
+            )
+        }
+    }
+
+    private func buildConversionResult(_ result: String) -> [SearchResult] {
+        let icon = NSImage(systemSymbolName: "clock.arrow.circlepath", accessibilityDescription: "Time Zone Converter")
+        return [SearchResult(
+            title: result,
+            subtitle: "Time Zone Conversion",
+            icon: icon,
+            category: .conversion,
+            action: {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(result, forType: .string)
+            },
+            score: 2000
+        )]
+    }
+
+    private func extractCity(from lowercased: String) -> String? {
+        let range = NSRange(lowercased.startIndex..., in: lowercased)
+        guard let regex = try? NSRegularExpression(pattern: timeInPattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: lowercased, options: [], range: range),
+              let cityRange = Range(match.range(at: 1), in: lowercased)
+        else {
+            return nil
+        }
+        return String(lowercased[cityRange])
+    }
+
+    private func searchTimeIn(city: String?) -> [SearchResult] {
+        guard let city, let result = currentTime(in: city) else {
+            return []
+        }
+        return [SearchResult(
+            title: result,
+            subtitle: "Current Time",
+            icon: NSImage(systemSymbolName: "clock", accessibilityDescription: "Time"),
+            category: .conversion,
+            action: {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(result, forType: .string)
+            },
+            score: 2000
+        )]
     }
 
     // MARK: - Private Helpers

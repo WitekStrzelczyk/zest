@@ -364,7 +364,35 @@ final class NetworkInfoService {
             category: .action
         )
 
-        // Format subtitle
+        // Add main IP result
+        results.append(buildMainIPResult(
+            displayIPs: displayIPs,
+            vpnConnected: vpnConnected,
+            score: score,
+            localIPs: localIPs
+        ))
+
+        // Show all local IPs
+        if displayIPs.count > 1 {
+            let ipResults = buildAdditionalIPResults(
+                displayIPs: displayIPs,
+                score: score
+            )
+            results.append(contentsOf: ipResults)
+        }
+
+        // Public IP result
+        results.append(buildPublicIPResult(score: score))
+
+        return results
+    }
+
+    private func buildMainIPResult(
+        displayIPs: [NetworkInterface],
+        vpnConnected: Bool,
+        score: Int,
+        localIPs: [NetworkInterface]
+    ) -> SearchResult {
         let subtitle: String
         if let primaryIP = displayIPs.first {
             let vpnIndicator = vpnConnected ? " • 🔒 VPN" : ""
@@ -373,7 +401,7 @@ final class NetworkInfoService {
             subtitle = "No network connection"
         }
 
-        results.append(SearchResult(
+        return SearchResult(
             title: "My IP Address",
             subtitle: subtitle,
             icon: NSImage(systemSymbolName: "network", accessibilityDescription: "IP Address"),
@@ -382,27 +410,27 @@ final class NetworkInfoService {
                 self?.copyLocalIPToClipboard(localIPs)
             },
             score: max(score, 100)
-        ))
+        )
+    }
 
-        // Show all local IPs
-        if displayIPs.count > 1 {
-            for ip in displayIPs {
-                let icon = iconForInterfaceType(ip.interfaceType)
-                results.append(SearchResult(
-                    title: "\(ip.interfaceType.rawValue): \(ip.address)",
-                    subtitle: "Interface: \(ip.name)",
-                    icon: NSImage(systemSymbolName: icon, accessibilityDescription: ip.interfaceType.rawValue),
-                    category: .action,
-                    action: { [weak self] in
-                        self?.copySingleIPToClipboard(ip)
-                    },
-                    score: max(score - 10, 50)
-                ))
-            }
+    private func buildAdditionalIPResults(displayIPs: [NetworkInterface], score: Int) -> [SearchResult] {
+        displayIPs.map { ip in
+            let icon = iconForInterfaceType(ip.interfaceType)
+            return SearchResult(
+                title: "\(ip.interfaceType.rawValue): \(ip.address)",
+                subtitle: "Interface: \(ip.name)",
+                icon: NSImage(systemSymbolName: icon, accessibilityDescription: ip.interfaceType.rawValue),
+                category: .action,
+                action: { [weak self] in
+                    self?.copySingleIPToClipboard(ip)
+                },
+                score: max(score - 10, 50)
+            )
         }
+    }
 
-        // Public IP result (will show cached or fetch)
-        results.append(SearchResult(
+    private func buildPublicIPResult(score: Int) -> SearchResult {
+        SearchResult(
             title: "Public IP (WAN)",
             subtitle: cachedPublicIP ?? "Press Enter to fetch",
             icon: NSImage(systemSymbolName: "globe", accessibilityDescription: "Public IP"),
@@ -414,19 +442,14 @@ final class NetworkInfoService {
                         switch result {
                         case .success(let ip):
                             self.copyPublicIPToClipboard(ip)
-                        case .noInternet:
-                            // Show notification or update subtitle
-                            break
-                        case .error:
+                        case .noInternet, .error:
                             break
                         }
                     }
                 }
             },
             score: max(score - 5, 80)
-        ))
-
-        return results
+        )
     }
 
     private func createNetworkInfoResults(query: String) -> [SearchResult] {
