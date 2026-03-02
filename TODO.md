@@ -1469,7 +1469,7 @@ Color picker must work with any on-screen content and provide accurate color val
 
 ---
 
-### [ ] Story 25: Translation Tool
+### [x] Story 25: Translation Tool
 
 **As a** multilingual user who frequently translates text
 **I want** to quickly translate text between languages from the command palette
