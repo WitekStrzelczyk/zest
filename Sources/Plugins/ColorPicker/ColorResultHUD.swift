@@ -13,10 +13,14 @@ final class ColorResultHUD: NSPanel {
     private let copiedLabel: NSTextField
     
     // MARK: - State
-    
+
     private var currentColorInfo: ColorInfo?
     private var hideCopiedTimer: Timer?
-    private var currentFormats: (primary: ColorFormat, secondary1: ColorFormat, secondary2: ColorFormat) = (.hex, .rgb, .hsl)
+    private var currentFormats: (primary: ColorFormat, secondary1: ColorFormat, secondary2: ColorFormat) = (
+        .hex,
+        .rgb,
+        .hsl
+    )
     
     // MARK: - Init
     
