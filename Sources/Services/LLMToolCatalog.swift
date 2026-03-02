@@ -289,7 +289,7 @@ enum LLMToolCatalog {
 
         let fileExtension = firstRegexMatch(
             in: lower,
-            pattern: #"\b(pdf|txt|md|markdown|doc|docx|xls|xlsx|ppt|pptx|csv|json|xml|png|jpg|jpeg)\b"#
+            pattern: #"\b(pdf|txt|md|markdown|doc|docx|xls|xlsx|ppt|pptx|csv|json|xml|png|jpg|jpeg|gif|zip|app|dmg|mp3|mp4|mov|log|swift|py|js|html|css)\b"#
         ).map(normalizedFileExtension)
 
         let modifiedWithin: Int? = {
@@ -359,7 +359,9 @@ enum LLMToolCatalog {
 
     private static func hoursSinceStartOfToday() -> Int {
         let now = Date()
-        let start = Calendar.current.startOfDay(for: now)
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone.current
+        let start = calendar.startOfDay(for: now)
         let hours = Int(ceil(now.timeIntervalSince(start) / 3600.0))
         return max(1, hours)
     }
