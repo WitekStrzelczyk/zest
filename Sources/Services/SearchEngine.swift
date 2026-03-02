@@ -703,11 +703,9 @@ final class SearchEngine {
         let dedupSpan = span.createChild(operationName: "deduplicate_sort")
         var finalResults: [SearchResult] = []
         var seenTitles: Set<String> = []
-        for result in results {
-            if !seenTitles.contains(result.title) {
-                seenTitles.insert(result.title)
-                finalResults.append(result)
-            }
+        for result in results where !seenTitles.contains(result.title) {
+            seenTitles.insert(result.title)
+            finalResults.append(result)
         }
         dedupSpan.setTag("before_dedup", results.count)
         dedupSpan.setTag("after_dedup", finalResults.count)
