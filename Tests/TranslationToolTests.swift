@@ -90,12 +90,6 @@ final class TranslationToolTests: XCTestCase {
 
     // MARK: - Tool Catalog Tests
 
-    func testFunctionGemmaDeclarationsContainsTranslate() {
-        let declarations = LLMToolCatalog.functionGemmaDeclarations
-        XCTAssertTrue(declarations.contains("translate"), "Should contain translate tool declaration")
-        XCTAssertTrue(declarations.contains("target_language"), "Should contain target_language parameter")
-    }
-
     func testFallbackParseTranslateIntent() {
         // Pattern: "translate X to Y"
         let toolCall = LLMToolCatalog.fallbackParse(input: "translate hello to spanish")

@@ -60,7 +60,7 @@ final class CommandPaletteController {
                 }
                 return
             }
-            print("🧠 Got LLM toolCall: \(describe(toolCall))")
+            print("🧠 Got intent toolCall: \(describe(toolCall))")
 
             await MainActor.run {
                 guard self.currentQuery == originalQuery else { return }

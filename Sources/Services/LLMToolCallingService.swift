@@ -5,6 +5,7 @@ final class LLMToolCallingService: @unchecked Sendable {
     static let shared = LLMToolCallingService()
 
     private let logger = Logger(subsystem: "com.zest.app", category: "LLMToolCalling")
+    private let commandParser = CommandParser()
 
     private init() {}
 
@@ -15,10 +16,10 @@ final class LLMToolCallingService: @unchecked Sendable {
         logger.info("parseWithLLM: \(trimmed)")
         print("🧠 Calling parseWithLLM with: \(trimmed)")
 
-        // Try the LLM - it should extract params correctly
-        if let toolCall = await MLXLLMService.shared.parseToolCall(trimmed) {
-            print("🧠 LLMToolCallingService: using model tool call")
-            print("🧠 Got LLM toolCall: \(describe(toolCall))")
+        // Use native CommandParser (fast, <50ms)
+        if let toolCall = commandParser.parse(trimmed) {
+            print("🧠 LLMToolCallingService: using native CommandParser")
+            print("🧠 Got native toolCall: \(describe(toolCall))")
             return toolCall
         }
 
