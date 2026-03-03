@@ -100,11 +100,6 @@ final class MLXLLMService: ObservableObject {
             return toolCall
         }
 
-        // Fallback: infer directly from user input when model output is unstructured.
-        if let fallback = inferToolFromInput(originalInput) {
-            return fallback
-        }
-
         return nil
     }
 
@@ -166,10 +161,6 @@ final class MLXLLMService: ObservableObject {
         )
     }
 
-    private func inferToolFromInput(_ input: String) -> LLMToolCall? {
-        LLMToolCatalog.fallbackParse(input: input)
-    }
-
     private func extractJSONObjectCandidates(from text: String) -> [String] {
         let chars = Array(text)
         var candidates: [String] = []
@@ -200,9 +191,12 @@ final class MLXLLMService: ObservableObject {
     }
 
     private func functionGemmaPrompt(userInput: String) -> String {
-        let developer = """
+        let developerPrompt = """
         <start_of_turn>developer
-        You are a model that can do function calling with the following functions
+        You are a function calling assistant. Your ONLY task is to call one of the available \
+        functions with the correct parameters based on user input.
+        You MUST respond with a function call. Do NOT explain, do not chat, just call a function.
+        Available functions:
         \(LLMToolCatalog.functionGemmaDeclarations)
         <end_of_turn>
         """
@@ -214,7 +208,7 @@ final class MLXLLMService: ObservableObject {
         """
 
         let model = "<start_of_turn>model"
-        return developer + "\n" + user + "\n" + model
+        return developerPrompt + "\n" + user + "\n" + model
     }
 
     private func parseFunctionGemmaArguments(_ text: String) -> [String: Any]? {
@@ -322,6 +316,43 @@ final class MLXLLMService: ObservableObject {
 
         func test_trimAtStopMarkers(_ response: String) -> String {
             trimAtStopMarkers(response)
+        }
+
+        /// Debug function to test LLM directly - call from app console
+        func debugTestLLM(_ input: String) async {
+            print("=" * 60)
+            print("🧪 DEBUG TEST: '\(input)'")
+            print("=" * 60)
+
+            // Build prompt
+            let prompt = functionGemmaPrompt(userInput: input)
+            print("📝 PROMPT:")
+            print(prompt)
+            print("---")
+
+            // Load model if needed
+            if chatSession == nil {
+                print("⏳ Loading model...")
+                await loadModel()
+                print("✅ Model loaded")
+            }
+
+            guard let chat = chatSession else {
+                print("❌ No chat session")
+                return
+            }
+
+            // Get LLM response
+            print("⏳ Calling LLM...")
+            do {
+                let response = try await chat.respond(to: prompt)
+                let trimmed = trimAtStopMarkers(response)
+                print("📥 LLM RAW RESPONSE:")
+                print(trimmed)
+                print("---")
+            } catch {
+                print("❌ Error: \(error)")
+            }
         }
     #endif
 }

@@ -58,4 +58,63 @@ final class LLMToolCallingServiceFormatTests: XCTestCase {
         XCTAssertEqual(params.fileExtension, "dmg", "LLM should extract 'dmg' extension from query")
         XCTAssertNotNil(params.modifiedWithin, "LLM should extract 'today' as modifiedWithin")
     }
+
+    // MARK: - Direct LLM Evaluation Tests
+
+    /// Test that directly evaluates the LLM with our real prompt and tools
+    func testDirectLLMEvaluationWithRealTools() async {
+        // This test directly calls MLXLLMService to see raw LLM output
+        let input = "find files added today"
+
+        // Build the real prompt
+        let prompt = buildRealPrompt(for: input)
+        print("📝 Real prompt sent to LLM:")
+        print(prompt)
+        print("---")
+
+        // Call the LLM directly
+        let toolCall = await MLXLLMService.shared.parseToolCall(input)
+
+        print("📥 LLM returned toolCall: \(String(describing: toolCall))")
+
+        if let toolCall = toolCall {
+            print("🛠 Tool: \(toolCall.tool.rawValue)")
+            switch toolCall.parameters {
+            case .findFiles(let params):
+                print("   query: \(params.query)")
+                print("   fileExtension: \(params.fileExtension ?? "nil")")
+                print("   modifiedWithin: \(params.modifiedWithin.map(String.init) ?? "nil")")
+            case .createCalendarEvent(let params):
+                print("   title: \(params.title)")
+                print("   date: \(params.date ?? "nil")")
+                print("   time: \(params.time ?? "nil")")
+            default:
+                print("   other params")
+            }
+        }
+
+        // Assert expectations
+        XCTAssertNotNil(toolCall, "LLM should return a tool call")
+        XCTAssertEqual(toolCall?.tool, .findFiles, "Should detect findFiles tool")
+    }
+
+    // Helper to build the exact prompt we use in production
+    private func buildRealPrompt(for userInput: String) -> String {
+        let developer = """
+        <start_of_turn>developer
+        You are a function calling assistant. Your ONLY task is to call one of the available functions with the correct parameters based on user input.
+        You MUST respond with a function call. Do NOT explain, do not chat, just call a function.
+        Available functions:
+        \(LLMToolCatalog.functionGemmaDeclarations)
+        <end_of_turn>
+        """
+
+        let user = """
+        <start_of_turn>user
+        \(userInput)
+        <end_of_turn>
+        """
+
+        return developer + "\n" + user + "\n" + "<start_of_turn>model"
+    }
 }
