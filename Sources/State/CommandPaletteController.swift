@@ -100,6 +100,12 @@ final class CommandPaletteController {
         baseResults = fastResults
         publishMergedResults()
 
+        // Skip file search if we already have intent results
+        guard intentResults.isEmpty else {
+            print("🧠 Skipping standard file search - intent results available")
+            return
+        }
+
         fileSearchTask = Task { [weak self] in
             guard let self else { return }
             try? await Task.sleep(nanoseconds: 100_000_000)
