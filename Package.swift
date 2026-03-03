@@ -10,6 +10,10 @@ let package = Package(
         .executable(
             name: "Zest",
             targets: ["ZestApp"]
+        ),
+        .executable(
+            name: "TestLLM",
+            targets: ["TestLLM"]
         )
     ],
     dependencies: [
@@ -18,6 +22,17 @@ let package = Package(
         .package(url: "https://github.com/ml-explore/mlx-swift-lm", from: "2.30.0")
     ],
     targets: [
+        .executableTarget(
+            name: "TestLLM",
+            dependencies: [
+                .product(name: "MLX", package: "mlx-swift"),
+                .product(name: "MLXNN", package: "mlx-swift"),
+                .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
+                .product(name: "MLXLLM", package: "mlx-swift-lm"),
+                "ZestApp"
+            ],
+            path: "Sources/TestLLM"
+        ),
         .executableTarget(
             name: "ZestApp",
             dependencies: [
@@ -29,7 +44,7 @@ let package = Package(
                 .product(name: "MLXLLM", package: "mlx-swift-lm")
             ],
             path: "Sources",
-            exclude: ["Info.plist", "Zest.entitlements"],
+            exclude: ["Info.plist", "Zest.entitlements", "TestLLM"],
             linkerSettings: [
                 .linkedFramework("QuickLook"),
                 .linkedFramework("IOKit"),

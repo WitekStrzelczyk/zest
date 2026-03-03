@@ -1,12 +1,29 @@
 import Foundation
 
 enum LLMToolCatalog {
-    static let functionGemmaDeclarations: String = """
-    <start_function_declaration>declaration:create_calendar_event{description:Create a calendar event.,parameters:{properties:{title:{description:Event title.,type:STRING},date:{description:Date for the event (e.g., "tomorrow", "March 10").,type:STRING},time:{description:Time for the event (e.g., "4pm", "14:30").,type:STRING},location:{description:Event location.,type:STRING},contact:{description:Contact person.,type:STRING}},required:[title],type:OBJECT}}<end_function_declaration>
-    <start_function_declaration>declaration:find_files{description:Search for files.,parameters:{properties:{query:{description:Search query.,type:STRING},search_in_content:{description:Search within file contents.,type:BOOLEAN},file_extension:{description:File extension without dot.,type:STRING},modified_within:{description:Modified within the last N hours.,type:INTEGER}},required:[query],type:OBJECT}}<end_function_declaration>
-    <start_function_declaration>declaration:convert_units{description:Convert values between units of measurement.,parameters:{properties:{value:{description:Numeric value to convert.,type:NUMBER},from_unit:{description:Source unit (e.g., "km", "pounds", "celsius").,type:STRING},to_unit:{description:Target unit (e.g., "miles", "kg", "fahrenheit").,type:STRING},category:{description:Category hint: "length", "weight", "temperature", "volume".,type:STRING}},required:[value,from_unit,to_unit],type:OBJECT}}<end_function_declaration>
-    <start_function_declaration>declaration:translate{description:Translate text between languages.,parameters:{properties:{text:{description:Text to translate.,type:STRING},target_language:{description:Target language (e.g., "spanish", "french", "german").,type:STRING},source_language:{description:Source language (optional, auto-detect if not specified).,type:STRING}},required:[text,target_language],type:OBJECT}}<end_function_declaration>
-    """
+    static let functionGemmaDeclarations: String = {
+        let examples = """
+        Example 1:
+        user: "find pdf files"
+        response: <start_function_call>find_files(query:"*",file_extension:"pdf")<end_function_call>
+
+        Example 2:
+        user: "meeting tomorrow at 3pm"
+        response: <start_function_call>create_calendar_event(title:"Meeting",date:"tomorrow",time:"3pm")<end_function_call>
+
+        Example 3:
+        user: "convert 100 fahrenheit to celsius"
+        response: <start_function_call>convert_units(value:100,from_unit:"fahrenheit",to_unit:"celsius")<end_function_call>
+        """
+
+        return """
+        \(examples)
+        <start_function_declaration>declaration:create_calendar_event{description:Create a calendar event.,parameters:{properties:{title:{description:Event title.,type:STRING},date:{description:Date for the event (e.g., "tomorrow", "March 10").,type:STRING},time:{description:Time for the event (e.g., "4pm", "14:30").,type:STRING},location:{description:Event location.,type:STRING},contact:{description:Contact person.,type:STRING}},required:[title],type:OBJECT}}<end_function_declaration>
+        <start_function_declaration>declaration:find_files{description:Search for files.,parameters:{properties:{query:{description:Search query.,type:STRING},search_in_content:{description:Search within file contents.,type:BOOLEAN},file_extension:{description:File extension without dot.,type:STRING},modified_within:{description:Modified within the last N hours.,type:INTEGER}},required:[query],type:OBJECT}}<end_function_declaration>
+        <start_function_declaration>declaration:convert_units{description:Convert values between units of measurement.,parameters:{properties:{value:{description:Numeric value to convert.,type:NUMBER},from_unit:{description:Source unit (e.g., "km", "pounds", "celsius").,type:STRING},to_unit:{description:Target unit (e.g., "miles", "kg", "fahrenheit").,type:STRING},category:{description:Category hint: "length", "weight", "temperature", "volume".,type:STRING}},required:[value,from_unit,to_unit],type:OBJECT}}<end_function_declaration>
+        <start_function_declaration>declaration:translate{description:Translate text between languages.,parameters:{properties:{text:{description:Text to translate.,type:STRING},target_language:{description:Target language (e.g., "spanish", "french", "german").,type:STRING},source_language:{description:Source language (optional, auto-detect if not specified).,type:STRING}},required:[text,target_language],type:OBJECT}}<end_function_declaration>
+        """
+    }()
 
     // MARK: - Prompt
 

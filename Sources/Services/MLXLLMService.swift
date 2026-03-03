@@ -16,7 +16,7 @@ final class MLXLLMService: ObservableObject {
 
     private var chatSession: ChatSession?
 
-    private let modelId = "mlx-community/functiongemma-270m-it-4bit"
+    private let modelId = "mlx-community/Llama-3.2-3B-Instruct-4bit"
     private let stopMarkers = ["<start_function_response>", "<end_of_turn>"]
 
     private struct ToolPayload {
