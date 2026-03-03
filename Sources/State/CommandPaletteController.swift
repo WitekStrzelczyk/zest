@@ -196,12 +196,18 @@ final class CommandPaletteController {
         print("🧠 Spotlight recent-files exit status: \(process.terminationStatus)")
 
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let rawOutput = String(data: data, encoding: .utf8) ?? ""
+        print("🧠 Spotlight raw output length: \(rawOutput.count) chars")
+        print("🧠 Spotlight raw output first 200: \(String(rawOutput.prefix(200)))")
+
         guard let output = String(data: data, encoding: .utf8) else { return [] }
 
         let paths = output
             .components(separatedBy: .newlines)
             .filter { !$0.isEmpty && !$0.hasSuffix(".app") && !$0.contains("/.") }
             .prefix(maxResults)
+
+        print("🧠 Spotlight filtered paths count: \(paths.count)")
 
         let results = paths.map { path in
             let url = URL(fileURLWithPath: path)
