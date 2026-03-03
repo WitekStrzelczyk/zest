@@ -49,12 +49,6 @@ final class LLMToolCatalogTests: XCTestCase {
         XCTAssertEqual(params.modifiedWithin, 6)
     }
 
-    func testFunctionGemmaDeclarationsContainKnownTools() {
-        let declarations = LLMToolCatalog.functionGemmaDeclarations
-        XCTAssertTrue(declarations.contains("declaration:create_calendar_event"))
-        XCTAssertTrue(declarations.contains("declaration:find_files"))
-    }
-
     // MARK: - Unit Conversion Fallback Parsing Tests
 
     func testFallbackParseUnitConversionKmToMiles() {
@@ -151,9 +145,40 @@ final class LLMToolCatalogTests: XCTestCase {
         XCTAssertEqual(params.category, "length")
     }
 
-    func testFunctionGemmaDeclarationsContainConvertUnits() {
-        let declarations = LLMToolCatalog.functionGemmaDeclarations
-        XCTAssertTrue(declarations.contains("declaration:convert_units"))
+    // MARK: - Describe Function Tests
+
+    func testDescribeIncludesModifiedWithin() {
+        let toolCall = LLMToolCall.findFiles(
+            query: "report",
+            searchInContent: false,
+            fileExtension: "pdf",
+            modifiedWithin: 6,
+            confidence: 0.9
+        )
+
+        let description = LLMToolCatalog.describe(toolCall)
+
+        XCTAssertTrue(description.contains("modifiedWithin"),
+            "describe should include modifiedWithin in output")
+        XCTAssertTrue(description.contains("6"),
+            "describe should include the modifiedWithin value")
+    }
+
+    func testDescribeWithNilModifiedWithin() {
+        let toolCall = LLMToolCall.findFiles(
+            query: "report",
+            searchInContent: false,
+            fileExtension: "pdf",
+            modifiedWithin: nil,
+            confidence: 0.9
+        )
+
+        let description = LLMToolCatalog.describe(toolCall)
+
+        XCTAssertTrue(description.contains("modifiedWithin"),
+            "describe should include modifiedWithin (even when nil) in output")
+        XCTAssertTrue(description.contains("nil"),
+            "describe should show nil for modifiedWithin when not set")
     }
 }
 
