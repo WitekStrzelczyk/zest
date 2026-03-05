@@ -152,12 +152,10 @@ final class ProcessSearchService {
 
     // MARK: - Process Fetching
 
-    /// Fetches all running processes using libproc
-    /// Returns processes sorted by CPU usage (descending)
+    /// Fetches all running processes using sysctl
     func fetchRunningProcesses() -> [RunningProcess] {
         var processes: [RunningProcess] = []
 
-        // Get list of all PIDs using sysctl
         var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0]
         var size = 0
 
@@ -175,30 +173,22 @@ final class ProcessSearchService {
         }
 
         let actualCount = size / MemoryLayout<kinfo_proc>.size
-
-        // Get running applications from NSWorkspace for user app info
         let runningApps = NSWorkspace.shared.runningApplications
         let runningAppPIDs = Set(runningApps.map(\.processIdentifier))
 
-        // Process each entry
         for i in 0..<actualCount {
             let proc = procList[i]
             let pid = proc.kp_proc.p_pid
-
             guard pid > 0 else { continue }
-
             if let processInfo = createRunningProcess(from: proc, runningAppPIDs: runningAppPIDs) {
                 processes.append(processInfo)
             }
         }
 
-        // Sort by CPU usage descending
         return processes.sorted { $0.cpuPercent > $1.cpuPercent }
     }
 
-    /// Creates RunningProcess from a kinfo_proc structure
     private func createRunningProcess(from proc: kinfo_proc, runningAppPIDs: Set<pid_t>) -> RunningProcess? {
-        // Get process name
         var nameBuffer = proc.kp_proc.p_comm
         let processName = withUnsafePointer(to: &nameBuffer) { ptr -> String in
             ptr.withMemoryRebound(to: CChar.self, capacity: Int(MAXCOMLEN)) { charPtr in
@@ -207,8 +197,6 @@ final class ProcessSearchService {
         }
 
         let pid = proc.kp_proc.p_pid
-
-        // Get memory info using proc_pidinfo (task info)
         var taskInfo = proc_taskinfo()
         let taskInfoSize = MemoryLayout<proc_taskinfo>.size
         let result = withUnsafeMutablePointer(to: &taskInfo) { ptr in
@@ -221,31 +209,20 @@ final class ProcessSearchService {
         var cpuPercent = 0.0
 
         if result == taskInfoSize {
-            // pti_resident_size is in bytes
             memoryBytes = UInt64(taskInfo.pti_resident_size)
-
-            // For CPU, we use a simplified calculation
-            // In a real implementation, you'd track CPU over time intervals
             let totalTime = taskInfo.pti_total_user + taskInfo.pti_total_system
-            // Convert nanoseconds to seconds and estimate
             cpuPercent = min(100.0, Double(totalTime) / 10_000_000_000.0)
         }
 
-        // Determine if this is a user app
         let isUserApp = runningAppPIDs.contains(pid)
-
-        // Get icon for user applications
         var icon: NSImage? = nil
+        var bundleIdentifier: String? = nil
+
         if isUserApp {
             if let app = NSWorkspace.shared.runningApplications.first(where: { $0.processIdentifier == pid }) {
                 icon = app.icon
+                bundleIdentifier = app.bundleIdentifier
             }
-        }
-
-        // Try to get bundle identifier for running apps
-        var bundleIdentifier: String? = nil
-        if let app = NSWorkspace.shared.runningApplications.first(where: { $0.processIdentifier == pid }) {
-            bundleIdentifier = app.bundleIdentifier
         }
 
         return RunningProcess(
@@ -260,242 +237,185 @@ final class ProcessSearchService {
         )
     }
 
-    // MARK: - Search
+    func findProcessesUsingPort(_ port: Int) -> [RunningProcess] {
+        print("📁 ProcessSearchService: Searching for processes on port \(port)")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
+        process.arguments = ["-nP", "-i", ":\(port)", "-t"]
 
-    /// Searches processes by query
-    /// - Parameters:
-    ///   - query: Search string (case-insensitive)
-    ///   - processes: List of processes to search (if nil, fetches fresh)
-    /// - Returns: Filtered and sorted results (by CPU, limited to maxResults)
-    func searchProcesses(query: String, processes: [RunningProcess]? = nil) -> [RunningProcess] {
-        let processList = processes ?? fetchRunningProcesses()
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
 
-        // Empty query returns top processes by CPU
-        if query.isEmpty {
-            return Array(processList.prefix(maxResults))
+        do {
+            try process.run()
+            process.waitUntilExit()
+
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            if let output = String(data: data, encoding: .utf8) {
+                let pids = output.components(separatedBy: "\n")
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .compactMap { pid_t($0) }
+
+                print("📁 ProcessSearchService: lsof found PIDs: \(pids)")
+
+                let allProcesses = fetchRunningProcesses()
+                let matched = allProcesses.filter { pids.contains($0.pid) }
+                print("📁 ProcessSearchService: Matched \(matched.count) processes from running list")
+                return matched
+            }
+        } catch {
+            logger.error("Failed to run lsof: \(error.localizedDescription)")
         }
 
-        let lowercaseQuery = query.lowercased()
-
-        // Filter matching processes
-        let filtered = processList.filter { process in
-            let lowercaseName = process.name.lowercased()
-            let nameWithoutExtension = lowercaseName.replacingOccurrences(of: ".app", with: "")
-
-            return lowercaseName.contains(lowercaseQuery) ||
-                nameWithoutExtension.contains(lowercaseQuery)
-        }
-
-        // Sort by CPU descending and limit
-        return Array(
-            filtered
-                .sorted { $0.cpuPercent > $1.cpuPercent }
-                .prefix(maxResults)
-        )
+        return []
     }
 
-    // MARK: - Search Results Conversion
+    func searchProcesses(query: String, processes: [RunningProcess]? = nil) -> [RunningProcess] {
+        let processList = processes ?? fetchRunningProcesses()
+        if query.isEmpty { return Array(processList.prefix(maxResults)) }
+        let lowercaseQuery = query.lowercased()
+        let filtered = processList.filter { process in
+            let lowercaseName = process.name.lowercased()
+            return lowercaseName.contains(lowercaseQuery)
+        }
+        return Array(filtered.prefix(maxResults))
+    }
 
-    /// Creates SearchResult array from RunningProcess array
-    /// Includes kill state tracking for visual feedback
     func createSearchResults(from processes: [RunningProcess]) -> [SearchResult] {
         processes.map { process in
-            let processCopy = process // Capture copy for closure
-            // Check kill state directly from ProcessKillState to ensure consistency
+            let processCopy = process
             let isKillAttempted = ProcessKillState.shared.hasAttemptedKill(pid: process.pid)
+
+            // Multi-Stage Kill Flow:
+            // 1. Initial State: Name, revealAction = gentle kill
+            // 2. Red State (if isKillAttempted): [FORCE KILL] Name, revealAction = force kill
+            let displayTitle = isKillAttempted ? "[FORCE KILL] \(process.name)" : process.name
+
             return SearchResult(
-                title: process.name,
+                title: displayTitle,
                 subtitle: process.resourceSubtitle,
                 icon: process.icon ?? NSImage(systemSymbolName: "app", accessibilityDescription: "Process"),
                 category: .process,
-                action: {
-                    ProcessSearchService.activateProcess(processCopy)
-                },
+                action: { ProcessSearchService.activateProcess(processCopy) },
                 revealAction: {
+                    // This will handle both gentle and force kill based on ProcessKillState
                     ProcessSearchService.twoPhaseKillWithConfirmation(process: processCopy)
                 },
-                score: Int(process.cpuPercent * 10), // Higher CPU = higher score
+                score: Int(process.cpuPercent * 10),
+                isWarning: isKillAttempted, // This triggers the Red style
                 isKillAttempted: isKillAttempted,
                 pid: process.pid
             )
         }
     }
 
-    /// Activates a user application (brings to foreground)
     private static func activateProcess(_ process: RunningProcess) {
-        guard process.isUserApp else {
-            return // Cannot activate system processes
-        }
-
-        // Find the running application and activate it
-        let runningApps = NSWorkspace.shared.runningApplications
-        if let app = runningApps.first(where: { $0.processIdentifier == process.pid }) {
-            app.activate(options: [])
+        if process.isUserApp {
+            if let app = NSWorkspace.shared.runningApplications.first(where: { $0.processIdentifier == process.pid }) {
+                app.activate(options: [])
+            }
         }
     }
 
-    // MARK: - Force Quit
-
-    /// List of system process names that require confirmation before force quit
     private static let systemProcessNames: Set<String> = [
-        "kernel_task",
-        "WindowServer",
-        "launchd",
-        "launchd_session",
-        "init",
-        "mds",
-        "mds_stores",
-        "mds_backup",
-        "securityd",
-        "configd",
-        "SystemUIServer",
-        "Finder",
-        "Dock",
+        "kernel_task", "WindowServer", "launchd", "Finder", "Dock",
     ]
 
-    /// Checks if a process is a critical system process
-    /// - Parameters:
-    ///   - name: Process name
-    ///   - pid: Process ID
-    /// - Returns: true if the process is a critical system process
     static func isSystemProcess(name: String, pid: pid_t) -> Bool {
-        // PID 0 is always kernel_task
         if pid == 0 { return true }
-
-        // Check against known system process names
         return systemProcessNames.contains(name)
     }
 
-    /// Force quits a process by PID
-    /// - Parameter pid: Process ID to terminate
-    /// - Returns: true if termination signal was sent successfully
     static func forceQuitProcess(pid: pid_t) -> Bool {
-        // Send SIGKILL to the process
         let result = kill(pid, SIGKILL)
+        if result != 0 { return false }
 
-        if result == 0 {
-            return true
-        } else {
-            // Check error - ESRCH means process doesn't exist, EPERM means permission denied
-            return false
+        // Wait for process to exit
+        let start = Date()
+        while Date().timeIntervalSince(start) < 5.0 {
+            if kill(pid, 0) != 0 {
+                NotificationCenter.default.post(name: .processWasKilled, object: nil)
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.2)
         }
+
+        NotificationCenter.default.post(name: .processWasKilled, object: nil)
+        return false
     }
 
-    /// Force quits a process with confirmation for system processes
-    /// - Parameter process: The process to force quit
     static func forceQuitWithConfirmation(process: RunningProcess) {
         if isSystemProcess(name: process.name, pid: process.pid) {
-            // Show confirmation for system processes on main thread
-            DispatchQueue.main.async {
-                Self.showForceQuitConfirmation(process: process)
-            }
+            DispatchQueue.main.async { showForceQuitConfirmation(process: process) }
         } else {
-            // Directly force quit user apps
             _ = forceQuitProcess(pid: process.pid)
         }
     }
 
-    // MARK: - Two-Phase Kill (Story 22)
-
-    /// Attempts to kill a process using two-phase logic
-    /// Phase 1: Send SIGTERM (polite quit request)
-    /// Phase 2: Send SIGKILL (force quit)
-    /// - Parameter pid: Process ID to terminate
-    /// - Returns: KillResult indicating what action was taken
+    /// Attempts to kill a process and waits for it to exit
     static func attemptKill(pid: pid_t) -> KillResult {
         let hasAttempted = ProcessKillState.shared.hasAttemptedKill(pid: pid)
+        let signal = hasAttempted ? SIGKILL : SIGTERM
 
-        if hasAttempted {
-            // Phase 2: Force kill with SIGKILL
-            let result = kill(pid, SIGKILL)
-            if result == 0 {
-                // Clear state after successful SIGKILL
-                ProcessKillState.shared.clearKillAttempt(pid: pid)
-                return .sigkillSent
-            } else {
-                // Failed to kill
-                let error = NSError(domain: NSPOSIXErrorDomain, code: Int(errno), userInfo: [
-                    NSLocalizedDescriptionKey: "Failed to send SIGKILL to process \(pid)",
-                ])
-                return .failed(error)
-            }
-        } else {
-            // Phase 1: Polite quit with SIGTERM
-            let result = kill(pid, SIGTERM)
-            if result == 0 {
-                // Mark as attempted for next phase
-                ProcessKillState.shared.markKillAttempted(pid: pid)
-                return .sigtermSent
-            } else {
-                // Failed to send SIGTERM
-                let error = NSError(domain: NSPOSIXErrorDomain, code: Int(errno), userInfo: [
-                    NSLocalizedDescriptionKey: "Failed to send SIGTERM to process \(pid)",
-                ])
-                return .failed(error)
-            }
+        let result = kill(pid, signal)
+        if result != 0 {
+            return .failed(NSError(domain: NSPOSIXErrorDomain, code: Int(errno)))
         }
+
+        if !hasAttempted {
+            ProcessKillState.shared.markKillAttempted(pid: pid)
+        } else {
+            ProcessKillState.shared.clearKillAttempt(pid: pid)
+        }
+
+        // --- VERIFICATION LOOP ---
+        // Wait up to 5 seconds for the process to actually disappear
+        let start = Date()
+        while Date().timeIntervalSince(start) < 5.0 {
+            // kill(pid, 0) checks if process exists without sending a signal
+            if kill(pid, 0) != 0 {
+                // Process is gone!
+                ProcessKillState.shared.clearKillAttempt(pid: pid)
+                NotificationCenter.default.post(name: .processWasKilled, object: nil)
+                return .success
+            }
+            Thread.sleep(forTimeInterval: 0.2)
+        }
+
+        // If we reach here, process is still alive after 5s
+        NotificationCenter.default.post(name: .processWasKilled, object: nil)
+        return hasAttempted ? .failed(NSError(
+            domain: "zest",
+            code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "Process refused to die even after SIGKILL"]
+        )) : .sigtermSent
     }
 
-    /// Two-phase kill with confirmation for system processes
-    /// - Parameter process: The process to kill
     static func twoPhaseKillWithConfirmation(process: RunningProcess) {
         if isSystemProcess(name: process.name, pid: process.pid) {
-            // Show confirmation for system processes on main thread
-            DispatchQueue.main.async {
-                Self.showTwoPhaseKillConfirmation(process: process)
-            }
+            DispatchQueue.main.async { showTwoPhaseKillConfirmation(process: process) }
         } else {
-            // Directly attempt kill for user apps
             _ = attemptKill(pid: process.pid)
         }
     }
 
-    /// Shows a confirmation dialog before killing a system process
     private static func showTwoPhaseKillConfirmation(process: RunningProcess) {
         let hasAttempted = ProcessKillState.shared.hasAttemptedKill(pid: process.pid)
-
         let alert = NSAlert()
-        if hasAttempted {
-            alert.messageText = "Force Kill \(process.name)?"
-            alert.informativeText = """
-            \(process.name) is a system process that has already received a termination request.
-
-            Force killing it may cause system instability. Are you sure you want to continue?
-            """
-        } else {
-            alert.messageText = "Terminate \(process.name)?"
-            alert.informativeText = """
-            \(process.name) is a system process. Terminating it may cause system instability.
-
-            Are you sure you want to continue?
-            """
-        }
+        alert.messageText = hasAttempted ? "Force Kill \(process.name)?" : "Terminate \(process.name)?"
         alert.alertStyle = .critical
         alert.addButton(withTitle: hasAttempted ? "Force Kill" : "Terminate")
         alert.addButton(withTitle: "Cancel")
-
-        let response = alert.runModal()
-        if response == .alertFirstButtonReturn {
-            _ = attemptKill(pid: process.pid)
-        }
+        if alert.runModal() == .alertFirstButtonReturn { _ = attemptKill(pid: process.pid) }
     }
 
-    /// Shows a confirmation dialog before force quitting a system process
     private static func showForceQuitConfirmation(process: RunningProcess) {
         let alert = NSAlert()
         alert.messageText = "Force Quit \(process.name)?"
-        alert.informativeText = """
-        \(process.name) is a system process. Force quitting it may cause system instability.
-
-        Are you sure you want to continue?
-        """
         alert.alertStyle = .critical
         alert.addButton(withTitle: "Force Quit")
         alert.addButton(withTitle: "Cancel")
-
-        let response = alert.runModal()
-        if response == .alertFirstButtonReturn {
-            _ = forceQuitProcess(pid: process.pid)
-        }
+        if alert.runModal() == .alertFirstButtonReturn { _ = forceQuitProcess(pid: process.pid) }
     }
 }

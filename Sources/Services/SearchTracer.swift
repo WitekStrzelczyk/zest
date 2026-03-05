@@ -6,6 +6,8 @@ class SearchSpan {
     let operationName: String
     let startTime: Date
     var endTime: Date?
+    var resultCount: Int = 0
+
     var durationMs: Int {
         endTime.map { Int($0.timeIntervalSince(startTime) * 1000) } ?? 0
     }
@@ -40,6 +42,11 @@ class SearchSpan {
         defer { lock.unlock() }
         tags[key] = value
         return self
+    }
+
+    func setResultsCount(_ count: Int) {
+        resultCount = count
+        setTag("results_count", count)
     }
 
     /// Create a child span
@@ -96,32 +103,60 @@ class SearchSpan {
 
         return dict
     }
+
+    /// Convert trace to a structured SearchAudit
+    func toAudit(query: String) -> SearchAudit {
+        var audit = SearchAudit(query: query)
+        audit.finalize(totalDuration: durationMsPrecise)
+
+        func processChildren(of parent: SearchSpan) {
+            for child in parent.children {
+                // Flatten: If it's a broadcast container, skip it but process its children
+                if child.operationName.contains("broadcast") {
+                    processChildren(of: child)
+                } else {
+                    audit.addToolMetric(
+                        name: child.operationName,
+                        duration: child.durationMsPrecise,
+                        count: child.resultCount
+                    )
+                }
+            }
+        }
+
+        processChildren(of: self)
+        return audit
+    }
 }
 
 /// Search-specific span with convenience methods
 class SearchTraceSpan: SearchSpan {
     /// Record the number of results found
     @discardableResult
-    func setResultsCount(_ count: Int) -> Self {
-        setTag("results_count", count)
+    func setResultsCountSpan(_ count: Int) -> Self {
+        setResultsCount(count)
+        return self
     }
 
     /// Record the query
     @discardableResult
     func setQuery(_ query: String) -> Self {
         setTag("query", query)
+        return self
     }
 
     /// Record that this category had no matches
     @discardableResult
     func setNoMatch() -> Self {
         setTag("matched", false)
+        return self
     }
 
     /// Record that this category had matches
     @discardableResult
     func setMatched() -> Self {
         setTag("matched", true)
+        return self
     }
 }
 
@@ -228,10 +263,14 @@ final class SearchTracer {
     }
 
     /// Output the trace results
-    func outputTrace(_ span: SearchSpan) {
+    func outputTrace(_ span: SearchSpan, query: String) {
+        // ALWAYS LOG THE AUDIT SUMMARY
+        let audit = span.toAudit(query: query)
+        audit.printSummary()
+
         guard outputEnabled else { return }
 
-        print("\n📊 Search Trace:")
+        print("\n📊 Detailed Search Trace:")
         print("=" * 50)
         print(span.toString())
         print("=" * 50)

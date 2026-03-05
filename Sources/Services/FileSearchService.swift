@@ -4,342 +4,183 @@ import Foundation
 final class FileSearchService {
     static let shared: FileSearchService = .init()
 
-    /// List of hidden directories to exclude from search results (for privacy)
+    /// Flag to disable file search (useful for testing)
+    static var isDisabled = false
+
+    /// Tracks the latest query string to ignore outdated search results
+    private var latestQuery: String = ""
+    private let queryLock = NSLock()
+
     private let hiddenDirectoryNames: Set<String> = [
-        ".ssh",
-        ".cache",
-        ".local",
-        ".config",
-        ".Trash",
-        ".DS_Store",
-        // Build artifacts
-        ".git",
-        "node_modules",
-        "build",
-        ".build",
+        ".ssh", ".cache", ".local", ".config", ".Trash", ".DS_Store",
+        ".git", "node_modules", "build", ".build",
     ]
 
-    /// Maximum time to wait for query (in seconds)
-    /// This prevents the app from freezing if Spotlight hangs
-    let searchTimeout: TimeInterval = 2.0
-
-    /// Flag to force use of mdfind (useful for testing)
-    var forceMdfind: Bool = false
-
-    /// Configured search scopes for NSMetadataQuery
-    /// Returns the paths that will be searched
-    var configuredSearchScopes: [String] {
-        buildSearchScopes().compactMap { scope -> String? in
-            if let url = scope as? URL {
-                return url.path
-            }
-            return nil
-        }
-    }
+    /// Maximum time to wait for query (increased slightly for reliability)
+    let searchTimeout: TimeInterval = 3.0
 
     private init() {}
 
-    /// Check if a path is inside a hidden directory (for privacy filtering)
     func isPathInHiddenDirectory(_ path: String) -> Bool {
         let components = path.components(separatedBy: "/")
-
-        // Check each directory component
         for component in components {
-            // Check if component starts with "." (hidden file/directory)
-            if component.hasPrefix("."), component != ".Trash" {
-                return true
-            }
-
-            // Check against known hidden directory names (including build artifacts)
-            if hiddenDirectoryNames.contains(component) {
-                return true
-            }
+            if component.hasPrefix("."), component != ".Trash" { return true }
+            if hiddenDirectoryNames.contains(component) { return true }
         }
-
         return false
     }
 
-    /// Build search scopes for NSMetadataQuery
-    /// Returns URLs for Documents, Downloads, Desktop, and Home directories
-    private func buildSearchScopes() -> [Any] {
-        var scopes: [Any] = []
-        let fileManager = FileManager.default
-
-        // Add Documents directory
-        if let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
-            scopes.append(documentsURL)
-        }
-
-        // Add Downloads directory
-        if let downloadsURL = fileManager.urls(for: .downloadsDirectory, in: .userDomainMask).first {
-            scopes.append(downloadsURL)
-        }
-
-        // Add Desktop directory
-        if let desktopURL = fileManager.urls(for: .desktopDirectory, in: .userDomainMask).first {
-            scopes.append(desktopURL)
-        }
-
-        // Add user home directory as fallback
-        if let homeURL = fileManager.homeDirectoryForCurrentUser as URL? {
-            scopes.append(homeURL)
-        }
-
-        return scopes
-    }
-
-    /// Synchronous search using native Spotlight APIs
-    /// Uses NSMetadataQuery in the app, falls back to mdfind for reliability
-    /// - Parameter query: The search query string
-    /// - Parameter maxResults: Maximum number of results to return
-    /// - Returns: Array of SearchResult objects, empty if timeout or error occurs
-    func searchSync(query: String, maxResults: Int = 10) -> [SearchResult] {
+    /// Synchronous search using a query string
+    func searchSync(query: String, maxResults: Int = 10, originalQuery: String? = nil) -> [SearchResult] {
         guard !query.isEmpty else { return [] }
 
-        // First try NSMetadataQuery (native API, no shell process)
-        // If it returns results quickly, use them
-        if !forceMdfind {
-            let urls = performNSMetadataQuery(query: query, maxResults: maxResults)
-            if !urls.isEmpty {
-                return buildSearchResults(from: urls, maxResults: maxResults)
-            }
+        let q = originalQuery ?? query
+        queryLock.lock()
+        latestQuery = q
+        queryLock.unlock()
+
+        let predicate = NSPredicate(format: "kMDItemDisplayName CONTAINS[cd] %@", query)
+        return searchSync(predicate: predicate, maxResults: maxResults, originalQuery: q)
+    }
+
+    /// Synchronous search using a predicate
+    func searchSync(predicate: NSPredicate, maxResults: Int = 10, originalQuery: String? = nil) -> [SearchResult] {
+        if let q = originalQuery {
+            queryLock.lock()
+            latestQuery = q
+            queryLock.unlock()
         }
 
-        // Fall back to mdfind if NSMetadataQuery returns no results
-        // This handles test environments where NSMetadataQuery may not work
-        let paths = performMdfindQuery(query: query, maxResults: maxResults)
-        return buildSearchResults(from: paths, maxResults: maxResults)
+        let urls = performNSMetadataQuery(predicate: predicate, maxResults: maxResults, originalQuery: originalQuery)
+        return buildSearchResults(from: urls, maxResults: maxResults)
     }
 
     /// Perform search using NSMetadataQuery (native Spotlight API)
-    /// Internal access for testing
-    func performNSMetadataQuery(query: String, maxResults: Int) -> [URL] {
-        let state = NSMetadataQueryState()
-        let metadataQuery = configureMetadataQuery(query: query)
+    /// Optimized for speed and consistency using both Updates and Gathering notifications.
+    func performNSMetadataQuery(predicate: NSPredicate, maxResults: Int, originalQuery: String? = nil) -> [URL] {
+        let startTime = CFAbsoluteTimeGetCurrent()
 
-        setupQueryObservers(
-            metadataQuery: metadataQuery,
-            state: state,
-            maxResults: maxResults
-        )
-
-        runQueryOnDedicatedThread(metadataQuery: metadataQuery, state: state)
-
-        // Use a reasonable timeout for NSMetadataQuery (1 second)
-        // NSMetadataQuery typically returns results within 50-200ms
-        let queryTimeout: TimeInterval = 1.0
-        let waitResult = state.semaphore.wait(timeout: .now() + queryTimeout)
-
-        cleanupQuery(metadataQuery: metadataQuery, observers: state.observers)
-
-        // Return collected results whether we timed out or completed
-        // NSMetadataQuery may have collected partial results even on timeout
-        if waitResult == .timedOut {
-            // Return partial results if available
-            return state.collectedURLs
+        // 1. Pre-check: If this is an old query already, don't even start
+        if let q = originalQuery {
+            queryLock.lock()
+            let isOutdated = (latestQuery != q)
+            queryLock.unlock()
+            if isOutdated { return [] }
         }
-        return state.collectedURLs
-    }
 
-    /// Configure an NSMetadataQuery with search parameters
-    private func configureMetadataQuery(query: String) -> NSMetadataQuery {
+        let semaphore = DispatchSemaphore(value: 0)
+        var collectedURLs: [URL] = []
+
         let metadataQuery = NSMetadataQuery()
-        // Use specific directory scopes instead of broad computer-wide search
-        metadataQuery.searchScopes = buildSearchScopes()
-        metadataQuery.predicate = NSPredicate(
-            format: "kMDItemDisplayName CONTAINS[cd] %@", query
-        )
-        return metadataQuery
-    }
 
-    /// Setup notification observers for the metadata query
-    private func setupQueryObservers(
-        metadataQuery: NSMetadataQuery,
-        state: NSMetadataQueryState,
-        maxResults: Int
-    ) {
-        let notificationCenter = NotificationCenter.default
+        print("📁 FileSearchService: Starting native Spotlight query")
 
-        let finishObserver = notificationCenter.addObserver(
-            forName: NSNotification.Name.NSMetadataQueryDidFinishGathering,
-            object: metadataQuery,
-            queue: nil
-        ) { _ in
-            guard !state.completed else { return }
-            state.completed = true
-            self.collectResults(from: metadataQuery, into: state)
-            state.semaphore.signal()
-        }
+        // Notifications setup
+        var observers: [NSObjectProtocol] = []
+        let nc = NotificationCenter.default
 
-        let updateObserver = notificationCenter.addObserver(
-            forName: NSNotification.Name.NSMetadataQueryDidUpdate,
-            object: metadataQuery,
-            queue: nil
-        ) { _ in
-            guard !state.completed else { return }
-            self.collectResults(from: metadataQuery, into: state)
-
-            if state.collectedURLs.count >= maxResults * 3 {
-                state.completed = true
-                state.semaphore.signal()
-            }
-        }
-
-        state.observers = [finishObserver, updateObserver]
-    }
-
-    /// Collect results from a metadata query into the state
-    private func collectResults(from metadataQuery: NSMetadataQuery, into state: NSMetadataQueryState) {
-        guard let results = metadataQuery.results as? [NSMetadataItem] else { return }
-        for item in results {
-            if let url = item.value(forAttribute: NSMetadataItemPathKey) as? URL {
-                if !state.collectedURLs.contains(url) {
-                    state.collectedURLs.append(url)
+        // Helper to collect results from query state
+        let collect = {
+            metadataQuery.disableUpdates()
+            let count = metadataQuery.resultCount
+            var urls: [URL] = []
+            for i in 0..<count {
+                if let item = metadataQuery.result(at: i) as? NSMetadataItem,
+                   let path = item.value(forAttribute: NSMetadataItemPathKey) as? String
+                {
+                    urls.append(URL(fileURLWithPath: path))
                 }
             }
+            collectedURLs = urls
+            metadataQuery.enableUpdates()
         }
-    }
 
-    /// Run the query on a dedicated thread with its own run loop
-    private func runQueryOnDedicatedThread(metadataQuery: NSMetadataQuery, state: NSMetadataQueryState) {
-        let queryThread = Thread {
-            metadataQuery.start()
-            let timeoutDate = Date(timeIntervalSinceNow: self.searchTimeout)
-            while !state.completed, Date() < timeoutDate {
-                RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.05))
-            }
-            metadataQuery.stop()
-        }
-        queryThread.start()
-    }
+        DispatchQueue.main.async {
+            metadataQuery.searchScopes = [NSMetadataQueryIndexedLocalComputerScope, NSMetadataQueryUserHomeScope]
+            metadataQuery.predicate = predicate
+            metadataQuery.notificationBatchingInterval = 0.1 // Fast updates
 
-    /// Clean up query observers and stop the query
-    private func cleanupQuery(metadataQuery: NSMetadataQuery, observers: [Any]) {
-        let notificationCenter = NotificationCenter.default
-        observers.forEach { notificationCenter.removeObserver($0) }
-        metadataQuery.stop()
-    }
-}
+            // 1. Progress updates (for speed)
+            let updateObs = nc
+                .addObserver(forName: .NSMetadataQueryDidUpdate, object: metadataQuery, queue: .main) { _ in
+                    collect()
+                    if collectedURLs.count >= maxResults {
+                        semaphore.signal()
+                    }
+                }
 
-/// State container for NSMetadataQuery execution
-private class NSMetadataQueryState {
-    let semaphore = DispatchSemaphore(value: 0)
-    var collectedURLs: [URL] = []
-    var completed = false
-    var observers: [Any] = []
-}
-
-extension FileSearchService {
-    /// Perform search using mdfind command-line tool (fallback)
-    private func performMdfindQuery(query: String, maxResults: Int) -> [String] {
-        var paths: [String] = []
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/mdfind")
-        process.arguments = ["-name", query]
-
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-
-        do {
-            try process.run()
-
-            let semaphore = DispatchSemaphore(value: 0)
-            var didTimeout = false
-
-            DispatchQueue.global().async {
-                process.waitUntilExit()
+            // 2. Completion (for finality)
+            let finishObs = nc.addObserver(
+                forName: .NSMetadataQueryDidFinishGathering,
+                object: metadataQuery,
+                queue: .main
+            ) { _ in
+                collect()
                 semaphore.signal()
             }
 
-            let waitResult = semaphore.wait(timeout: .now() + searchTimeout)
-            if waitResult == .timedOut {
-                didTimeout = true
-                process.terminate()
-            }
+            observers = [updateObs, finishObs]
 
-            guard !didTimeout else { return [] }
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            if let output = String(data: data, encoding: .utf8) {
-                let lines = output.components(separatedBy: "\n").filter { !$0.isEmpty }
-                paths = Array(lines.prefix(maxResults * 2))
+            if !metadataQuery.start() {
+                print("📁 FileSearchService: Failed to start query")
+                semaphore.signal()
             }
-        } catch {
-            // mdfind failed
         }
 
-        return paths
+        // Wait for gathering to finish or timeout
+        let waitResult = semaphore.wait(timeout: .now() + searchTimeout)
+
+        // 2. Mid-check: If query changed while we were waiting, don't bother with polling or logging
+        if let q = originalQuery {
+            queryLock.lock()
+            let isOutdated = (latestQuery != q)
+            queryLock.unlock()
+            if isOutdated {
+                DispatchQueue.main.async {
+                    metadataQuery.stop()
+                    observers.forEach { nc.removeObserver($0) }
+                }
+                return []
+            }
+        }
+
+        // Final safety check
+        if waitResult == .timedOut || collectedURLs.isEmpty {
+            DispatchQueue.main.sync {
+                collect()
+            }
+        }
+
+        // Cleanup
+        DispatchQueue.main.sync {
+            metadataQuery.stop()
+            observers.forEach { nc.removeObserver($0) }
+        }
+
+        let duration = CFAbsoluteTimeGetCurrent() - startTime
+        let durStr = String(format: "%.3f", duration)
+        print("📁 FileSearchService: Native search found \(collectedURLs.count) results in \(durStr)s")
+
+        return collectedURLs
     }
 
-    /// Build SearchResult array from URLs
     private func buildSearchResults(from urls: [URL], maxResults: Int) -> [SearchResult] {
         var results: [SearchResult] = []
-
         for url in urls {
             if results.count >= maxResults { break }
-
             let path = url.path
-            if isPathInHiddenDirectory(path) { continue }
-
-            // Skip .app bundles - they're handled by app search, not file search
-            // This prevents Activity Monitor, Calculator, etc. from appearing as "file" category
-            if path.hasSuffix(".app") { continue }
-
-            let name = url.lastPathComponent
-            let icon = NSWorkspace.shared.icon(forFile: path)
+            if isPathInHiddenDirectory(path) || path.hasSuffix(".app") { continue }
 
             results.append(SearchResult(
-                title: name,
+                title: url.lastPathComponent,
                 subtitle: "File",
-                icon: icon,
+                icon: NSWorkspace.shared.icon(forFile: path),
                 category: .file,
-                action: { [path] in
-                    NSWorkspace.shared.open(URL(fileURLWithPath: path))
-                },
-                revealAction: { [path] in
-                    NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
-                },
+                action: { NSWorkspace.shared.open(url) },
+                revealAction: { NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "") },
                 filePath: path
             ))
         }
-
-        return results
-    }
-
-    /// Build SearchResult array from file paths
-    private func buildSearchResults(from paths: [String], maxResults: Int) -> [SearchResult] {
-        var results: [SearchResult] = []
-
-        for path in paths {
-            if results.count >= maxResults { break }
-
-            if isPathInHiddenDirectory(path) { continue }
-
-            // Skip .app bundles - they're handled by app search, not file search
-            // This prevents Activity Monitor, Calculator, etc. from appearing as "file" category
-            if path.hasSuffix(".app") { continue }
-
-            let url = URL(fileURLWithPath: path)
-            let name = url.lastPathComponent
-            let icon = NSWorkspace.shared.icon(forFile: path)
-
-            results.append(SearchResult(
-                title: name,
-                subtitle: "File",
-                icon: icon,
-                category: .file,
-                action: { [path] in
-                    NSWorkspace.shared.open(URL(fileURLWithPath: path))
-                },
-                revealAction: { [path] in
-                    NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "")
-                },
-                filePath: path
-            ))
-        }
-
         return results
     }
 }

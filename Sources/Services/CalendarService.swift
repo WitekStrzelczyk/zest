@@ -354,6 +354,9 @@ final class CalendarService: @unchecked Sendable {
 
     static let shared = CalendarService()
 
+    /// Flag to disable calendar access (useful for testing)
+    static var isDisabled = false
+
     // MARK: - Properties
 
     private let eventStore = EKEventStore()

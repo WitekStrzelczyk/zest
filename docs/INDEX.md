@@ -32,7 +32,6 @@ Step-by-step tutorials for specific tasks.
 |----------|---------|
 | [how-to/demo-recording.md](/Users/witek/projects/copies/zest/docs/how-to/demo-recording.md) | Recording feature demos with ffmpeg |
 | [how-to/add-scheduled-task.md](/Users/witek/projects/copies/zest/docs/how-to/add-scheduled-task.md) | Adding recurring background tasks |
-| [how-to/add-llm-tool.md](/Users/witek/projects/copies/zest/docs/how-to/add-llm-tool.md) | Adding new LLM-powered tools |
 
 ### Reference
 

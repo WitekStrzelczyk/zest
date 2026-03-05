@@ -435,9 +435,6 @@ final class CommandPaletteWindow: NSPanel {
         }
     }
 
-    /// Tracks whether LLM tool calling mode is active (when query starts with =)
-    private(set) var isLLMMode: Bool = false
-
     /// Global headless state store
     private let stateStore = CommandPaletteStateStore.shared
     private let controller = CommandPaletteController.shared
@@ -802,7 +799,6 @@ final class CommandPaletteWindow: NSPanel {
 
     private func render(state: CommandPaletteState) {
         guard !isSettingsMode else { return }
-        isLLMMode = state.isLLMMode
 
         if state.query.isEmpty {
             searchResults = []
@@ -1157,7 +1153,6 @@ final class CommandPaletteWindow: NSPanel {
         isCommandKeyPressed = false
         hideActionBar() // Ensure action bar is hidden
         isDangerMode = false // Reset danger mode
-        isLLMMode = false // Reset LLM mode
         stateStore.clearIntent()
 
         // Position window - store top position for resize from bottom (top fixed)
@@ -1188,8 +1183,6 @@ final class CommandPaletteWindow: NSPanel {
         suggestionsLabel.isHidden = true
         // Reset settings mode when closing
         isSettingsMode = false
-        // Reset LLM mode when closing
-        isLLMMode = false
         stateStore.clearIntent()
         // Reset Option key state and hide action bar
         isOptionKeyPressed = false
@@ -1499,6 +1492,10 @@ final class CommandPaletteWindow: NSPanel {
 
         // Handle Cmd+Enter for reveal action (force quit processes, reveal files in Finder)
         if Int(event.keyCode) == kVK_Return, event.modifierFlags.contains(.command) {
+            // Force focus to first row if nothing selected
+            if resultsTableView.selectedRow < 0, !searchResults.isEmpty {
+                resultsTableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            }
             revealCurrentResult()
             return
         }
@@ -1656,12 +1653,6 @@ final class CommandPaletteWindow: NSPanel {
         } else if isSettingsMode {
             // In settings mode, escape exits settings and returns to normal mode
             exitSettingsMode()
-        } else if isLLMMode {
-            // In LLM mode, escape clears the = prefix and returns to normal mode
-            isLLMMode = false
-            searchField.stringValue = ""
-            hintLabel.stringValue = "⌘↵ Reveal  ↵ Select  Space Preview  ↑↓ Navigate  Esc Close"
-            performSearch("")
         } else {
             close()
         }
@@ -1690,23 +1681,30 @@ final class CommandPaletteWindow: NSPanel {
         // If no selection but results exist, default to first result
         if selectedRow < 0, !searchResults.isEmpty {
             selectedRow = 0
+            resultsTableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
         }
 
         guard selectedRow >= 0, selectedRow < searchResults.count else {
-            close()
             return
         }
 
         let result = searchResults[selectedRow]
 
+        // Safety: If there is no reveal action (e.g. 'No results' placeholder), do nothing
+        guard result.revealAction != nil else { return }
+
         // For process items: two-step safety
         if result.category == .process {
-            if isDangerMode {
-                // Second Cmd+Enter: Force quit the process
+            // Logic: if already in danger mode OR result is marked as killAttempted, force quit.
+            // Otherwise, enter danger mode and send first signal.
+            if isDangerMode || result.isKillAttempted {
+                print("💀 Window: Triggering FORCE KILL for PID \(result.pid ?? -1)")
                 forceQuitCurrentResult()
             } else {
-                // First Cmd+Enter: Enter danger mode (show red state)
+                print("⚠️ Window: Entering DANGER MODE for PID \(result.pid ?? -1)")
                 isDangerMode = true
+                // Send the first (gentle) signal immediately
+                result.reveal()
             }
         } else {
             // For non-process items: trigger reveal action normally
@@ -1844,6 +1842,20 @@ extension CommandPaletteWindow: NSTextFieldDelegate {
     }
 
     func control(_: NSControl, textView _: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        // Intercept Command-key shortcuts while typing
+        if let event = NSApp.currentEvent, event.modifierFlags.contains(.command) {
+            // 1. Handle Cmd+Enter (Reveal/Kill)
+            if event.keyCode == UInt16(kVK_Return) {
+                revealCurrentResult()
+                return true
+            }
+
+            // 2. Handle Cmd+1..9 (Direct Jump/Execute)
+            if handleIndexedShortcutFromTable(forKeyCode: Int(event.keyCode)) {
+                return true
+            }
+        }
+
         if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
             handleEscape()
             return true
@@ -2093,11 +2105,19 @@ extension CommandPaletteWindow: NSTableViewDelegate, NSTableViewDataSource {
     private func fileSizeBadge(filePath: String) -> String {
         let attrs = try? FileManager.default.attributesOfItem(atPath: filePath)
         guard let bytes = attrs?[.size] as? NSNumber else { return "--" }
+
+        let byteCount = bytes.int64Value
+
+        // Show "empty" for zero-byte files
+        if byteCount == 0 {
+            return "empty"
+        }
+
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         formatter.includesUnit = true
-        formatter.allowedUnits = [.useKB, .useMB, .useGB]
-        return formatter.string(fromByteCount: bytes.int64Value)
+        formatter.allowedUnits = [.useBytes, .useKB, .useMB, .useGB]
+        return formatter.string(fromByteCount: byteCount)
     }
 
     private func relativeDateString(from date: Date) -> String {

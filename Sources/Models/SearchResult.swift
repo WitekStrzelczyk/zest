@@ -57,7 +57,10 @@ struct SearchResult {
     let filePath: String?
 
     /// Search relevance score (higher = more relevant)
-    let score: Int
+    var score: Int
+
+    /// Whether this result is in a warning/critical state (e.g. for Force Kill)
+    var isWarning: Bool = false
 
     /// Whether this result is currently active (for toggles)
     let isActive: Bool
@@ -86,6 +89,7 @@ struct SearchResult {
         revealAction: (() -> Void)? = nil,
         filePath: String? = nil,
         score: Int = 0,
+        isWarning: Bool = false,
         isActive: Bool = false,
         tintColor: NSColor? = nil,
         trailingIcon: NSImage? = nil,
@@ -101,6 +105,7 @@ struct SearchResult {
         self.revealAction = revealAction
         self.filePath = filePath
         self.score = score
+        self.isWarning = isWarning
         self.isActive = isActive
         self.tintColor = tintColor
         self.trailingIcon = trailingIcon
@@ -151,4 +156,7 @@ extension Notification.Name {
 
     /// Posted when user navigates back from quicklink creation
     static let hideAddQuicklink = Notification.Name("hideAddQuicklink")
+
+    /// Posted when a process is successfully killed
+    static let processWasKilled = Notification.Name("processWasKilled")
 }

@@ -6,11 +6,9 @@ final class SearchEngine {
 
     private var installedApps: [InstalledApp] = []
     private var appsLoaded = false
+    private let appsLock = NSLock()
 
-    /// File search prefix for file-specific search
     private let fileSearchPrefix = "file:"
-
-    /// Search task for cancellation
     private var currentSearchTask: Task<[SearchResult], Never>?
 
     private let quicklinkManager = QuicklinkManager.shared
@@ -18,866 +16,352 @@ final class SearchEngine {
     private let tracer = SearchTracer.shared
     private let clipboardPrefix = "clip"
 
-    /// Last search trace for displaying stats
     private(set) var lastSearchTrace: SearchSpan?
-
-    /// Flag to disable app loading for tests
     static var disableAppLoading = false
+    static var isDisabled = false
 
-    /// Flag to disable file search for tests (avoids 2s mdfind timeout)
-    static var disableFileSearch = false
+    private init() {}
 
-    private init() {
-        // Lazy load apps - don't block init with mdfind
-    }
-
-    /// Ensure apps are loaded (lazy initialization)
     private func ensureAppsLoaded() {
-        guard !appsLoaded, !Self.disableAppLoading else { return }
+        appsLock.lock()
+        let loaded = appsLoaded
+        appsLock.unlock()
+        guard !loaded, !Self.disableAppLoading else { return }
+        appsLock.lock()
         appsLoaded = true
+        appsLock.unlock()
         refreshInstalledApps()
     }
 
-    /// Cancel any in-progress search
     func cancelCurrentSearch() {
+        appsLock.lock()
         currentSearchTask?.cancel()
         currentSearchTask = nil
+        appsLock.unlock()
     }
 
-    /// Get the last search trace for displaying stats
-    func getLastTrace() -> SearchSpan? {
-        lastSearchTrace
-    }
-
-    /// Fast search - returns apps and tool results immediately (no file search)
-    /// Use this for instant feedback while file search runs in background
     func searchFast(query: String) -> [SearchResult] {
-        ensureAppsLoaded()
+        search(query: query)
+    }
 
-        let span = tracer.startSearch(query: query)
-        defer {
-            span.finish()
-            lastSearchTrace = span
-            tracer.outputTrace(span)
-        }
+    /// Streaming search that yields results as each tool finishes
+    func searchStream(query: String) -> AsyncStream<[SearchResult]> {
+        AsyncStream { continuation in
+            let context = QueryAnalyzer.shared.analyze(query)
 
-        let lowercasedQuery = query.lowercased()
+            ensureAppsLoaded()
+            appsLock.lock()
+            let apps = installedApps
+            appsLock.unlock()
 
-        if lowercasedQuery.isEmpty {
-            return []
-        }
+            let span = tracer.startSearch(query: query)
+            if context.normalized.isEmpty {
+                continuation.finish()
+                return
+            }
 
-        var results: [SearchResult] = []
-        var seenBundleIDs: Set<String> = []
+            var currentResults: [SearchResult] = []
+            let resultsLock = NSLock()
 
-        // Check for shell command FIRST (highest priority - starts with ">")
-        if ShellCommandService.shared.isShellCommand(query) {
-            let shellSpan = span.createChild(operationName: "shell_command")
-            let shellResult = ShellCommandService.shared.createShellCommandResult(for: query)
-            results.append(shellResult)
-            shellSpan.finish()
-            return results // Return early - shell commands take priority
-        }
-
-        // Check for process search (type "processes" to see running processes)
-        if lowercasedQuery.contains("process") {
-            let processSpan = span.createChild(operationName: "process_search")
-            let processResults = performProcessSearch(query: lowercasedQuery)
-            processSpan.setTag("results", processResults.count)
-            processSpan.finish()
-
-            if !processResults.isEmpty {
-                results.append(contentsOf: processResults)
-                // Return early if process search matched - processes take priority
-                return results.sorted { a, b -> Bool in
-                    SearchResult.rankedBefore(a, b)
+            func emit(_ newResults: [SearchResult]) {
+                guard !newResults.isEmpty else { return }
+                resultsLock.lock()
+                for res in newResults {
+                    if !currentResults.contains(where: { $0.title == res.title && $0.subtitle == res.subtitle }) {
+                        currentResults.append(res)
+                    }
                 }
+                currentResults.sort(by: SearchResult.rankedBefore)
+                let snapshot = currentResults
+                resultsLock.unlock()
+                continuation.yield(snapshot)
             }
-        }
 
-        // Check for calculator expression (high priority)
-        let calcSpan = span.createChild(operationName: "calculator")
-        if Calculator.shared.isMathExpression(query) {
-            if let result = Calculator.shared.evaluate(query) {
-                calcSpan.setTag("expression", query)
-                calcSpan.setTag("result", result)
-                results.append(SearchResult(
-                    title: result,
-                    subtitle: "Copy to clipboard",
-                    icon: NSImage(systemSymbolName: "function", accessibilityDescription: "Calculator"),
-                    category: .action,
-                    action: {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(result, forType: .string)
-                    },
-                    source: .tool
-                ))
-            }
-        }
-        calcSpan.finish()
+            let task = Task {
+                // 1. --- UNIT CONVERSION ---
+                let unitSpan = span.createChild(operationName: "Unit Conversion")
+                if let intent = UnitConversionWorker.shared.parse(context: context),
+                   let result = UnitConversionWorker.shared.execute(intent: intent)
+                {
+                    unitSpan.setTag("intent", "\(intent.value) \(intent.fromUnit) -> \(intent.toUnit)")
+                    emit([SearchResult(
+                        title: result, subtitle: "Unit Conversion",
+                        icon: NSImage(
+                            systemSymbolName: "arrow.left.arrow.right",
+                            accessibilityDescription: "Unit Converter"
+                        ),
+                        category: .conversion,
+                        action: { NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(result, forType: .string)
+                        },
+                        score: 3000
+                    )])
+                    unitSpan.setResultsCount(1)
+                }
+                unitSpan.finish()
 
-        // Check for unit conversion expression (high priority)
-        let convSpan = span.createChild(operationName: "unit_conversion")
-        if UnitConverter.shared.isConversionExpression(query) {
-            if let result = UnitConverter.shared.convert(query) {
-                convSpan.setTag("expression", query)
-                convSpan.setTag("result", result)
-                results.append(SearchResult(
-                    title: result,
-                    subtitle: "Conversion",
-                    icon: NSImage(
-                        systemSymbolName: "arrow.left.arrow.right",
-                        accessibilityDescription: "Unit Converter"
-                    ),
-                    category: .conversion,
-                    action: {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(result, forType: .string)
-                    },
-                    score: 2000 // Very high score to ensure conversion is always first
-                ))
-            }
-        } else if lowercasedQuery == "convert" {
-            // Show conversion hints when user types "convert"
-            convSpan.setTag("showing_hints", true)
-            let hints = UnitConverter.shared.getHints()
-            for hint in hints {
-                results.append(SearchResult(
-                    title: hint,
-                    subtitle: "Unit Conversion Example",
-                    icon: NSImage(
-                        systemSymbolName: "arrow.left.arrow.right",
-                        accessibilityDescription: "Unit Converter"
-                    ),
-                    category: .conversion,
-                    action: {},
-                    score: 2000
-                ))
-            }
-        }
-        convSpan.finish()
+                if Task.isCancelled { return }
 
-        // Check for time zone conversion (high priority)
-        let tzSpan = span.createChild(operationName: "time_zone_conversion")
-        let tzResults = TimeZoneConverterService.shared.search(query: query)
-        tzSpan.setTag("results", tzResults.count)
-        tzSpan.finish()
-        results.append(contentsOf: tzResults)
+                // 2. --- CALENDAR EVENT ---
+                let calSpan = span.createChild(operationName: "Calendar Event")
+                if let intent = CalendarEventWorker.shared.parse(context: context) {
+                    calSpan.setTag("title", intent.title)
+                    if let d = intent.date { calSpan.setTag("date", d.description) }
 
-        // Fuzzy search through installed apps
-        let appSpan = span.createChild(operationName: "applications")
-        appSpan.setTag("total_apps", installedApps.count)
+                    let res = SearchResult(
+                        title: "Add Event: \(intent.title)",
+                        subtitle: "Date: \(intent.date?.description ?? "Not specified") | Location: \(intent.location ?? "Not specified")",
+                        icon: NSImage(
+                            systemSymbolName: "calendar.badge.plus",
+                            accessibilityDescription: "Add Calendar Event"
+                        ),
+                        category: .calendar,
+                        action: {}, score: 2800
+                    )
+                    emit([res])
+                    calSpan.setResultsCount(1)
+                }
+                calSpan.finish()
 
-        // Trace fuzzy matching
-        let fuzzyMatchSpan = appSpan.createChild(operationName: "fuzzy.match")
-        fuzzyMatchSpan.setTag("query_length", lowercasedQuery.count)
-        fuzzyMatchSpan.setTag("items_to_match", installedApps.count)
+                if Task.isCancelled { return }
 
-        let matchedApps = installedApps.compactMap { app -> (app: InstalledApp, score: Int)? in
-            let score = SearchScoreCalculator.shared.calculateScore(
-                query: lowercasedQuery,
-                title: app.name,
-                category: .application
-            )
-            return score > 0 ? (app, score) : nil
-        }
+                // 3. --- PROCESS MANAGEMENT ---
+                let procSpan = span.createChild(operationName: "Process Management")
+                if let intent = ProcessWorker.shared.parse(context: context) {
+                    procSpan.setTag("action", String(describing: intent.action))
+                    var pRes: [SearchResult] = []
+                    switch intent.action {
+                    case .listAll:
+                        pRes = ProcessSearchService.shared
+                            .createSearchResults(from: ProcessSearchService.shared.fetchRunningProcesses())
+                    case .findByPort(let port):
+                        let processes = ProcessSearchService.shared.findProcessesUsingPort(port)
+                        if processes.isEmpty {
+                            pRes = [SearchResult(
+                                title: "No process found on port \(port)",
+                                subtitle: "Nothing is currently listening on this port",
+                                icon: NSImage(
+                                    systemSymbolName: "network.badge.shield.half.filled",
+                                    accessibilityDescription: "No Process"
+                                ),
+                                category: .process,
+                                action: {},
+                                revealAction: nil, // DISABLE Cmd+Enter
+                                score: 2900
+                            )]
+                        } else {
+                            pRes = ProcessSearchService.shared.createSearchResults(from: processes)
+                        }
+                    case .filterByName(let name):
+                        pRes = ProcessSearchService.shared
+                            .createSearchResults(from: ProcessSearchService.shared.searchProcesses(query: name))
+                    }
+                    emit(pRes.map { var r = $0
+                        r.score = 2900
+                        return r
+                    })
+                    procSpan.setResultsCount(pRes.count)
+                }
+                procSpan.finish()
 
-        fuzzyMatchSpan.setTag("matches_found", matchedApps.count)
-        fuzzyMatchSpan.finish()
+                if Task.isCancelled { return }
 
-        // Trace sorting
-        let sortSpan = appSpan.createChild(operationName: "sort")
-        sortSpan.setTag("items_to_sort", matchedApps.count)
+                // 4. --- APPLICATIONS ---
+                let appSpan = span.createChild(operationName: "Applications")
+                let appResults = apps.compactMap { app -> (app: InstalledApp, score: Int)? in
+                    let score = SearchScoreCalculator.shared.calculateScore(
+                        query: context.normalized,
+                        title: app.name,
+                        category: .application
+                    )
+                    return score > 0 ? (app, score) : nil
+                }
+                let finalApps = appResults.sorted { $0.score > $1.score }.prefix(10)
+                    .compactMap { item -> SearchResult? in
+                        SearchResult(
+                            title: item.app.name,
+                            subtitle: "Application",
+                            icon: item.app.icon,
+                            category: .application,
+                            action: { [weak self] in self?.launchApp(bundleID: item.app.bundleID) },
+                            score: item.score
+                        )
+                    }
+                emit(finalApps)
+                appSpan.setResultsCount(finalApps.count)
+                appSpan.finish()
 
-        let finalAppResults = matchedApps
-            .sorted { $0.score > $1.score }
-            .prefix(10)
-            .compactMap { item -> SearchResult? in
-                guard !seenBundleIDs.contains(item.app.bundleID) else { return nil }
-                seenBundleIDs.insert(item.app.bundleID)
+                if Task.isCancelled { return }
 
-                let subtitle: String = if item.app.name == "Activity Monitor" {
-                    SystemMetricsService.shared.getCurrentMetrics()
-                } else {
-                    "Application"
+                // 5. --- SYSTEM TOOLS & PLUGINS ---
+                let otherTools: [(String, (String) -> [SearchResult])] = [
+                    ("User Commands", UserCommandsService.shared.search),
+                    ("Color Picker", ColorPickerPlugin.shared.search),
+                    ("Battery", BatteryService.shared.search),
+                    ("System Info", SystemInfoService.shared.search),
+                    ("Network Info", NetworkInfoService.shared.search),
+                    ("TimeZone", TimeZoneConverterService.shared.search),
+                    ("Calendar (System)", { q in guard !CalendarService.isDisabled else { return [] }
+                        return CalendarService.shared.search(query: q) }),
+                    ("Contacts", { q in guard !ContactsService.isDisabled else { return [] }
+                        return ContactsService.shared.search(query: q) }),
+                ]
+
+                for (name, searchFunc) in otherTools {
+                    if Task.isCancelled { break }
+                    let toolSpan = span.createChild(operationName: name)
+                    let toolResults = autoreleasepool { searchFunc(context.normalized) }
+                    toolSpan.setResultsCount(toolResults.count)
+                    toolSpan.finish()
+                    emit(toolResults)
                 }
 
-                return SearchResult(
-                    title: item.app.name,
-                    subtitle: subtitle,
-                    icon: item.app.icon,
-                    category: .application,
-                    action: { [weak self] in
-                        self?.launchApp(bundleID: item.app.bundleID)
-                    },
-                    score: item.score
-                )
+                if Task.isCancelled { return }
+
+                // 6. --- FILE SEARCH ---
+                let fileNLSpan = span.createChild(operationName: "File Search (NL)")
+                let fileIntent = FileSearchWorker.shared.parse(context: context)
+                if context.contains(anyOf: ["file", "files"]) || fileIntent.date != nil || fileIntent
+                    .isLarge || fileIntent.fileExtension != nil
+                {
+                    let predicate = FileSearchWorker.shared.buildPredicate(from: fileIntent)
+                    fileNLSpan.setTag("predicate", predicate.predicateFormat)
+                    if !FileSearchService.isDisabled {
+                        let fileResults = FileSearchService.shared.searchSync(
+                            predicate: predicate,
+                            maxResults: 20,
+                            originalQuery: context.normalized
+                        )
+                        emit(fileResults.map { var r = $0
+                            r.score = 2500
+                            return r
+                        })
+                        fileNLSpan.setResultsCount(fileResults.count)
+                    }
+                }
+                fileNLSpan.finish()
+
+                let fileStandardSpan = span.createChild(operationName: "File Search (Standard)")
+                let fileSearchQuery = context.normalized
+                    .hasPrefix(fileSearchPrefix) ? String(context.raw.dropFirst(fileSearchPrefix.count)) : context
+                    .normalized
+                if fileSearchQuery.count >= 3, !FileSearchService.isDisabled {
+                    let fileResults = FileSearchService.shared.searchSync(
+                        query: fileSearchQuery,
+                        maxResults: 20,
+                        originalQuery: context.normalized
+                    )
+                    emit(fileResults)
+                    fileStandardSpan.setResultsCount(fileResults.count)
+                }
+                fileStandardSpan.finish()
+
+                // 7. --- MAP SEARCH ---
+                if let location = context.location {
+                    let mapSpan = span.createChild(operationName: "Map Search")
+                    let term = location.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if term.count > 2 {
+                        mapSpan.setTag("location", term)
+                        emit([SearchResult(
+                            title: "Search Map: \(term)", subtitle: "Open in Apple Maps",
+                            icon: NSImage(systemSymbolName: "map", accessibilityDescription: "Map"),
+                            category: .action,
+                            action: {
+                                let encoded = term.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+                                if let url = URL(string: "maps://?q=\(encoded)") { NSWorkspace.shared.open(url) }
+                            },
+                            score: 2700
+                        )])
+                        mapSpan.setResultsCount(1)
+                    }
+                    mapSpan.finish()
+                }
+
+                span.finish()
+                lastSearchTrace = span
+                tracer.outputTrace(span, query: context.raw)
+                continuation.finish()
             }
-        sortSpan.finish()
-        appSpan.setTag("results", finalAppResults.count)
-        appSpan.finish()
-        results.append(contentsOf: finalAppResults)
 
-        // User commands (actions)
-        let cmdSpan = span.createChild(operationName: "user_commands")
-        let commandResults = UserCommandsService.shared.search(query: query)
-        cmdSpan.setTag("results", commandResults.count)
-        cmdSpan.finish()
-        results.append(contentsOf: commandResults)
-
-        // Color Picker
-        let colorSpan = span.createChild(operationName: "color_picker")
-        let colorPickerResults = ColorPickerPlugin.shared.search(query: query)
-        colorSpan.setTag("results", colorPickerResults.count)
-        colorSpan.finish()
-        results.append(contentsOf: colorPickerResults)
-
-        // Contacts
-        let contactSpan = span.createChild(operationName: "contacts")
-        let contactResults = ContactsService.shared.search(query: query)
-        contactSpan.setTag("results", contactResults.count)
-        contactSpan.finish()
-        results.append(contentsOf: contactResults)
-
-        // Battery info
-        let batterySpan = span.createChild(operationName: "battery")
-        let batteryResults = BatteryService.shared.search(query: query)
-        batterySpan.setTag("results", batteryResults.count)
-        batterySpan.finish()
-        results.append(contentsOf: batteryResults)
-
-        // System info (storage, system specs)
-        let systemInfoSpan = span.createChild(operationName: "system_info")
-        let systemInfoResults = SystemInfoService.shared.search(query: query)
-        systemInfoSpan.setTag("results", systemInfoResults.count)
-        systemInfoSpan.finish()
-        results.append(contentsOf: systemInfoResults)
-
-        // Network info (IP addresses, WiFi)
-        let networkSpan = span.createChild(operationName: "network_info")
-        let networkResults = NetworkInfoService.shared.search(query: query)
-        networkSpan.setTag("results", networkResults.count)
-        networkSpan.finish()
-        results.append(contentsOf: networkResults)
-
-        // Clipboard history (only when explicitly prefixed with "clip")
-        let clipSpan = span.createChild(operationName: "clipboard")
-        let clipboardResults: [SearchResult] = if let clipboardQuery = clipboardQueryIfTriggered(
-            from: query,
-            lowercasedQuery: lowercasedQuery
-        ) {
-            ClipboardManager.shared.search(query: clipboardQuery)
-        } else {
-            []
-        }
-        clipSpan.setTag("results", clipboardResults.count)
-        clipSpan.finish()
-        results.append(contentsOf: clipboardResults)
-
-        // Calendar events and meetings
-        let calendarSpan = span.createChild(operationName: "calendar")
-        let calendarResults = CalendarService.shared.search(query: query)
-        calendarSpan.setTag("results", calendarResults.count)
-        calendarSpan.finish()
-        results.append(contentsOf: calendarResults)
-
-        // Emojis disabled - users can use Cmd+Ctrl+Space system picker instead
-        // let emojiResults = EmojiSearchService.shared.search(query: query)
-        // results.append(contentsOf: emojiResults)
-
-        // Global commands (lowest priority)
-        let globalSpan = span.createChild(operationName: "global_commands")
-        let globalCommandResults = GlobalCommandsService.shared.search(query: query)
-        globalSpan.setTag("results", globalCommandResults.count)
-        globalSpan.finish()
-        results.append(contentsOf: globalCommandResults)
-
-        // Toggles (low priority - below apps)
-        let toggleSpan = span.createChild(operationName: "toggles")
-        let toggleResults = searchToggles(query: lowercasedQuery)
-        toggleSpan.setTag("results", toggleResults.count)
-        toggleSpan.finish()
-        results.append(contentsOf: toggleResults)
-
-        // Quicklinks - searchable by name, URL, keyword "quicklink"
-        let quicklinkResults = searchQuicklinks(query: lowercasedQuery)
-        results.append(contentsOf: quicklinkResults)
-
-        // Settings category - "Add Quicklink" as first item
-        if lowercasedQuery.contains("add") || lowercasedQuery.isEmpty {
-            let settingsResults = createSettingsResults(query: lowercasedQuery)
-            results.append(contentsOf: settingsResults)
-        }
-
-        return results.sorted { a, b -> Bool in
-            SearchResult.rankedBefore(a, b)
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
         }
     }
 
-    // MARK: - Process Search
-
-    /// Performs process search - shows running processes when user types "processes"
-    private func performProcessSearch(query: String) -> [SearchResult] {
-        // If query is just "process" or "processes", show top processes
-        let isProcessKeywordOnly = query == "process" || query == "processes"
-
-        if isProcessKeywordOnly {
-            // Show all top processes
-            let processes = ProcessSearchService.shared.fetchRunningProcesses()
-            return ProcessSearchService.shared.createSearchResults(from: processes)
-        } else {
-            // Search for specific process by name
-            let searchQuery = query.replacingOccurrences(of: "process", with: "").trimmingCharacters(in: .whitespaces)
-            if !searchQuery.isEmpty {
-                let processes = ProcessSearchService.shared.searchProcesses(query: searchQuery)
-                if processes.isEmpty {
-                    // Return no results message
-                    return [SearchResult(
-                        title: ProcessSearchService.noResultsMessage,
-                        subtitle: "Try a different search term",
-                        icon: NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Search"),
-                        category: .process,
-                        action: {},
-                        score: 0
-                    )]
-                }
-                return ProcessSearchService.shared.createSearchResults(from: processes)
+    func search(query: String) -> [SearchResult] {
+        var last: [SearchResult] = []
+        let semaphore = DispatchSemaphore(value: 0)
+        Task {
+            for await results in searchStream(query: query) {
+                last = results
             }
+            semaphore.signal()
         }
-
-        return []
+        _ = semaphore.wait(timeout: .now() + 5.0)
+        return last
     }
 
-    /// File search only - returns file results (can be slow, run async)
     func searchFiles(query: String) -> [SearchResult] {
-        let lowercasedQuery = query.lowercased()
-
-        if lowercasedQuery.isEmpty {
-            return []
-        }
-
-        let fileSearchQuery: String
-        let isFileSpecificSearch = lowercasedQuery.hasPrefix(fileSearchPrefix)
-
-        if isFileSpecificSearch {
-            fileSearchQuery = String(query.dropFirst(fileSearchPrefix.count))
-        } else {
-            fileSearchQuery = query
-        }
-
-        if !fileSearchQuery.isEmpty, !Self.disableFileSearch {
-            return FileSearchService.shared.searchSync(query: fileSearchQuery, maxResults: 5)
-        }
-
-        return []
+        search(query: query).filter { $0.category == .file }
     }
 
-    /// Async search that runs file search on a background thread
-    /// This prevents blocking the main thread with mdfind calls
     @MainActor
     func searchAsync(query: String) async -> [SearchResult] {
-        // Run the blocking search on a background thread
-        await Task.detached(priority: .userInitiated) { [weak self] in
-            guard let self else { return [] }
-            return search(query: query)
+        await Task.detached(priority: .userInitiated) {
+            self.search(query: query)
         }.value
-    }
-
-    /// Synchronous search for backwards compatibility
-    /// WARNING: This may block briefly during file search (max 2 seconds)
-    func searchSyncCompat(query: String) -> [SearchResult] {
-        search(query: query)
     }
 
     func refreshInstalledApps() {
         var apps: [InstalledApp] = []
-
-        // First add running apps
-        let runningApps = NSWorkspace.shared.runningApplications
-            .filter { $0.activationPolicy == .regular }
+        let runningApps = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }
             .compactMap { app -> InstalledApp? in
-                guard let name = app.localizedName,
-                      let bundleID = app.bundleIdentifier else { return nil }
-
-                let icon = app.icon ?? NSImage(systemSymbolName: "app", accessibilityDescription: nil)
-                return InstalledApp(name: name, bundleID: bundleID, icon: icon)
+                guard let name = app.localizedName, let bundleID = app.bundleIdentifier else { return nil }
+                return InstalledApp(
+                    name: name,
+                    bundleID: bundleID,
+                    icon: app.icon ?? NSImage(systemSymbolName: "app", accessibilityDescription: nil)
+                )
             }
         apps.append(contentsOf: runningApps)
 
-        // Use Spotlight to find all apps
-        // Note: kMDItemContentTypeTree works for apps without direct content type (like Zoom.us)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/mdfind")
         process.arguments = ["kMDItemContentTypeTree == 'com.apple.application-bundle'"]
-
         let pipe = Pipe()
         process.standardOutput = pipe
+        try? process.run()
+        process.waitUntilExit()
 
-        do {
-            try process.run()
-            process.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            if let output = String(data: data, encoding: .utf8) {
-                let appPaths = output.components(separatedBy: "\n").filter { !$0.isEmpty }
-
-                for appPath in appPaths {
-                    let appURL = URL(fileURLWithPath: appPath)
-                    let name = appURL.deletingPathExtension().lastPathComponent
-
-                    // Skip if already added (from running apps)
-                    if apps.contains(where: { $0.name == name }) {
-                        continue
-                    }
-
-                    // Skip system paths
-                    if appPath.hasPrefix("/Library") { continue }
-                    if appPath.hasPrefix("/System"), !appPath.hasPrefix("/System/Applications") { continue }
-
-                    let icon = NSWorkspace.shared.icon(forFile: appPath)
-                    apps.append(InstalledApp(name: name, bundleID: appPath, icon: icon))
-                }
-            }
-        } catch {
-            print("Spotlight query failed: \(error)")
-        }
-
-        installedApps = apps.sorted { $0.name.lowercased() < $1.name.lowercased() }
-        print("Indexed \(installedApps.count) applications")
-    }
-
-    func search(query: String) -> [SearchResult] {
-        ensureAppsLoaded()
-
-        let span = tracer.startSearch(query: query)
-        defer {
-            span.finish()
-            lastSearchTrace = span
-            tracer.outputTrace(span)
-        }
-
-        let lowercasedQuery = query.lowercased()
-
-        if lowercasedQuery.isEmpty {
-            return []
-        }
-
-        var results: [SearchResult] = []
-        var seenBundleIDs: Set<String> = []
-
-        // Check for shell command FIRST (highest priority - starts with ">")
-        if ShellCommandService.shared.isShellCommand(query) {
-            let shellSpan = span.createChild(operationName: "shell_command")
-            let shellResult = ShellCommandService.shared.createShellCommandResult(for: query)
-            results.append(shellResult)
-            shellSpan.finish()
-            return results // Return early - shell commands take priority
-        }
-
-        // Check for process search (type "processes" to see running processes)
-        if lowercasedQuery.contains("process") {
-            let processSpan = span.createChild(operationName: "process_search")
-            let processResults = performProcessSearch(query: lowercasedQuery)
-            processSpan.setTag("results", processResults.count)
-            processSpan.finish()
-
-            if !processResults.isEmpty {
-                results.append(contentsOf: processResults)
-                // Return early if process search matched - processes take priority
-                return results.sorted { a, b -> Bool in
-                    SearchResult.rankedBefore(a, b)
-                }
-            }
-        }
-
-        // Check for calculator expression (high priority)
-        let calcSpan = span.createChild(operationName: "calculator")
-        if Calculator.shared.isMathExpression(query) {
-            if let result = Calculator.shared.evaluate(query) {
-                calcSpan.setTag("expression", query)
-                calcSpan.setTag("result", result)
-                results.append(SearchResult(
-                    title: result,
-                    subtitle: "Copy to clipboard",
-                    icon: NSImage(systemSymbolName: "function", accessibilityDescription: "Calculator"),
-                    category: .action,
-                    action: {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(result, forType: .string)
-                    },
-                    source: .tool
+        if let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) {
+            let appPaths = output.components(separatedBy: "\n").filter { !$0.isEmpty }
+            for appPath in appPaths {
+                let appURL = URL(fileURLWithPath: appPath)
+                let name = appURL.deletingPathExtension().lastPathComponent
+                if apps.contains(where: { $0.name == name }) { continue }
+                if appPath.hasPrefix("/Library") { continue }
+                if appPath.hasPrefix("/System"), !appPath.hasPrefix("/System/Applications") { continue }
+                apps.append(InstalledApp(
+                    name: name,
+                    bundleID: appPath,
+                    icon: NSWorkspace.shared.icon(forFile: appPath)
                 ))
             }
         }
-        calcSpan.finish()
 
-        // Check for unit conversion expression (high priority)
-        let convSpan = span.createChild(operationName: "unit_conversion")
-        if UnitConverter.shared.isConversionExpression(query) {
-            if let result = UnitConverter.shared.convert(query) {
-                convSpan.setTag("expression", query)
-                convSpan.setTag("result", result)
-                results.append(SearchResult(
-                    title: result,
-                    subtitle: "Conversion",
-                    icon: NSImage(
-                        systemSymbolName: "arrow.left.arrow.right",
-                        accessibilityDescription: "Unit Converter"
-                    ),
-                    category: .conversion,
-                    action: {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(result, forType: .string)
-                    },
-                    score: 2000 // Very high score to ensure conversion is always first
-                ))
-            }
-        } else if lowercasedQuery == "convert" {
-            // Show conversion hints when user types "convert"
-            convSpan.setTag("showing_hints", true)
-            let hints = UnitConverter.shared.getHints()
-            for hint in hints {
-                results.append(SearchResult(
-                    title: hint,
-                    subtitle: "Unit Conversion Example",
-                    icon: NSImage(
-                        systemSymbolName: "arrow.left.arrow.right",
-                        accessibilityDescription: "Unit Converter"
-                    ),
-                    category: .conversion,
-                    action: {},
-                    score: 2000
-                ))
-            }
-        }
-        convSpan.finish()
-
-        // Check for time zone conversion (high priority)
-        let tzSpan = span.createChild(operationName: "time_zone_conversion")
-        let tzResults = TimeZoneConverterService.shared.search(query: query)
-        tzSpan.setTag("results", tzResults.count)
-        tzSpan.finish()
-        results.append(contentsOf: tzResults)
-
-        // Fuzzy search through installed apps
-        let appSpan = span.createChild(operationName: "applications")
-        appSpan.setTag("total_apps", installedApps.count)
-
-        let appResults = installedApps
-            .compactMap { app -> (app: InstalledApp, score: Int)? in
-                let score = SearchScoreCalculator.shared.calculateScore(
-                    query: lowercasedQuery,
-                    title: app.name,
-                    category: .application
-                )
-                return score > 0 ? (app, score) : nil
-            }
-            .sorted { $0.score > $1.score }
-            .prefix(10)
-            .compactMap { item -> SearchResult? in
-                guard !seenBundleIDs.contains(item.app.bundleID) else { return nil }
-                seenBundleIDs.insert(item.app.bundleID)
-
-                let subtitle: String = if item.app.name == "Activity Monitor" {
-                    SystemMetricsService.shared.getCurrentMetrics()
-                } else {
-                    "Application"
-                }
-
-                return SearchResult(
-                    title: item.app.name,
-                    subtitle: subtitle,
-                    icon: item.app.icon,
-                    category: .application,
-                    action: { [weak self] in
-                        self?.launchApp(bundleID: item.app.bundleID)
-                    },
-                    score: item.score
-                )
-            }
-        appSpan.setTag("results", appResults.count)
-        appSpan.finish()
-        results.append(contentsOf: appResults)
-
-        // User commands (actions)
-        let cmdSpan = span.createChild(operationName: "user_commands")
-        let commandResults = UserCommandsService.shared.search(query: query)
-        cmdSpan.setTag("results", commandResults.count)
-        cmdSpan.finish()
-        results.append(contentsOf: commandResults)
-
-        // Color Picker
-        let colorSpan = span.createChild(operationName: "color_picker")
-        let colorPickerResults = ColorPickerPlugin.shared.search(query: query)
-        colorSpan.setTag("results", colorPickerResults.count)
-        colorSpan.finish()
-        results.append(contentsOf: colorPickerResults)
-
-        // Contacts
-        let contactSpan = span.createChild(operationName: "contacts")
-        let contactResults = ContactsService.shared.search(query: query)
-        contactSpan.setTag("results", contactResults.count)
-        contactSpan.finish()
-        results.append(contentsOf: contactResults)
-
-        // Battery info
-        let batterySpan = span.createChild(operationName: "battery")
-        let batteryResults = BatteryService.shared.search(query: query)
-        batterySpan.setTag("results", batteryResults.count)
-        batterySpan.finish()
-        results.append(contentsOf: batteryResults)
-
-        // System info (storage, system specs)
-        let systemInfoSpan = span.createChild(operationName: "system_info")
-        let systemInfoResults = SystemInfoService.shared.search(query: query)
-        systemInfoSpan.setTag("results", systemInfoResults.count)
-        systemInfoSpan.finish()
-        results.append(contentsOf: systemInfoResults)
-
-        // Network info (IP addresses, WiFi)
-        let networkSpan = span.createChild(operationName: "network_info")
-        let networkResults = NetworkInfoService.shared.search(query: query)
-        networkSpan.setTag("results", networkResults.count)
-        networkSpan.finish()
-        results.append(contentsOf: networkResults)
-
-        // Clipboard history (only when explicitly prefixed with "clip")
-        let clipSpan = span.createChild(operationName: "clipboard")
-        let clipboardResults: [SearchResult] = if let clipboardQuery = clipboardQueryIfTriggered(
-            from: query,
-            lowercasedQuery: lowercasedQuery
-        ) {
-            ClipboardManager.shared.search(query: clipboardQuery)
-        } else {
-            []
-        }
-        clipSpan.setTag("results", clipboardResults.count)
-        clipSpan.finish()
-        results.append(contentsOf: clipboardResults)
-
-        // Calendar events and meetings
-        let calendarSpan = span.createChild(operationName: "calendar")
-        let calendarResults = CalendarService.shared.search(query: query)
-        calendarSpan.setTag("results", calendarResults.count)
-        calendarSpan.finish()
-        results.append(contentsOf: calendarResults)
-
-        // Search for files using Spotlight
-        let fileSpan = span.createChild(operationName: "files")
-        let fileSearchQuery: String
-        let isFileSpecificSearch = lowercasedQuery.hasPrefix(fileSearchPrefix)
-
-        if isFileSpecificSearch {
-            fileSearchQuery = String(query.dropFirst(fileSearchPrefix.count))
-            fileSpan.setTag("file_specific", true)
-        } else {
-            fileSearchQuery = query
-        }
-
-        if !fileSearchQuery.isEmpty && !Self.disableFileSearch {
-            let fileResults = FileSearchService.shared.searchSync(query: fileSearchQuery, maxResults: 5)
-            fileSpan.setTag("results", fileResults.count)
-            results.append(contentsOf: fileResults)
-        }
-        fileSpan.finish()
-
-        // Emojis disabled - users can use Cmd+Ctrl+Space system picker instead
-        // let emojiResults = EmojiSearchService.shared.search(query: query)
-        // results.append(contentsOf: emojiResults)
-
-        // Global commands (lowest priority)
-        let globalSpan = span.createChild(operationName: "global_commands")
-        let globalCommandResults = GlobalCommandsService.shared.search(query: query)
-        globalSpan.setTag("results", globalCommandResults.count)
-        globalSpan.finish()
-        results.append(contentsOf: globalCommandResults)
-
-        // Toggles (low priority - below apps)
-        let toggleSpan = span.createChild(operationName: "toggles")
-        let toggleResults = searchToggles(query: lowercasedQuery)
-        toggleSpan.setTag("results", toggleResults.count)
-        toggleSpan.finish()
-        results.append(contentsOf: toggleResults)
-
-        // Quicklinks - searchable by name, URL, keyword "quicklink"
-        let qlSpan = span.createChild(operationName: "quicklinks")
-        let quicklinkResults = searchQuicklinks(query: lowercasedQuery)
-        qlSpan.setTag("results", quicklinkResults.count)
-        qlSpan.finish()
-        results.append(contentsOf: quicklinkResults)
-
-        // Settings category - "Add Quicklink" as first item
-        if lowercasedQuery.contains("add") || lowercasedQuery.isEmpty {
-            let settingsSpan = span.createChild(operationName: "settings")
-            let settingsResults = createSettingsResults(query: lowercasedQuery)
-            settingsSpan.setTag("results", settingsResults.count)
-            settingsSpan.finish()
-            results.append(contentsOf: settingsResults)
-        }
-
-        // Deduplicate and sort by category
-        let dedupSpan = span.createChild(operationName: "deduplicate_sort")
-        var finalResults: [SearchResult] = []
-        var seenTitles: Set<String> = []
-        for result in results where !seenTitles.contains(result.title) {
-            seenTitles.insert(result.title)
-            finalResults.append(result)
-        }
-        dedupSpan.setTag("before_dedup", results.count)
-        dedupSpan.setTag("after_dedup", finalResults.count)
-        dedupSpan.finish()
-
-        // Sort by score (descending), then category (ascending for priority)
-        return Array(finalResults.sorted { a, b -> Bool in
-            SearchResult.rankedBefore(a, b)
-        }.prefix(10))
-    }
-
-    // MARK: - Toggles
-
-    private func searchToggles(query: String) -> [SearchResult] {
-        // If query is empty, don't return toggles
-        guard !query.isEmpty else { return [] }
-
-        // Search keywords for toggles
-        let toggleKeywords = ["caffeinate", "awake", "sleep prevention", "keep awake"]
-        let matchesQuery = toggleKeywords.contains { $0.contains(query) } ||
-            query.contains("caffeinate") ||
-            query.contains("awake") ||
-            query.contains("sleep")
-
-        guard matchesQuery else { return [] }
-
-        var results: [SearchResult] = []
-
-        // Caffeinate system - prevents system sleep but allows display to sleep
-        let systemScore = SearchScoreCalculator.shared.calculateScore(
-            query: query,
-            title: "Caffeinate System",
-            category: .toggle
-        )
-        results.append(SearchResult(
-            title: "Caffeinate System",
-            subtitle: "Prevent system sleep (display can sleep)",
-            icon: NSImage(systemSymbolName: "moon.zzz", accessibilityDescription: "System Awake"),
-            category: .toggle,
-            action: { [weak self] in
-                self?.awakeService.toggle(mode: .system)
-            },
-            score: systemScore > 0 ? systemScore : 40,
-            isActive: awakeService.isActive(mode: .system)
-        ))
-
-        // Caffeinate - prevents both display and system sleep
-        let fullScore = SearchScoreCalculator.shared.calculateScore(
-            query: query,
-            title: "Caffeinate",
-            category: .toggle
-        )
-        results.append(SearchResult(
-            title: "Caffeinate",
-            subtitle: "Prevent display and system sleep",
-            icon: NSImage(systemSymbolName: "sun.max", accessibilityDescription: "Full Awake"),
-            category: .toggle,
-            action: { [weak self] in
-                self?.awakeService.toggle(mode: .full)
-            },
-            score: fullScore > 0 ? fullScore : 40,
-            isActive: awakeService.isActive(mode: .full)
-        ))
-
-        return results
-    }
-
-    private func clipboardQueryIfTriggered(from query: String, lowercasedQuery: String) -> String? {
-        guard lowercasedQuery.hasPrefix(clipboardPrefix) else { return nil }
-        let remainder = String(query.dropFirst(clipboardPrefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
-        return remainder.isEmpty ? query : remainder
-    }
-
-    // MARK: - Quicklinks
-
-    private func searchQuicklinks(query: String) -> [SearchResult] {
-        // If query is empty, don't return quicklinks
-        guard !query.isEmpty else { return [] }
-
-        // If query contains "quicklink" keyword, show all quicklinks
-        let showAllQuicklinks = query.lowercased().contains("quicklink")
-
-        // Get quicklinks - either filtered by query or all if "quicklink" keyword
-        let quicklinks: [Quicklink] = if showAllQuicklinks {
-            quicklinkManager.getAllQuicklinks()
-        } else {
-            quicklinkManager.searchQuicklinks(query: query)
-        }
-
-        return quicklinks.compactMap { quicklink -> SearchResult? in
-            let score: Int = if showAllQuicklinks {
-                2000 // High score when showing all quicklinks
-            } else {
-                // Use the calculator for proper scoring
-                SearchScoreCalculator.shared.calculateScore(
-                    query: query,
-                    title: quicklink.name,
-                    subtitle: quicklink.url,
-                    category: .quicklink,
-                    identifier: quicklink.url
-                )
-            }
-
-            guard score > 0 || showAllQuicklinks else { return nil }
-
-            return SearchResult(
-                title: quicklink.name,
-                subtitle: quicklink.url,
-                icon: NSImage(systemSymbolName: "link", accessibilityDescription: "Quicklink"),
-                category: .quicklink,
-                action: { [weak self] in
-                    _ = self?.quicklinkManager.openQuicklink(id: quicklink.id)
-                },
-                score: score
-            )
-        }
-    }
-
-    // MARK: - Settings
-
-    private func createSettingsResults(query: String) -> [SearchResult] {
-        var results: [SearchResult] = []
-
-        // "Add Quicklink" - first item in settings
-        let addQuicklinkScore = query.isEmpty ? 0 : SearchScoreCalculator.shared.calculateScore(
-            query: query,
-            title: "Add Quicklink",
-            category: .settings
-        )
-
-        results.append(SearchResult(
-            title: "Add Quicklink",
-            subtitle: "Create a new quicklink",
-            icon: NSImage(systemSymbolName: "plus.circle", accessibilityDescription: "Add Quicklink"),
-            category: .settings,
-            action: {
-                NotificationCenter.default.post(name: .showAddQuicklink, object: nil)
-            },
-            score: addQuicklinkScore
-        ))
-
-        return results
+        let sortedApps = apps.sorted { $0.name.lowercased() < $1.name.lowercased() }
+        appsLock.lock()
+        installedApps = sortedApps
+        appsLock.unlock()
     }
 
     private func launchApp(bundleID: String) {
         let workspace = NSWorkspace.shared
-
-        // Try to find and launch by bundle ID first
         if let appURL = workspace.urlForApplication(withBundleIdentifier: bundleID) {
             workspace.openApplication(at: appURL, configuration: .init())
         } else {
-            // Fallback: try as file path
-            let appURL = URL(fileURLWithPath: bundleID)
-            workspace.openApplication(at: appURL, configuration: .init())
+            workspace.openApplication(at: URL(fileURLWithPath: bundleID), configuration: .init())
         }
     }
 }
-
-// test

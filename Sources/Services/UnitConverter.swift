@@ -334,25 +334,6 @@ final class UnitConverter {
         ),
     ]
 
-    // MARK: - Pattern Matching
-
-    /// Regex to match conversion expressions like "100 km to miles" or "100k m to cm"
-    /// Supports: numbers (including negative, decimal, scientific), 'k' suffix for kilo (e.g., "100k m" = 100000 m)
-    private let conversionPattern = #"^(-?[\d.kKeE+-]+)\s*([a-zA-Z/]+)\s+(?:to|in|->)\s+([a-zA-Z/]+)$"#
-
-    /// Parse value with optional kilo suffix (e.g., "100k" = 100000, "-100k" = -100000)
-    private func parseValueWithKiloSuffix(_ valueStr: String) -> Double? {
-        // Check if value ends with 'k' or 'K' (kilo suffix)
-        if valueStr.hasSuffix("k") || valueStr.hasSuffix("K") {
-            let baseStr = String(valueStr.dropLast())
-            guard let baseValue = Double(baseStr) else {
-                return nil
-            }
-            return baseValue * 1000
-        }
-        return Double(valueStr)
-    }
-
     /// Check if input looks like a conversion expression
     func isConversionExpression(_ input: String) -> Bool {
         let trimmed = input.trimmingCharacters(in: .whitespaces)
@@ -362,68 +343,43 @@ final class UnitConverter {
             return false
         }
 
-        // Match against conversion pattern
-        guard let regex = try? NSRegularExpression(pattern: conversionPattern, options: []) else {
-            return false
+        let scanner = Scanner(string: trimmed.lowercased())
+        _ = scanner.scanString("convert")
+
+        guard scanner.scanDouble() != nil else { return false }
+
+        // Skip to " to " or " in "
+        if trimmed.lowercased().contains(" to ") || trimmed.lowercased().contains(" in ") {
+            return true
         }
 
-        let range = NSRange(trimmed.startIndex..., in: trimmed)
-        guard let match = regex.firstMatch(in: trimmed, options: [], range: range) else {
-            return false
+        // Check for immediate unit after number
+        let letters = CharacterSet.letters
+        if let fromUnit = scanner.scanCharacters(from: letters), findUnit(fromUnit) != nil {
+            _ = scanner.scanString("to")
+            _ = scanner.scanString("in")
+            if let toUnit = scanner.scanCharacters(from: letters), findUnit(toUnit) != nil {
+                return true
+            }
         }
 
-        // Extract unit abbreviations
-        guard let fromAbbrevRange = Range(match.range(at: 2), in: trimmed),
-              let toAbbrevRange = Range(match.range(at: 3), in: trimmed)
-        else {
-            return false
-        }
-
-        let fromAbbrev = String(trimmed[fromAbbrevRange])
-        let toAbbrev = String(trimmed[toAbbrevRange])
-
-        // Both must be valid units
-        return findUnit(fromAbbrev) != nil && findUnit(toAbbrev) != nil
+        return false
     }
 
     /// Convert a value from one unit to another
     func convert(_ input: String) -> String? {
         let trimmed = input.trimmingCharacters(in: .whitespaces)
 
-        guard isConversionExpression(trimmed) else {
-            return nil
-        }
+        // Use QueryAnalyzer to get context for the worker
+        let context = QueryAnalyzer.shared.analyze(trimmed)
 
-        // Parse the conversion expression
-        guard let regex = try? NSRegularExpression(pattern: conversionPattern, options: []) else {
-            return nil
-        }
-
-        let range = NSRange(trimmed.startIndex..., in: trimmed)
-        guard let match = regex.firstMatch(in: trimmed, options: [], range: range) else {
-            return nil
-        }
-
-        // Extract value and units
-        guard let valueRange = Range(match.range(at: 1), in: trimmed),
-              let fromAbbrevRange = Range(match.range(at: 2), in: trimmed),
-              let toAbbrevRange = Range(match.range(at: 3), in: trimmed)
-        else {
-            return nil
-        }
-
-        let valueStr = String(trimmed[valueRange])
-        let fromAbbrev = String(trimmed[fromAbbrevRange])
-        let toAbbrev = String(trimmed[toAbbrevRange])
-
-        // Parse the numeric value (support scientific notation and kilo suffix)
-        guard let value = parseValueWithKiloSuffix(valueStr) else {
+        guard let intent = UnitConversionWorker.shared.parse(context: context) else {
             return nil
         }
 
         // Find the units
-        guard let fromUnit = findUnit(fromAbbrev),
-              let toUnit = findUnit(toAbbrev)
+        guard let fromUnit = findUnit(intent.fromUnit),
+              let toUnit = findUnit(intent.toUnit)
         else {
             return nil
         }
@@ -434,7 +390,7 @@ final class UnitConverter {
         }
 
         // Perform conversion
-        let baseValue = fromUnit.toBaseUnit(value)
+        let baseValue = fromUnit.toBaseUnit(intent.value)
         let result = toUnit.fromBaseUnit(baseValue)
 
         return formatResult(result, unit: toUnit)

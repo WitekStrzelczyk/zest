@@ -157,13 +157,13 @@ Raycast includes numerous native tools:
 ### 10. AI Integration
 
 - **Description:** Built-in AI capabilities for productivity
-- **How it works:**
+  - **How it works:**
   - **Quick AI:** Press Tab after typing question for instant AI response
   - **AI Chat:** Dedicated chat window for ongoing conversations
   - **AI Commands:** Pre-built prompts for common tasks (explain, improve writing, summarize)
   - **MCP (Model Context Protocol):** Extend AI with external tools
   - **BYOK:** Connect own API keys (Anthropic, Google, OpenAI, OpenRouter)
-  - **Local Models:** Ollama integration for 100+ local LLMs
+  - **Local Models:** Ollama integration for 100+ local models
   - **Image Generation:** DALL-E 2/3 support
 - **User value:** AI assistant always available without context switching; no separate ChatGPT subscription required
 

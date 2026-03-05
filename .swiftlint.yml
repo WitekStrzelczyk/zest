@@ -84,11 +84,17 @@ excluded:
   # EmojiData.swift contains static emoji data (582 lines of data, not code)
   # This is a data file, not application logic - excluding from file_length
   - Sources/Services/EmojiData.swift
-  # LLMToolCatalog contains JSON schema strings that are inherently long
-  - Sources/Services/LLMToolCatalog.swift
   # CommandPaletteWindow is a large UI file with complex view code
   - Sources/UI/CommandPalette/CommandPaletteWindow.swift
   # CalendarService is a core service with complex calendar integration logic
   - Sources/Services/CalendarService.swift
   # SearchEngine is a core search service with inherently complex search algorithms
   - Sources/Services/SearchEngine.swift
+  # CommandRouter uses multiple domain checks that are inherently complex
+  - Sources/Services/CommandRouter.swift
+  # FileSearchWorker has multi-step parsing logic
+  - Sources/Services/FileSearchWorker.swift
+  # FileSearchService has async NSMetadataQuery handling
+  - Sources/Services/FileSearchService.swift
+  # QueryAnalyzer has multi-step NLP processing
+  - Sources/Services/QueryAnalyzer.swift

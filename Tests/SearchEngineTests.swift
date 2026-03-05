@@ -12,13 +12,13 @@ final class SearchEngineTests: XCTestCase {
         // Disable app loading to avoid mdfind hanging in tests
         SearchEngine.disableAppLoading = true
         // Disable file search to avoid 2s mdfind timeout in tests
-        SearchEngine.disableFileSearch = true
+        FileSearchService.isDisabled = true
     }
 
     override class func tearDown() {
         ContactsService.isDisabled = false
         SearchEngine.disableAppLoading = false
-        SearchEngine.disableFileSearch = false
+        FileSearchService.isDisabled = false
     }
 
     // MARK: - Fuzzy Search Tests

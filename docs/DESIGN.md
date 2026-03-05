@@ -52,6 +52,63 @@ Zest is a native macOS command palette application (Raycast alternative) that pr
 
 **Why:** Users must always know what's happening.
 
+## Section: Search Pipeline
+
+### Architecture
+Zest uses a unified, multi-intent search pipeline designed for high performance and extensibility.
+
+```mermaid
+graph TD
+    %% --- STAGE 1: INPUT & DEBOUNCING ---
+    Input[User Types Query] -->|handleQuery| CPC[CommandPaletteController]
+    CPC -->|Task.sleep 100ms| Debounce{Debounce?}
+    Debounce -->|Cancelled| CPC
+    Debounce -->|Finished| Async[searchAsync]
+
+    %% --- STAGE 2: UNIFIED SEARCH ENGINE ---
+    Async -->|Task.detached| SE[SearchEngine.search]
+    SE -->|tracer.startSearch| Span[SearchSpan Created]
+    
+    %% --- STAGE 3: INTELLIGENCE & ROUTING ---
+    SE -->|route| Router[CommandRouter]
+    Router -->|tokenize| NB[NaiveBayesClassifier]
+    NB -->|NLTagger local| Lemma[Lemmatization]
+    Router -->|Heuristics| IntentArray[[CommandDomain Array]]
+
+    %% --- STAGE 4: TOOL EXECUTION (CALENDAR FOCUS) ---
+    IntentArray --> Tools{Process Domains}
+    
+    subgraph Calendar & Maps Logic
+        Tools -->|calendarEvent| CW[CalendarEventWorker.parse]
+        CW -->|NSDataDetector| Intent[CalendarEventIntent]
+        CW -->|NLTagger| Location[Extracted Location]
+        
+        Tools -->|mapLocation| MW[Map Search]
+        Intent -->|Pass Location| MW
+        MW -->|maps://| MapResult[Apple Maps Proposal]
+    end
+
+    subgraph File & App Search
+        Tools -->|fileSearch| FW[FileSearchWorker]
+        FW -->|buildPredicate| Pred[NSPredicate]
+        Pred -->|searchSync| FSS[FileSearchService]
+        FSS -->|NSMetadataQuery| Spotlight[(Spotlight Index)]
+        
+        Tools -->|Standard| Apps[App Search]
+    end
+
+    %% --- STAGE 5: AUDIT & RESULTS ---
+    Tools -->|Gather| Merge[Merge & Rank Results]
+    Merge -->|finish| Span
+    Span -->|toAudit| Audit[SearchAudit Created]
+    Audit -->|printSummary| Logs[Performance Log]
+    
+    Merge -->|updateResults| Store[CommandPaletteStateStore]
+    Store -->|Notify| UI[Render UI]
+```
+
+Detailed technical breakdown can be found in [Search Pipeline Architecture](architecture/SEARCH_PIPELINE.md).
+
 ---
 
 ## Section: Command Palette
