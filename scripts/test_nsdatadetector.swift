@@ -7,7 +7,7 @@ print("=== NSDataDetector Test for Duration ===\n")
 let testInputs = [
     "files modified 500 minutes ago",
     "files modified 2 hours ago",
-    "files modified today",
+    "files modified today", "2 days ago",
     "files created yesterday",
     "show me files from last 30 minutes",
 ]

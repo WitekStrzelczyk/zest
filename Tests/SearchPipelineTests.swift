@@ -40,7 +40,7 @@ final class SearchPipelineTests: XCTestCase {
         let worker = CalendarEventWorker.shared
         let query = "meeting with john at Perigian Digital Hub"
         
-        let intent = worker.parse(command: query)
+        let intent = worker.parse(context: QueryAnalyzer.shared.analyze(query))
         
         XCTAssertEqual(intent?.title, "John")
         XCTAssertEqual(intent?.location, "Perigian Digital Hub")

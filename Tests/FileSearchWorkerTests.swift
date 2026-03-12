@@ -5,20 +5,29 @@ final class FileSearchWorkerTests: XCTestCase {
     
     func testIntentParsing() {
         let worker = FileSearchWorker.shared
+        let analyzer = QueryAnalyzer.shared
         
         // 1. Extension + Date
-        let intent1 = worker.parse(command: "pdf modified today")
+        let context1 = analyzer.analyze("pdf modified today")
+        let intent1 = worker.parse(context: context1)
         XCTAssertEqual(intent1.fileExtension, "pdf")
         XCTAssertEqual(intent1.dateType, .modified)
         XCTAssertNotNil(intent1.date)
         
+        let startOfToday = Calendar.current.startOfDay(for: Date())
+        if let detectedDate = intent1.date {
+            XCTAssertEqual(Calendar.current.startOfDay(for: detectedDate), startOfToday)
+        }
+        
         // 2. Large + Extension
-        let intent2 = worker.parse(command: "large images")
+        let context2 = analyzer.analyze("large images")
+        let intent2 = worker.parse(context: context2)
         XCTAssertTrue(intent2.isLarge)
         XCTAssertNil(intent2.searchTerm) // "images" is a common word removed or extension detected?
         
         // 3. Search Term + Date Offset
-        let intent3 = worker.parse(command: "invoice created 2 days ago")
+        let context3 = analyzer.analyze("invoice created 2 days ago")
+        let intent3 = worker.parse(context: context3)
         XCTAssertEqual(intent3.searchTerm, "invoice")
         XCTAssertEqual(intent3.dateType, .created)
         XCTAssertNotNil(intent3.date)

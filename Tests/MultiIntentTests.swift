@@ -19,7 +19,7 @@ final class MultiIntentTests: XCTestCase {
         let worker = CalendarEventWorker.shared
         let query = "meeting with john today at 10am at Perigian Digital Hub"
         
-        let intent = worker.parse(command: query)
+        let intent = worker.parse(context: QueryAnalyzer.shared.analyze(query))
         
         print("🧪 Test: Parsed location: \(intent?.location ?? "nil")")
         

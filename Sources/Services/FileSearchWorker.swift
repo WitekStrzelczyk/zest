@@ -72,12 +72,26 @@ class FileSearchWorker {
 
         // 5. Build clean search term
         var term = context.semanticTerm
-        let fileWords = ["files", "file", "images", "image", "docs", "doc"]
-        for word in fileWords {
-            term = term.replacingOccurrences(of: word, with: "", options: .caseInsensitive)
+        let metadataWords = [
+            "files", "file", "images", "image", "docs", "doc",
+            "large", "created", "modified", "opened", "changed", "last used",
+            "to", "the", "for", "from", "with", "in", "on", "at", "by",
+        ]
+        for word in metadataWords {
+            // Use word boundaries to avoid partial matches
+            let pattern = "\\b\(word)\\b"
+            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
+                term = regex.stringByReplacingMatches(
+                    in: term,
+                    options: [],
+                    range: NSRange(term.startIndex..., in: term),
+                    withTemplate: ""
+                )
+            }
         }
 
         let finalTerm = term.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "  ", with: " ")
         if finalTerm.count > 1 {
             intent.searchTerm = finalTerm
         }

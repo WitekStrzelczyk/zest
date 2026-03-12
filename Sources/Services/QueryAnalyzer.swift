@@ -12,10 +12,38 @@ final class QueryAnalyzer {
             return QueryContext(raw: query, normalized: "", dates: [], numbers: [], location: nil, semanticTerm: "")
         }
 
-        // 1. Extract Dates and Addresses using NSDataDetector
         var dates: [Date] = []
         var detectedLocation: String?
+        var rangesToRemove: [NSRange] = []
 
+        // 1a. Detect Relative Offsets (regex-based for reliability)
+        let relativePatterns = [
+            #"(\d+)\s+(minute|hour|day|week|month|year)s?\s+ago"#,
+            #"\blast\s+(minute|hour|day|week|month|year)\b"#,
+            #"\btoday\b"#,
+            #"\byesterday\b"#,
+            #"\btomorrow\b"#,
+        ]
+
+        for pattern in relativePatterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
+                let nsString = normalized as NSString
+                let matches = regex.matches(
+                    in: normalized,
+                    options: [],
+                    range: NSRange(location: 0, length: nsString.length)
+                )
+                for match in matches {
+                    let matchedText = nsString.substring(with: match.range)
+                    if let date = DateTimeParser.shared.parseDate(matchedText) {
+                        dates.append(date)
+                        rangesToRemove.append(match.range)
+                    }
+                }
+            }
+        }
+
+        // 1b. Use NSDataDetector for other dates/addresses
         let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue | NSTextCheckingResult
             .CheckingType.address.rawValue)
         let matches = detector?.matches(
@@ -24,9 +52,12 @@ final class QueryAnalyzer {
             range: NSRange(location: 0, length: normalized.utf16.count)
         ) ?? []
 
-        var rangesToRemove: [NSRange] = []
-
         for match in matches {
+            // Skip if this range was already handled by relative patterns
+            if rangesToRemove.contains(where: { NSIntersectionRange($0, match.range).length > 0 }) {
+                continue
+            }
+
             if match.resultType == .date, let date = match.date {
                 dates.append(date)
                 rangesToRemove.append(match.range)

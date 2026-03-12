@@ -84,7 +84,9 @@ final class FileSearchService {
             metadataQuery.disableUpdates()
             let count = metadataQuery.resultCount
             var urls: [URL] = []
-            for i in 0..<count {
+            // ONLY collect up to maxResults to avoid blocking main thread with thousands of items
+            let limit = min(count, maxResults * 2) // Small buffer for hidden directory filtering
+            for i in 0..<limit {
                 if let item = metadataQuery.result(at: i) as? NSMetadataItem,
                    let path = item.value(forAttribute: NSMetadataItemPathKey) as? String
                 {
@@ -99,6 +101,12 @@ final class FileSearchService {
             metadataQuery.searchScopes = [NSMetadataQueryIndexedLocalComputerScope, NSMetadataQueryUserHomeScope]
             metadataQuery.predicate = predicate
             metadataQuery.notificationBatchingInterval = 0.1 // Fast updates
+
+            // Sort by modification date descending to find relevant (recent) files FIRST
+            metadataQuery.sortDescriptors = [NSSortDescriptor(
+                key: NSMetadataItemContentModificationDateKey,
+                ascending: false
+            )]
 
             // 1. Progress updates (for speed)
             let updateObs = nc

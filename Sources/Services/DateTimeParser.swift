@@ -38,9 +38,24 @@ final class DateTimeParser {
             return calendar.startOfDay(for: Date())
         }
 
+        if trimmed == "yesterday" {
+            let yesterday = calendar.date(byAdding: .day, value: -1, to: Date())
+            return yesterday.map { calendar.startOfDay(for: $0) }
+        }
+
         if trimmed == "tomorrow" {
             let tomorrow = calendar.date(byAdding: .day, value: 1, to: Date())
             return tomorrow.map { calendar.startOfDay(for: $0) }
+        }
+
+        // Handle "N units ago" (e.g., "2 days ago", "5 minutes ago")
+        if let date = parseRelativeOffset(trimmed) {
+            return date
+        }
+
+        // Handle "last [unit]" (e.g., "last week", "last month")
+        if let date = parseLastUnit(trimmed) {
+            return date
         }
 
         // Handle "next [day]" patterns
@@ -69,6 +84,77 @@ final class DateTimeParser {
         }
 
         return nil
+    }
+
+    private func parseLastUnit(_ string: String) -> Date? {
+        let pattern = #"^last\s+(minute|hour|day|week|month|year)$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: string, range: NSRange(string.startIndex..., in: string))
+        else {
+            return nil
+        }
+
+        guard let unitRange = Range(match.range(at: 1), in: string) else {
+            return nil
+        }
+
+        let unit = string[unitRange].lowercased()
+        let component: Calendar.Component
+        switch unit {
+        case "minute": component = .minute
+        case "hour": component = .hour
+        case "day": component = .day
+        case "week": component = .weekOfYear
+        case "month": component = .month
+        case "year": component = .year
+        default: return nil
+        }
+
+        let date = calendar.date(byAdding: component, value: -1, to: Date())
+
+        // If it's day-based or larger, use start of day
+        if ["day", "week", "month", "year"].contains(unit) {
+            return date.map { calendar.startOfDay(for: $0) }
+        }
+
+        return date
+    }
+
+    private func parseRelativeOffset(_ string: String) -> Date? {
+        let pattern = #"^(\d+)\s+(minute|hour|day|week|month|year)s?\s+ago$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+              let match = regex.firstMatch(in: string, range: NSRange(string.startIndex..., in: string))
+        else {
+            return nil
+        }
+
+        guard let numRange = Range(match.range(at: 1), in: string),
+              let num = Int(string[numRange]),
+              let unitRange = Range(match.range(at: 2), in: string)
+        else {
+            return nil
+        }
+
+        let unit = string[unitRange].lowercased()
+        let component: Calendar.Component
+        switch unit {
+        case "minute": component = .minute
+        case "hour": component = .hour
+        case "day": component = .day
+        case "week": component = .weekOfYear
+        case "month": component = .month
+        case "year": component = .year
+        default: return nil
+        }
+
+        let date = calendar.date(byAdding: component, value: -num, to: Date())
+
+        // If it's day-based or larger, use start of day for better search experience
+        if ["day", "week", "month", "year"].contains(unit) {
+            return date.map { calendar.startOfDay(for: $0) }
+        }
+
+        return date
     }
 
     // MARK: - Time Parsing

@@ -15,17 +15,17 @@ final class ProcessIntentTests: XCTestCase {
         let worker = ProcessWorker.shared
         
         // 1. List All
-        let intent1 = worker.parse(command: "processes")
+        let intent1 = worker.parse(context: QueryAnalyzer.shared.analyze("processes"))
         if case .listAll = intent1?.action { /* success */ } else { XCTFail("Should parse as listAll") }
         
         // 2. Port Lookup
-        let intent2 = worker.parse(command: "process using port 3000")
+        let intent2 = worker.parse(context: QueryAnalyzer.shared.analyze("process using port 3000"))
         if case .findByPort(let port) = intent2?.action {
             XCTAssertEqual(port, 3000)
         } else { XCTFail("Should parse as findByPort") }
         
         // 3. Name filter
-        let intent3 = worker.parse(command: "process zest")
+        let intent3 = worker.parse(context: QueryAnalyzer.shared.analyze("process zest"))
         if case .filterByName(let name) = intent3?.action {
             XCTAssertEqual(name, "zest")
         } else { XCTFail("Should parse as filterByName") }

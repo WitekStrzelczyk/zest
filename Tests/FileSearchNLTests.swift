@@ -6,7 +6,7 @@ final class FileSearchNLTests: XCTestCase {
     func testFindPackageSwiftNative() {
         let query = "file Package.swift"
         let worker = FileSearchWorker.shared
-        let intent = worker.parse(command: query)
+        let intent = worker.parse(context: QueryAnalyzer.shared.analyze(query))
         let predicate = worker.buildPredicate(from: intent)
         
         print("🧪 Test: Generated Predicate: \(predicate.predicateFormat)")
@@ -25,7 +25,7 @@ final class FileSearchNLTests: XCTestCase {
     func testFilesModified2DaysAgoActualResults() {
         let query = "files modified 2 days ago"
         let worker = FileSearchWorker.shared
-        let intent = worker.parse(command: query)
+        let intent = worker.parse(context: QueryAnalyzer.shared.analyze(query))
         let predicate = worker.buildPredicate(from: intent)
         
         print("🧪 Test: Searching for real files with NL query: '\(query)'")
