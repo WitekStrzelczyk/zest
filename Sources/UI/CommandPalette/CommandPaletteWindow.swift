@@ -723,7 +723,7 @@ final class CommandPaletteWindow: NSPanel {
             scrollView.isHidden = true
             noResultsLabel.isHidden = true
             hintLabel.isHidden = true
-            contextualActionBar.isHidden = true
+            showFooterWithoutActions()
             resizePalette(to: emptyStateHeight)
             return
         }
@@ -901,7 +901,7 @@ final class CommandPaletteWindow: NSPanel {
             suggestionsLabel.topAnchor.constraint(equalTo: searchBarContainer.bottomAnchor, constant: 10),
 
             noResultsLabel.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
-            noResultsLabel.topAnchor.constraint(equalTo: suggestionsLabel.bottomAnchor, constant: 20),
+            noResultsLabel.topAnchor.constraint(equalTo: searchBarContainer.bottomAnchor, constant: 18),
 
             contextualActionBar.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             contextualActionBar.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
@@ -1014,7 +1014,7 @@ final class CommandPaletteWindow: NSPanel {
         noResultsLabel.isHidden = true
         hintLabel.isHidden = true
         suggestionsLabel.isHidden = true
-        contextualActionBar.isHidden = true
+        showFooterWithoutActions()
         isResultsFocused = false
         isOptionKeyPressed = false
         isCommandKeyPressed = false
@@ -1261,9 +1261,9 @@ final class CommandPaletteWindow: NSPanel {
             suggestionsLabel.isHidden = true
             noResultsLabel.isHidden = false
             hintLabel.isHidden = false
-            contextualActionBar.isHidden = true
+            showFooterWithoutActions()
 
-            resizePalette(to: searchFieldHeight + 50)
+            resizePalette(to: searchFieldHeight + 50 + contextualBarHeight)
         } else {
             scrollView.isHidden = false
             suggestionsLabel.isHidden = false
@@ -1286,6 +1286,11 @@ final class CommandPaletteWindow: NSPanel {
             let resultsHeight = CGFloat(visibleRows) * rowHeight + resultsContainerVerticalPadding
             resizePalette(to: searchFieldHeight + resultsHeight + contextualBarHeight)
         }
+    }
+
+    private func showFooterWithoutActions() {
+        contextualActionBar.isHidden = false
+        contextualActionLabel.stringValue = ""
     }
 
     private func resizePalette(to height: CGFloat) {
@@ -1316,6 +1321,12 @@ final class CommandPaletteWindow: NSPanel {
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         if event.type == .keyDown, event.modifierFlags.contains(.command) {
+            if event.charactersIgnoringModifiers == ",",
+               event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command
+            {
+                preferencesClicked()
+                return true
+            }
             if Int(event.keyCode) == kVK_Return {
                 revealCurrentResult()
                 return true
@@ -1730,6 +1741,10 @@ extension CommandPaletteWindow {
         return fieldEditor.selectedRange.length > 0
     }
 
+    var isFooterVisible: Bool {
+        !contextualActionBar.isHidden
+    }
+
     func setSearchFieldTextForTesting(_ text: String) {
         searchField.stringValue = text
         if let fieldEditor = fieldEditor(false, for: searchField) {
@@ -1767,6 +1782,7 @@ extension CommandPaletteWindow {
         kVK_ANSI_A: "a", kVK_ANSI_C: "c", kVK_ANSI_V: "v", kVK_ANSI_X: "x",
         kVK_ANSI_1: "1", kVK_ANSI_2: "2", kVK_ANSI_3: "3", kVK_ANSI_4: "4", kVK_ANSI_5: "5",
         kVK_ANSI_6: "6", kVK_ANSI_7: "7", kVK_ANSI_8: "8", kVK_ANSI_9: "9",
+        kVK_ANSI_Comma: ",",
     ]
 
     func simulateKeyPress(keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []) {

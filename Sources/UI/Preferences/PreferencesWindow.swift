@@ -1,8 +1,9 @@
 import AppKit
 import SwiftUI
 
-final class PreferencesWindowController: NSWindowController {
+final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     static let shared = PreferencesWindowController()
+    static var showsOnScreen = true
 
     private init() {
         let window = NSWindow(
@@ -23,6 +24,7 @@ final class PreferencesWindowController: NSWindowController {
         window.center()
 
         super.init(window: window)
+        window.delegate = self
     }
 
     @available(*, unavailable)
@@ -31,8 +33,21 @@ final class PreferencesWindowController: NSWindowController {
     }
 
     func showWindow() {
+        guard Self.showsOnScreen else {
+            window?.alphaValue = 0
+            window?.ignoresMouseEvents = true
+            window?.orderFrontRegardless()
+            return
+        }
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        window?.orderFrontRegardless()
+    }
+
+    func windowWillClose(_: Notification) {
+        guard Self.showsOnScreen else { return }
+        NSApp.setActivationPolicy(.accessory)
     }
 }
 
@@ -58,10 +73,36 @@ enum PreferencesSection: CaseIterable, Identifiable {
         case .appearance: "paintpalette"
         }
     }
+
+    var keywords: [String] {
+        switch self {
+        case .general: ["launch at login", "startup", "open zest", "shortcut", "hotkey", "keyboard"]
+        case .search: ["results shown", "results", "limit", "indexed directories", "folders", "files"]
+        case .appearance: ["appearance", "theme", "dark", "light", "system", "colors"]
+        }
+    }
+
+    func matches(_ query: String) -> Bool {
+        title.lowercased().contains(query) || keywords.contains { $0.contains(query) }
+    }
 }
 
 final class PreferencesNavigation: ObservableObject {
     @Published var section: PreferencesSection = .general
+    @Published var query = "" {
+        didSet { openFirstMatchIfHidden() }
+    }
+
+    var visibleSections: [PreferencesSection] {
+        let term = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !term.isEmpty else { return PreferencesSection.allCases }
+        return PreferencesSection.allCases.filter { $0.matches(term) }
+    }
+
+    private func openFirstMatchIfHidden() {
+        guard let first = visibleSections.first, !visibleSections.contains(section) else { return }
+        section = first
+    }
 }
 
 private enum Tone {
@@ -81,7 +122,11 @@ struct PreferencesView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            PreferencesSidebar(selection: $navigation.section)
+            PreferencesSidebar(
+                selection: $navigation.section,
+                query: $navigation.query,
+                sections: navigation.visibleSections
+            )
                 .frame(width: 232)
             ScrollView {
                 VStack(alignment: .leading, spacing: 32) {
@@ -118,15 +163,26 @@ struct PreferencesView: View {
 
 struct PreferencesSidebar: View {
     @Binding var selection: PreferencesSection
+    @Binding var query: String
+    let sections: [PreferencesSection]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
+            SettingsSearchField(query: $query)
+                .padding(.bottom, 14)
             Text("Settings")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Tone.tertiary)
                 .padding(.horizontal, 12)
                 .padding(.bottom, 6)
-            ForEach(PreferencesSection.allCases) { section in
+            if sections.isEmpty {
+                Text("No settings match")
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Tone.tertiary)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 4)
+            }
+            ForEach(sections) { section in
                 SidebarRow(section: section, isSelected: section == selection) {
                     selection = section
                 }
@@ -136,6 +192,35 @@ struct PreferencesSidebar: View {
         .padding(.horizontal, 10)
         .padding(.top, 56)
         .frame(maxHeight: .infinity, alignment: .top)
+    }
+}
+
+struct SettingsSearchField: View {
+    @Binding var query: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 12))
+                .foregroundStyle(Tone.tertiary)
+            TextField("Search settings", text: $query)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13))
+                .foregroundStyle(Tone.primary)
+            if !query.isEmpty {
+                Button { query = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Tone.tertiary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(height: 30)
+        .background(Tone.card, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Tone.hairline))
     }
 }
 
