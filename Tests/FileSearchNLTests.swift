@@ -1,9 +1,9 @@
-import XCTest
+import AppKit
+import Testing
 @testable import ZestApp
 
-final class FileSearchNLTests: XCTestCase {
-    
-    func testFindPackageSwiftNative() {
+final class FileSearchNLTests {
+    @Test func testFindPackageSwiftNative() {
         let query = "file Package.swift"
         let worker = FileSearchWorker.shared
         let intent = worker.parse(context: QueryAnalyzer.shared.analyze(query))
@@ -19,10 +19,10 @@ final class FileSearchNLTests: XCTestCase {
             print("   - Found: \(res.title) at \(res.filePath ?? "unknown")")
         }
         
-        XCTAssertGreaterThan(results.count, 0, "Should find Package.swift using NL logic")
+        #expect(results.count > 0, "Should find Package.swift using NL logic")
     }
 
-    func testFilesModified2DaysAgoActualResults() {
+    @Test func testFilesModified2DaysAgoActualResults() {
         let query = "files modified 2 days ago"
         let worker = FileSearchWorker.shared
         let intent = worker.parse(context: QueryAnalyzer.shared.analyze(query))
@@ -39,6 +39,6 @@ final class FileSearchNLTests: XCTestCase {
             print("   - Found: \(res.title) at \(res.filePath ?? "unknown")")
         }
         
-        XCTAssertGreaterThan(results.count, 0, "The Service/Worker MUST find files modified in the last 2 days.")
+        #expect(results.count > 0, "The Service/Worker MUST find files modified in the last 2 days.")
     }
 }

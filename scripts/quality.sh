@@ -163,7 +163,9 @@ kill_stale_swiftpm() {
 # Usage: run_tests_with_timeout <timeout_seconds>
 run_tests_with_timeout() {
     local timeout_seconds=${1:-$TEST_TIMEOUT}
-    local test_cmd="swift test --enable-code-coverage"
+    local plugins
+    plugins="$(cd "$(dirname "$(xcrun -f swift)")/../lib/swift/host/plugins/testing" && pwd)"
+    local test_cmd="swift test --enable-code-coverage --no-parallel --disable-xctest -Xswiftc -plugin-path -Xswiftc $plugins"
 
     echo -e "${YELLOW}  Running tests with ${timeout_seconds}s timeout...${NC}"
 
@@ -322,7 +324,7 @@ if [ -n "$TEST_DIR" ] && [ $SKIP_TESTS -eq 0 ]; then
                 echo -e "${RED}✗ COVERAGE GATE FAILED${NC}"
                 echo -e "${RED}  Coverage is ${COVERAGE_PERCENT}% (minimum: ${MINIMUM_COVERAGE}%)${NC}"
                 echo -e "${RED}  TDD Workflow: Write failing test FIRST, then implement${NC}"
-                echo -e "${RED}  See: docs/TDD_GUIDELINES.md${NC}"
+                echo -e "${RED}  See: CLAUDE.md (Testing)${NC}"
                 STATUS=1
             else
                 echo ""

@@ -1,259 +1,226 @@
 import AppKit
-import XCTest
+import AppKit
+import Testing
 @testable import ZestApp
 
-/// Tests for Color Picker Service functionality
-final class ColorPickerServiceTests: XCTestCase {
+@MainActor
+final class ColorPickerServiceTests {
     var sut: ColorPickerService!
 
-    override func setUp() {
-        super.setUp()
+    init() {
         sut = ColorPickerService.shared
     }
 
-    override func tearDown() {
+    isolated deinit {
         sut = nil
-        super.tearDown()
     }
 
-    // MARK: - Singleton Tests
-
-    func testColorPickerServiceCreation() {
-        XCTAssertNotNil(sut)
+    @Test func testColorPickerServiceCreation() {
+        #expect(sut != nil)
     }
 
-    func testColorPickerServiceSingleton() {
+    @Test func testColorPickerServiceSingleton() {
         let service1 = ColorPickerService.shared
         let service2 = ColorPickerService.shared
-        XCTAssertTrue(service1 === service2)
+        #expect(service1 === service2)
     }
 
-    // MARK: - HEX Conversion Tests
-
-    func testHEXConversionRed() {
+    @Test func testHEXConversionRed() {
         let color = NSColor(red: 1.0, green: 0.0, blue: 0.0, alpha: 1.0)
         let hex = sut.toHEX(color)
-        XCTAssertEqual(hex, "#FF0000")
+        #expect(hex == "#FF0000")
     }
 
-    func testHEXConversionGreen() {
+    @Test func testHEXConversionGreen() {
         let color = NSColor(red: 0.0, green: 1.0, blue: 0.0, alpha: 1.0)
         let hex = sut.toHEX(color)
-        XCTAssertEqual(hex, "#00FF00")
+        #expect(hex == "#00FF00")
     }
 
-    func testHEXConversionBlue() {
+    @Test func testHEXConversionBlue() {
         let color = NSColor(red: 0.0, green: 0.0, blue: 1.0, alpha: 1.0)
         let hex = sut.toHEX(color)
-        XCTAssertEqual(hex, "#0000FF")
+        #expect(hex == "#0000FF")
     }
 
-    func testHEXConversionCustom() {
-        // #FF6363 = rgb(255, 99, 99)
+    @Test func testHEXConversionCustom() {
         let color = NSColor(red: 1.0, green: 99.0 / 255.0, blue: 99.0 / 255.0, alpha: 1.0)
         let hex = sut.toHEX(color)
-        XCTAssertEqual(hex, "#FF6363")
+        #expect(hex == "#FF6363")
     }
 
-    func testHEXConversionBlack() {
+    @Test func testHEXConversionBlack() {
         let color = NSColor(red: 0.0, green: 0.0, blue: 0.0, alpha: 1.0)
         let hex = sut.toHEX(color)
-        XCTAssertEqual(hex, "#000000")
+        #expect(hex == "#000000")
     }
 
-    func testHEXConversionWhite() {
+    @Test func testHEXConversionWhite() {
         let color = NSColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0)
         let hex = sut.toHEX(color)
-        XCTAssertEqual(hex, "#FFFFFF")
+        #expect(hex == "#FFFFFF")
     }
 
-    // MARK: - RGB Conversion Tests
-
-    func testRGBConversionRed() {
+    @Test func testRGBConversionRed() {
         let color = NSColor(red: 1.0, green: 0.0, blue: 0.0, alpha: 1.0)
         let rgb = sut.toRGB(color)
-        XCTAssertEqual(rgb, "rgb(255, 0, 0)")
+        #expect(rgb == "rgb(255, 0, 0)")
     }
 
-    func testRGBConversionGreen() {
+    @Test func testRGBConversionGreen() {
         let color = NSColor(red: 0.0, green: 1.0, blue: 0.0, alpha: 1.0)
         let rgb = sut.toRGB(color)
-        XCTAssertEqual(rgb, "rgb(0, 255, 0)")
+        #expect(rgb == "rgb(0, 255, 0)")
     }
 
-    func testRGBConversionBlue() {
+    @Test func testRGBConversionBlue() {
         let color = NSColor(red: 0.0, green: 0.0, blue: 1.0, alpha: 1.0)
         let rgb = sut.toRGB(color)
-        XCTAssertEqual(rgb, "rgb(0, 0, 255)")
+        #expect(rgb == "rgb(0, 0, 255)")
     }
 
-    func testRGBConversionCustom() {
-        // rgb(255, 99, 99)
+    @Test func testRGBConversionCustom() {
         let color = NSColor(red: 1.0, green: 99.0 / 255.0, blue: 99.0 / 255.0, alpha: 1.0)
         let rgb = sut.toRGB(color)
-        XCTAssertEqual(rgb, "rgb(255, 99, 99)")
+        #expect(rgb == "rgb(255, 99, 99)")
     }
 
-    func testRGBConversionBlack() {
+    @Test func testRGBConversionBlack() {
         let color = NSColor(red: 0.0, green: 0.0, blue: 0.0, alpha: 1.0)
         let rgb = sut.toRGB(color)
-        XCTAssertEqual(rgb, "rgb(0, 0, 0)")
+        #expect(rgb == "rgb(0, 0, 0)")
     }
 
-    func testRGBConversionWhite() {
+    @Test func testRGBConversionWhite() {
         let color = NSColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0)
         let rgb = sut.toRGB(color)
-        XCTAssertEqual(rgb, "rgb(255, 255, 255)")
+        #expect(rgb == "rgb(255, 255, 255)")
     }
 
-    // MARK: - HSL Conversion Tests
-
-    func testHSLConversionRed() {
+    @Test func testHSLConversionRed() {
         let color = NSColor(red: 1.0, green: 0.0, blue: 0.0, alpha: 1.0)
         let hsl = sut.toHSL(color)
-        // Red in HSL: hue=0, saturation=100%, lightness=50%
-        XCTAssertEqual(hsl, "hsl(0, 100%, 50%)")
+        #expect(hsl == "hsl(0, 100%, 50%)")
     }
 
-    func testHSLConversionGreen() {
+    @Test func testHSLConversionGreen() {
         let color = NSColor(red: 0.0, green: 1.0, blue: 0.0, alpha: 1.0)
         let hsl = sut.toHSL(color)
-        // Green in HSL: hue=120, saturation=100%, lightness=50%
-        XCTAssertEqual(hsl, "hsl(120, 100%, 50%)")
+        #expect(hsl == "hsl(120, 100%, 50%)")
     }
 
-    func testHSLConversionBlue() {
+    @Test func testHSLConversionBlue() {
         let color = NSColor(red: 0.0, green: 0.0, blue: 1.0, alpha: 1.0)
         let hsl = sut.toHSL(color)
-        // Blue in HSL: hue=240, saturation=100%, lightness=50%
-        XCTAssertEqual(hsl, "hsl(240, 100%, 50%)")
+        #expect(hsl == "hsl(240, 100%, 50%)")
     }
 
-    func testHSLConversionBlack() {
+    @Test func testHSLConversionBlack() {
         let color = NSColor(red: 0.0, green: 0.0, blue: 0.0, alpha: 1.0)
         let hsl = sut.toHSL(color)
-        // Black: saturation and lightness are both 0%
-        XCTAssertEqual(hsl, "hsl(0, 0%, 0%)")
+        #expect(hsl == "hsl(0, 0%, 0%)")
     }
 
-    func testHSLConversionWhite() {
+    @Test func testHSLConversionWhite() {
         let color = NSColor(red: 1.0, green: 1.0, blue: 1.0, alpha: 1.0)
         let hsl = sut.toHSL(color)
-        // White: saturation=0%, lightness=100%
-        XCTAssertEqual(hsl, "hsl(0, 0%, 100%)")
+        #expect(hsl == "hsl(0, 0%, 100%)")
     }
 
-    func testHSLConversionCustom() {
-        // #FF6363 = rgb(255, 99, 99) ≈ hsl(0, 100%, 69%)
+    @Test func testHSLConversionCustom() {
         let color = NSColor(red: 1.0, green: 99.0 / 255.0, blue: 99.0 / 255.0, alpha: 1.0)
         let hsl = sut.toHSL(color)
-        // This is a reddish color with ~0 hue
-        XCTAssertTrue(hsl.hasPrefix("hsl("))
-        XCTAssertTrue(hsl.contains("100%")) // Full saturation
+        #expect(hsl.hasPrefix("hsl("))
+        #expect(hsl.contains("100%"))
     }
 
-    // MARK: - ColorInfo Tests
-
-    func testColorInfoContainsAllFormats() {
+    @Test func testColorInfoContainsAllFormats() {
         let color = NSColor(red: 1.0, green: 0.0, blue: 0.0, alpha: 1.0)
         let info = sut.getColorInfo(color)
 
-        XCTAssertEqual(info.hex, "#FF0000")
-        XCTAssertEqual(info.rgb, "rgb(255, 0, 0)")
-        XCTAssertEqual(info.hsl, "hsl(0, 100%, 50%)")
+        #expect(info.hex == "#FF0000")
+        #expect(info.rgb == "rgb(255, 0, 0)")
+        #expect(info.hsl == "hsl(0, 100%, 50%)")
     }
 
-    // MARK: - Search Tests (via ColorPickerPlugin)
-
-    func testSearchColorPicker() {
+    @Test func testSearchColorPicker() {
         let results = ColorPickerPlugin.shared.search(query: "color picker")
-        XCTAssertFalse(results.isEmpty)
-        XCTAssertEqual(results.first?.title, "Pick Color")
+        #expect(!results.isEmpty)
+        #expect(results.first?.title == "Pick Color")
     }
 
-    func testSearchPickColor() {
+    @Test func testSearchPickColor() {
         let results = ColorPickerPlugin.shared.search(query: "pick color")
-        XCTAssertFalse(results.isEmpty)
-        XCTAssertEqual(results.first?.title, "Pick Color")
+        #expect(!results.isEmpty)
+        #expect(results.first?.title == "Pick Color")
     }
 
-    func testSearchColor() {
+    @Test func testSearchColor() {
         let results = ColorPickerPlugin.shared.search(query: "color")
-        XCTAssertFalse(results.isEmpty)
-        XCTAssertTrue(results.first?.title.contains("Color") ?? false)
+        #expect(!results.isEmpty)
+        #expect(results.first?.title.contains("Color") ?? false)
     }
 
-    func testSearchPicker() {
+    @Test func testSearchPicker() {
         let results = ColorPickerPlugin.shared.search(query: "picker")
-        XCTAssertFalse(results.isEmpty)
-        XCTAssertTrue(results.first?.title.contains("Pick") ?? false)
+        #expect(!results.isEmpty)
+        #expect(results.first?.title.contains("Pick") ?? false)
     }
 
-    func testSearchEyedropper() {
+    @Test func testSearchEyedropper() {
         let results = ColorPickerPlugin.shared.search(query: "eyedropper")
-        XCTAssertFalse(results.isEmpty)
+        #expect(!results.isEmpty)
     }
 
-    func testEmptySearchReturnsEmpty() {
+    @Test func testEmptySearchReturnsEmpty() {
         let results = ColorPickerPlugin.shared.search(query: "")
-        XCTAssertTrue(results.isEmpty)
+        #expect(results.isEmpty)
     }
 
-    func testUnrelatedSearchReturnsEmpty() {
+    @Test func testUnrelatedSearchReturnsEmpty() {
         let results = ColorPickerPlugin.shared.search(query: "xyzabc123")
-        XCTAssertTrue(results.isEmpty)
+        #expect(results.isEmpty)
     }
     
-    // MARK: - Config Tests
-    
-    func testConfigDefaultFormatIsHex() {
-        // Reset to default by setting to hex first
+    @Test func testConfigDefaultFormatIsHex() {
         ColorPickerConfig.shared.preferredFormat = .hex
-        XCTAssertEqual(ColorPickerConfig.shared.preferredFormat, .hex)
+        #expect(ColorPickerConfig.shared.preferredFormat == .hex)
     }
     
-    func testConfigCanChangePreferredFormat() {
-        // Save original
+    @Test func testConfigCanChangePreferredFormat() {
         let original = ColorPickerConfig.shared.preferredFormat
         
-        // Change to RGB
         ColorPickerConfig.shared.preferredFormat = .rgb
-        XCTAssertEqual(ColorPickerConfig.shared.preferredFormat, .rgb)
+        #expect(ColorPickerConfig.shared.preferredFormat == .rgb)
         
-        // Change to HSL
         ColorPickerConfig.shared.preferredFormat = .hsl
-        XCTAssertEqual(ColorPickerConfig.shared.preferredFormat, .hsl)
+        #expect(ColorPickerConfig.shared.preferredFormat == .hsl)
         
-        // Restore original
         ColorPickerConfig.shared.preferredFormat = original
     }
     
-    func testConfigPersistsAcrossInstances() {
-        // Save original
+    @Test func testConfigPersistsAcrossInstances() {
         let original = ColorPickerConfig.shared.preferredFormat
         
-        // Change format
         ColorPickerConfig.shared.preferredFormat = .rgb
         
-        // Create "new" instance by accessing singleton again
         let newConfig = ColorPickerConfig.shared
-        XCTAssertEqual(newConfig.preferredFormat, .rgb)
+        #expect(newConfig.preferredFormat == .rgb)
         
-        // Restore original
         ColorPickerConfig.shared.preferredFormat = original
     }
     
-    func testColorFormatRawValues() {
-        XCTAssertEqual(ColorFormat.hex.rawValue, "HEX")
-        XCTAssertEqual(ColorFormat.rgb.rawValue, "RGB")
-        XCTAssertEqual(ColorFormat.hsl.rawValue, "HSL")
+    @Test func testColorFormatRawValues() {
+        #expect(ColorFormat.hex.rawValue == "HEX")
+        #expect(ColorFormat.rgb.rawValue == "RGB")
+        #expect(ColorFormat.hsl.rawValue == "HSL")
     }
     
-    func testColorFormatAllCases() {
+    @Test func testColorFormatAllCases() {
         let allFormats = ColorFormat.allCases
-        XCTAssertEqual(allFormats.count, 3)
-        XCTAssertTrue(allFormats.contains(.hex))
-        XCTAssertTrue(allFormats.contains(.rgb))
-        XCTAssertTrue(allFormats.contains(.hsl))
+        #expect(allFormats.count == 3)
+        #expect(allFormats.contains(.hex))
+        #expect(allFormats.contains(.rgb))
+        #expect(allFormats.contains(.hsl))
     }
 }

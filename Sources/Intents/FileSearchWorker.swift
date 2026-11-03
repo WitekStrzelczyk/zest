@@ -1,0 +1,125 @@
+import Foundation
+
+struct FileSearchIntent {
+    var fileExtension: String?
+    var date: Date?
+    var dateType: DateType = .modified
+    var isLarge: Bool = false
+    var searchTerm: String?
+
+    enum DateType {
+        case created
+        case modified
+        case opened
+
+        var attribute: String {
+            switch self {
+            case .created: "kMDItemContentCreationDate"
+            case .modified: "kMDItemContentModificationDate"
+            case .opened: "kMDItemLastUsedDate"
+            }
+        }
+    }
+}
+
+class FileSearchWorker {
+    static let shared = FileSearchWorker()
+    private init() {}
+
+    private static let metadataWordsRegex = try? NSRegularExpression(
+        pattern: #"\b(files|file|images|image|docs|doc|large|created|modified|opened|changed|last used|to|the|for|from|with|in|on|at|by)\b"#,
+        options: .caseInsensitive
+    )
+
+    func parse(context: QueryContext) -> FileSearchIntent {
+        var intent = FileSearchIntent()
+        let lower = context.normalized.lowercased()
+
+        if lower.contains("large") {
+            intent.isLarge = true
+        }
+
+        let scanner = Scanner(string: lower)
+        while !scanner.isAtEnd {
+            if scanner.scanString(".") != nil {
+                if let ext = scanner.scanCharacters(from: .letters) {
+                    intent.fileExtension = String(ext)
+                }
+            } else {
+                if !scanner.isAtEnd { _ = scanner.scanCharacter() }
+            }
+        }
+
+        let commonExtensions = ["pdf", "jpg", "png", "txt", "swift", "md", "doc", "docx", "xls", "xlsx"]
+        if intent.fileExtension == nil {
+            for ext in commonExtensions {
+                if lower.contains("\(ext) ") || lower.hasSuffix(ext) || lower.contains(" \(ext)") {
+                    intent.fileExtension = ext
+                    break
+                }
+            }
+        }
+
+        if lower.contains("created") {
+            intent.dateType = .created
+        } else if lower.contains("opened") || lower.contains("last used") {
+            intent.dateType = .opened
+        } else if lower.contains("modified") || lower.contains("changed") {
+            intent.dateType = .modified
+        }
+
+        intent.date = context.dates.first
+
+        var term = context.semanticTerm
+        if let regex = Self.metadataWordsRegex {
+            term = regex.stringByReplacingMatches(
+                in: term,
+                options: [],
+                range: NSRange(term.startIndex..., in: term),
+                withTemplate: ""
+            )
+        }
+
+        let finalTerm = term.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "  ", with: " ")
+        if finalTerm.count > 1 {
+            intent.searchTerm = finalTerm
+        }
+
+        return intent
+    }
+
+    func buildPredicate(from intent: FileSearchIntent) -> NSPredicate {
+        var subpredicates: [NSPredicate] = []
+
+        if let term = intent.searchTerm {
+            subpredicates.append(NSPredicate(format: "kMDItemDisplayName CONTAINS[cd] %@", term))
+        }
+
+        if let ext = intent.fileExtension {
+            subpredicates.append(NSPredicate(
+                format: "kMDItemFSName == %@ OR kMDItemFSName ENDSWITH %@",
+                "*.\(ext)",
+                ".\(ext)"
+            ))
+        }
+
+        if let date = intent.date {
+            subpredicates.append(NSPredicate(format: "%K >= %@", intent.dateType.attribute, date as NSDate))
+        }
+
+        if intent.isLarge {
+            subpredicates.append(NSPredicate(format: "kMDItemFSSize > %d", 100 * 1024 * 1024))
+        }
+
+        if subpredicates.isEmpty {
+            return NSPredicate(format: "kMDItemFSName == '*'")
+        }
+
+        if subpredicates.count == 1 {
+            return subpredicates[0]
+        }
+
+        return NSCompoundPredicate(andPredicateWithSubpredicates: subpredicates)
+    }
+}

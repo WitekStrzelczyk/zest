@@ -1,18 +1,16 @@
 import AppKit
 import Foundation
 
-/// Represents a keyboard shortcut configuration
 struct HotkeyConfiguration: Equatable {
     var modifiers: NSEvent.ModifierFlags
     var keyCode: UInt16
 
     static let defaultHotkey = HotkeyConfiguration(
         modifiers: .command,
-        keyCode: 49 // Space key
+        keyCode: 49
     )
 }
 
-/// Theme options for the application
 enum AppTheme: String, Codable, CaseIterable {
     case system
     case light
@@ -27,13 +25,10 @@ enum AppTheme: String, Codable, CaseIterable {
     }
 }
 
-/// Manages application preferences using UserDefaults
 final class PreferencesManager: ObservableObject {
     static let shared: PreferencesManager = .init()
 
     private let defaults = UserDefaults.standard
-
-    // MARK: - UserDefaults Keys
 
     private enum Keys {
         static let globalHotkeyModifiers = "globalHotkeyModifiers"
@@ -44,8 +39,6 @@ final class PreferencesManager: ObservableObject {
         static let theme = "theme"
         static let savedAwakeMode = "savedAwakeMode"
     }
-
-    // MARK: - Properties
 
     @Published var globalHotkey: HotkeyConfiguration {
         didSet {
@@ -62,7 +55,6 @@ final class PreferencesManager: ObservableObject {
     @Published var launchAtLogin: Bool {
         didSet {
             defaults.set(launchAtLogin, forKey: Keys.launchAtLogin)
-            // Sync with LaunchAtLoginService
             LaunchAtLoginService.shared.enabled = launchAtLogin
         }
     }
@@ -87,15 +79,11 @@ final class PreferencesManager: ObservableObject {
         }
     }
 
-    // MARK: - Initialization
-
     private init() {
-        // Load global hotkey
         let modifiers = defaults.integer(forKey: Keys.globalHotkeyModifiers)
         let keyCode = defaults.integer(forKey: Keys.globalHotkeyKeyCode)
 
         if modifiers == 0, keyCode == 0 {
-            // Use defaults if not set
             globalHotkey = HotkeyConfiguration.defaultHotkey
         } else {
             globalHotkey = HotkeyConfiguration(
@@ -104,26 +92,20 @@ final class PreferencesManager: ObservableObject {
             )
         }
 
-        // Load search results limit
         let storedLimit = defaults.integer(forKey: Keys.searchResultsLimit)
-        searchResultsLimit = storedLimit > 0 ? storedLimit : 10
+        searchResultsLimit = storedLimit > 0 ? storedLimit : 80
 
-        // Load launch at login - sync with actual system state
-        // The system state is the source of truth
         let storedLaunchAtLogin = defaults.bool(forKey: Keys.launchAtLogin)
         let systemLaunchAtLogin = LaunchAtLoginService.shared.isEnabled
 
-        // If they differ, the system state wins (e.g., user changed in System Settings)
         if storedLaunchAtLogin != systemLaunchAtLogin {
             defaults.set(systemLaunchAtLogin, forKey: Keys.launchAtLogin)
         }
         launchAtLogin = systemLaunchAtLogin
 
-        // Load indexed directories
         if let dirs = defaults.stringArray(forKey: Keys.indexedDirectories), !dirs.isEmpty {
             indexedDirectories = dirs
         } else {
-            // Default directories
             let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
             indexedDirectories = [
                 "\(homeDir)/Documents",
@@ -132,14 +114,12 @@ final class PreferencesManager: ObservableObject {
             ]
         }
 
-        // Load theme
         if let themeRaw = defaults.string(forKey: Keys.theme),
            let themeValue = AppTheme(rawValue: themeRaw)
         {
             theme = themeValue
         }
 
-        // Load saved awake mode
         if let modeRaw = defaults.string(forKey: Keys.savedAwakeMode),
            let modeValue = AwakeMode(rawValue: modeRaw)
         {
@@ -147,18 +127,14 @@ final class PreferencesManager: ObservableObject {
         }
     }
 
-    // MARK: - Private Methods
-
     private func saveHotkey() {
         defaults.set(Int(globalHotkey.modifiers.rawValue), forKey: Keys.globalHotkeyModifiers)
         defaults.set(Int(globalHotkey.keyCode), forKey: Keys.globalHotkeyKeyCode)
     }
 
-    // MARK: - Public Methods
-
     func resetToDefaults() {
         globalHotkey = HotkeyConfiguration.defaultHotkey
-        searchResultsLimit = 10
+        searchResultsLimit = 80
         launchAtLogin = false
 
         let homeDir = FileManager.default.homeDirectoryForCurrentUser.path

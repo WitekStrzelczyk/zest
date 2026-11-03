@@ -24,6 +24,11 @@ final class CommandPaletteStateStore {
         notify()
     }
 
+    func updateQuery(_ query: String, results: [SearchResult]) {
+        state = CommandPaletteState(query: query, results: results)
+        notify()
+    }
+
     func updateResults(_ results: [SearchResult]) {
         state.results = results
         notify()

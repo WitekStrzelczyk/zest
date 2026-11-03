@@ -1,0 +1,68 @@
+[
+  {
+    "name": "dentist Tuesday at quarter to eleven",
+    "date": "2026-11-03", "time": "10:45", "people": [],
+    "sentences": [
+      "dentist tuesday at quarter to eleven",
+      "could you book me in for the dentist on Tuesday at a quarter to 11 in the morning",
+      "Tue dentist 10:45am",
+      "dentist this tuesday at 10:45 in the morning",
+      "I need to see the dentist on tuesday at quarter to 11"
+    ]
+  },
+  {
+    "name": "drinks with Sam Thursday at six in the evening at The Pearl",
+    "date": "2026-11-05", "time": "18:00", "place": "Pearl", "people": ["Sam"],
+    "sentences": [
+      "drinks with Sam thursday at six in the evening at The Pearl",
+      "meet Sam for drinks at The Pearl on Thursday at 6",
+      "Thursday evening drinks with sam at the pearl, six o'clock",
+      "could you put drinks with Sam at The Pearl in for thursday at 6 pm please",
+      "Sam, drinks, The Pearl, thu 18:00"
+    ]
+  },
+  {
+    "name": "call Mike at noon on Friday",
+    "date": "2026-11-06", "time": "12:00", "people": ["Mike"],
+    "sentences": [
+      "call Mike at noon on friday",
+      "friday midday call with mike",
+      "ring Mike on Fri at 12",
+      "set a call with Mike this Friday at twelve noon",
+      "I want to call Mike friday at 12 pm"
+    ]
+  },
+  {
+    "name": "run at half past six tomorrow morning",
+    "date": "2026-11-03", "time": "06:30", "people": [],
+    "sentences": [
+      "run at half past six tomorrow morning",
+      "morning run tmrw 6:30am",
+      "go for a run tomorrow at half six in the morning",
+      "tomorrow 06:30 run",
+      "remind me to go running tomorrow at six thirty am"
+    ]
+  },
+  {
+    "name": "walk with Jo 15 minutes after the gym today",
+    "date": "2026-11-02", "time": "18:45", "people": ["Jo"],
+    "sentences": [
+      "walk with Jo 15 minutes after gym today",
+      "can you schedule a walk with Jo for a quarter of an hour after my gym session",
+      "Jo walk, 15 min after the gym",
+      "fifteen minutes after I finish at the gym, go for a walk with Jo",
+      "walk with jo today, fifteen mins after gym"
+    ]
+  },
+  {
+    "name": "pay rent on the first of December",
+    "date": "2026-12-01", "people": [],
+    "sentences": [
+      "pay rent on the first of december",
+      "rent due 1st Dec",
+      "remind me to pay rent on december 1st",
+      "pay the rent on the 1st of December",
+      "December first: pay rent"
+    ]
+  }
+]

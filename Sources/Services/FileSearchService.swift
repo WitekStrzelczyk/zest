@@ -4,10 +4,8 @@ import Foundation
 final class FileSearchService {
     static let shared: FileSearchService = .init()
 
-    /// Flag to disable file search (useful for testing)
     static var isDisabled = false
 
-    /// Tracks the latest query string to ignore outdated search results
     private var latestQuery: String = ""
     private let queryLock = NSLock()
 
@@ -16,7 +14,6 @@ final class FileSearchService {
         ".git", "node_modules", "build", ".build",
     ]
 
-    /// Maximum time to wait for query (increased slightly for reliability)
     let searchTimeout: TimeInterval = 3.0
 
     private init() {}
@@ -30,7 +27,6 @@ final class FileSearchService {
         return false
     }
 
-    /// Synchronous search using a query string
     func searchSync(query: String, maxResults: Int = 10, originalQuery: String? = nil) -> [SearchResult] {
         guard !query.isEmpty else { return [] }
 
@@ -43,7 +39,6 @@ final class FileSearchService {
         return searchSync(predicate: predicate, maxResults: maxResults, originalQuery: q)
     }
 
-    /// Synchronous search using a predicate
     func searchSync(predicate: NSPredicate, maxResults: Int = 10, originalQuery: String? = nil) -> [SearchResult] {
         if let q = originalQuery {
             queryLock.lock()
@@ -55,12 +50,9 @@ final class FileSearchService {
         return buildSearchResults(from: urls, maxResults: maxResults)
     }
 
-    /// Perform search using NSMetadataQuery (native Spotlight API)
-    /// Optimized for speed and consistency using both Updates and Gathering notifications.
     func performNSMetadataQuery(predicate: NSPredicate, maxResults: Int, originalQuery: String? = nil) -> [URL] {
         let startTime = CFAbsoluteTimeGetCurrent()
 
-        // 1. Pre-check: If this is an old query already, don't even start
         if let q = originalQuery {
             queryLock.lock()
             let isOutdated = (latestQuery != q)
@@ -75,17 +67,14 @@ final class FileSearchService {
 
         print("📁 FileSearchService: Starting native Spotlight query")
 
-        // Notifications setup
         var observers: [NSObjectProtocol] = []
         let nc = NotificationCenter.default
 
-        // Helper to collect results from query state
         let collect = {
             metadataQuery.disableUpdates()
             let count = metadataQuery.resultCount
             var urls: [URL] = []
-            // ONLY collect up to maxResults to avoid blocking main thread with thousands of items
-            let limit = min(count, maxResults * 2) // Small buffer for hidden directory filtering
+            let limit = min(count, maxResults * 2)
             for i in 0..<limit {
                 if let item = metadataQuery.result(at: i) as? NSMetadataItem,
                    let path = item.value(forAttribute: NSMetadataItemPathKey) as? String
@@ -100,15 +89,13 @@ final class FileSearchService {
         DispatchQueue.main.async {
             metadataQuery.searchScopes = [NSMetadataQueryIndexedLocalComputerScope, NSMetadataQueryUserHomeScope]
             metadataQuery.predicate = predicate
-            metadataQuery.notificationBatchingInterval = 0.1 // Fast updates
+            metadataQuery.notificationBatchingInterval = 0.1
 
-            // Sort by modification date descending to find relevant (recent) files FIRST
             metadataQuery.sortDescriptors = [NSSortDescriptor(
                 key: NSMetadataItemContentModificationDateKey,
                 ascending: false
             )]
 
-            // 1. Progress updates (for speed)
             let updateObs = nc
                 .addObserver(forName: .NSMetadataQueryDidUpdate, object: metadataQuery, queue: .main) { _ in
                     collect()
@@ -117,7 +104,6 @@ final class FileSearchService {
                     }
                 }
 
-            // 2. Completion (for finality)
             let finishObs = nc.addObserver(
                 forName: .NSMetadataQueryDidFinishGathering,
                 object: metadataQuery,
@@ -135,10 +121,8 @@ final class FileSearchService {
             }
         }
 
-        // Wait for gathering to finish or timeout
         let waitResult = semaphore.wait(timeout: .now() + searchTimeout)
 
-        // 2. Mid-check: If query changed while we were waiting, don't bother with polling or logging
         if let q = originalQuery {
             queryLock.lock()
             let isOutdated = (latestQuery != q)
@@ -152,14 +136,12 @@ final class FileSearchService {
             }
         }
 
-        // Final safety check
         if waitResult == .timedOut || collectedURLs.isEmpty {
             DispatchQueue.main.sync {
                 collect()
             }
         }
 
-        // Cleanup
         DispatchQueue.main.sync {
             metadataQuery.stop()
             observers.forEach { nc.removeObserver($0) }

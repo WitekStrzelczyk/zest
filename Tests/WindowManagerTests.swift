@@ -1,73 +1,61 @@
-import XCTest
+import AppKit
+import Testing
 @testable import ZestApp
 
-/// Tests for Window Manager functionality
-final class WindowManagerTests: XCTestCase {
-
+@MainActor
+final class WindowManagerTests {
     var windowManager: WindowManager!
 
-    override func setUp() {
-        super.setUp()
+    init() {
         windowManager = WindowManager.shared
     }
 
-    override func tearDown() {
+    isolated deinit {
         windowManager = nil
-        super.tearDown()
     }
 
-    // MARK: - Tile Left Tests
-
-    func test_tileLeft_calculatesCorrectFrameForLeftHalf() {
+    @Test func test_tileLeft_calculatesCorrectFrameForLeftHalf() {
         let screenFrame = CGRect(x: 0, y: 0, width: 1920, height: 1080)
 
         let leftFrame = WindowManager.calculateTileFrame(for: .leftHalf, on: screenFrame)
 
-        XCTAssertEqual(leftFrame.origin.x, 0, "Left tile should start at x=0")
-        XCTAssertEqual(leftFrame.origin.y, 0, "Left tile should start at y=0")
-        XCTAssertEqual(leftFrame.width, 960, "Left tile should be half the screen width")
-        XCTAssertEqual(leftFrame.height, 1080, "Left tile should be full screen height")
+        #expect(leftFrame.origin.x == 0, "Left tile should start at x=0")
+        #expect(leftFrame.origin.y == 0, "Left tile should start at y=0")
+        #expect(leftFrame.width == 960, "Left tile should be half the screen width")
+        #expect(leftFrame.height == 1080, "Left tile should be full screen height")
     }
 
-    // MARK: - Tile Right Tests
-
-    func test_tileRight_calculatesCorrectFrameForRightHalf() {
+    @Test func test_tileRight_calculatesCorrectFrameForRightHalf() {
         let screenFrame = CGRect(x: 0, y: 0, width: 1920, height: 1080)
 
         let rightFrame = WindowManager.calculateTileFrame(for: .rightHalf, on: screenFrame)
 
-        XCTAssertEqual(rightFrame.origin.x, 960, "Right tile should start at x=screenWidth/2")
-        XCTAssertEqual(rightFrame.origin.y, 0, "Right tile should start at y=0")
-        XCTAssertEqual(rightFrame.width, 960, "Right tile should be half the screen width")
-        XCTAssertEqual(rightFrame.height, 1080, "Right tile should be full screen height")
+        #expect(rightFrame.origin.x == 960, "Right tile should start at x=screenWidth/2")
+        #expect(rightFrame.origin.y == 0, "Right tile should start at y=0")
+        #expect(rightFrame.width == 960, "Right tile should be half the screen width")
+        #expect(rightFrame.height == 1080, "Right tile should be full screen height")
     }
 
-    // MARK: - Maximize Tests
-
-    func test_maximize_calculatesCorrectFrameForFullScreen() {
+    @Test func test_maximize_calculatesCorrectFrameForFullScreen() {
         let screenFrame = CGRect(x: 0, y: 0, width: 1920, height: 1080)
 
         let maximizedFrame = WindowManager.calculateTileFrame(for: .maximize, on: screenFrame)
 
-        XCTAssertEqual(maximizedFrame, screenFrame, "Maximized window should fill the screen")
+        #expect(maximizedFrame == screenFrame, "Maximized window should fill the screen")
     }
 
-    // MARK: - Tiling Options
-
-    func test_tileOptions_includesLeftRightAndMaximize() {
+    @Test func test_tileOptions_includesLeftRightAndMaximize() {
         let options = WindowManager.TilingOption.allCases
-        XCTAssertEqual(options.count, 3, "Should have 3 tiling options")
-        XCTAssertTrue(options.contains(.leftHalf), "Should include leftHalf")
-        XCTAssertTrue(options.contains(.rightHalf), "Should include rightHalf")
-        XCTAssertTrue(options.contains(.maximize), "Should include maximize")
+        #expect(options.count == 3, "Should have 3 tiling options")
+        #expect(options.contains(.leftHalf), "Should include leftHalf")
+        #expect(options.contains(.rightHalf), "Should include rightHalf")
+        #expect(options.contains(.maximize), "Should include maximize")
     }
 }
 
-// MARK: - Frame Calculation Tests
-
-final class WindowFrameCalculationTests: XCTestCase {
-
-    func test_leftHalfFrame_calculation() {
+@MainActor
+final class WindowFrameCalculationTests {
+    @Test func test_leftHalfFrame_calculation() {
         let testCases: [(screen: CGRect, expectedLeft: CGRect)] = [
             (
                 screen: CGRect(x: 0, y: 0, width: 1920, height: 1080),
@@ -85,23 +73,22 @@ final class WindowFrameCalculationTests: XCTestCase {
 
         for testCase in testCases {
             let result = WindowManager.calculateTileFrame(for: .leftHalf, on: testCase.screen)
-            XCTAssertEqual(result, testCase.expectedLeft,
-                          "Left half calculation failed for screen \(testCase.screen)")
+            #expect(result == testCase.expectedLeft, "Left half calculation failed for screen \(testCase.screen)")
         }
     }
 
-    func test_rightHalfFrame_calculation() {
+    @Test func test_rightHalfFrame_calculation() {
         let screen = CGRect(x: 0, y: 0, width: 1920, height: 1080)
         let expected = CGRect(x: 960, y: 0, width: 960, height: 1080)
 
         let result = WindowManager.calculateTileFrame(for: .rightHalf, on: screen)
-        XCTAssertEqual(result, expected)
+        #expect(result == expected)
     }
 
-    func test_maximizeFrame_calculation() {
+    @Test func test_maximizeFrame_calculation() {
         let screen = CGRect(x: 100, y: 200, width: 1920, height: 1080)
 
         let result = WindowManager.calculateTileFrame(for: .maximize, on: screen)
-        XCTAssertEqual(result, screen)
+        #expect(result == screen)
     }
 }

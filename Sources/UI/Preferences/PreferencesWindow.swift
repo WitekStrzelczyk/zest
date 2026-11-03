@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// Window controller for the preferences window
 final class PreferencesWindowController: NSWindowController {
     static let shared = PreferencesWindowController()
 
@@ -17,7 +16,6 @@ final class PreferencesWindowController: NSWindowController {
         window.center()
         window.isReleasedWhenClosed = false
 
-        // Set SwiftUI content
         let preferencesView = PreferencesView()
         window.contentView = NSHostingView(rootView: preferencesView)
 
@@ -35,7 +33,6 @@ final class PreferencesWindowController: NSWindowController {
     }
 }
 
-/// SwiftUI preferences view
 struct PreferencesView: View {
     @ObservedObject private var preferences = PreferencesManager.shared
 
@@ -60,7 +57,6 @@ struct PreferencesView: View {
     }
 }
 
-/// General preferences tab
 struct GeneralPreferencesView: View {
     @ObservedObject var preferences: PreferencesManager
 
@@ -90,7 +86,6 @@ struct GeneralPreferencesView: View {
     }
 }
 
-/// Search preferences tab
 struct SearchPreferencesView: View {
     @ObservedObject var preferences: PreferencesManager
 
@@ -100,8 +95,8 @@ struct SearchPreferencesView: View {
                 Stepper(
                     "Search Results: \(preferences.searchResultsLimit)",
                     value: $preferences.searchResultsLimit,
-                    in: 5...30,
-                    step: 5
+                    in: 10...80,
+                    step: 10
                 )
             }
         }
@@ -110,7 +105,6 @@ struct SearchPreferencesView: View {
     }
 }
 
-/// Appearance preferences tab
 struct AppearancePreferencesView: View {
     @ObservedObject var preferences: PreferencesManager
 

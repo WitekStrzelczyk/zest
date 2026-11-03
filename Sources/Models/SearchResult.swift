@@ -5,12 +5,11 @@ enum SearchResultSource {
     case tool
 }
 
-/// Display priority: lower rawValue appears higher in results
 enum SearchResultCategory: Int, Comparable {
     case application = 0
-    case conversion = 1 // Unit conversions - high priority
+    case conversion = 1
     case process = 2
-    case calendar = 3 // Calendar events and meetings
+    case calendar = 3
     case action = 4
     case contact = 5
     case clipboard = 6
@@ -25,7 +24,6 @@ enum SearchResultCategory: Int, Comparable {
         lhs.rawValue < rhs.rawValue
     }
 
-    /// Human-readable name for search matching
     var displayName: String {
         switch self {
         case .application: "application app"
@@ -53,31 +51,22 @@ struct SearchResult {
     let revealAction: (() -> Void)?
     let category: SearchResultCategory
 
-    /// File path for Quick Look preview (nil for non-file results)
     let filePath: String?
 
-    /// Search relevance score (higher = more relevant)
     var score: Int
 
-    /// Whether this result is in a warning/critical state (e.g. for Force Kill)
     var isWarning: Bool = false
 
-    /// Whether this result is currently active (for toggles)
     let isActive: Bool
 
-    /// Optional tint color for the result (e.g., calendar color)
     let tintColor: NSColor?
 
-    /// Optional trailing icon displayed on the right side (e.g., video platform icon)
     let trailingIcon: NSImage?
 
-    /// Origin of the result used for ranking boosts.
     let source: SearchResultSource
 
-    /// Whether a kill attempt has been made (for process results - two-phase kill)
     let isKillAttempted: Bool
 
-    /// Process ID for process results (used to check if process died after kill)
     let pid: pid_t?
 
     init(
@@ -122,12 +111,10 @@ struct SearchResult {
         return lhs.category < rhs.category
     }
 
-    /// Returns true if this result represents a file that can be previewed with Quick Look
     var isFileResult: Bool {
         subtitle == "File" && filePath != nil
     }
 
-    /// Returns the file URL for Quick Look preview (nil if not a file result)
     var fileURL: URL? {
         guard let filePath else { return nil }
         return URL(fileURLWithPath: filePath)
@@ -145,18 +132,13 @@ struct SearchResult {
 struct InstalledApp {
     let name: String
     let bundleID: String
-    let icon: NSImage?
+    let path: String
 }
 
-// MARK: - Notification Names
-
 extension Notification.Name {
-    /// Posted when user selects "Add Quicklink" from settings
     static let showAddQuicklink = Notification.Name("showAddQuicklink")
 
-    /// Posted when user navigates back from quicklink creation
     static let hideAddQuicklink = Notification.Name("hideAddQuicklink")
 
-    /// Posted when a process is successfully killed
     static let processWasKilled = Notification.Name("processWasKilled")
 }

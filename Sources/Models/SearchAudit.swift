@@ -1,6 +1,5 @@
 import Foundation
 
-/// Represents a detailed audit of a single search operation
 struct SearchAudit: Codable {
     let id: UUID
     let timestamp: Date
@@ -22,17 +21,14 @@ struct SearchAudit: Codable {
         tools = []
     }
 
-    /// Finalize the audit with total time
     mutating func finalize(totalDuration: Double) {
         totalDurationMs = totalDuration
     }
 
-    /// Add a metric for a specific tool
     mutating func addToolMetric(name: String, duration: Double, count: Int) {
         tools.append(ToolMetric(name: name, durationMs: duration, resultCount: count))
     }
 
-    /// Print a summary for debugging
     func printSummary() {
         print("\n🔎 SEARCH AUDIT [\(query)]")
         print("Total Time: \(String(format: "%.2f", totalDurationMs))ms")
