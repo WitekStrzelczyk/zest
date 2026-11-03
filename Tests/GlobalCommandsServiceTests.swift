@@ -15,20 +15,6 @@ final class GlobalCommandsServiceTests {
         commandsService = nil
     }
 
-    @Test func test_openSpotify_returnsTrue() {
-        let result = commandsService.openSpotify()
-
-        #expect(result || !result, "openSpotify should return a boolean")
-    }
-
-    @Test func test_maximizeWindow_usesWindowManager() {
-        _ = WindowManager.shared
-
-        _ = commandsService.maximizeWindow()
-
-        #expect(true, "maximizeWindow should delegate to WindowManager")
-    }
-
     @Test func test_commands_returnsListOfAvailableCommands() {
         let commands = commandsService.availableCommands
 
