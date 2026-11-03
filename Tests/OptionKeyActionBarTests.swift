@@ -8,6 +8,7 @@ final class OptionKeyActionBarTests {
     var window: CommandPaletteWindow!
 
     init() {
+        CommandPaletteWindow.showsOnScreen = false
         window = CommandPaletteWindow(
             contentRect: .zero,
             styleMask: [],

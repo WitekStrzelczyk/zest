@@ -56,10 +56,23 @@ final class SearchEngine {
         appsLock.lock()
         let apps = installedApps
         appsLock.unlock()
-        return appResults(for: query, in: apps)
+        return appResults(for: query, in: apps) { path in
+            IconCache.shared.cachedIcon(for: path) ?? NSWorkspace.shared.icon(forFile: path)
+        }
     }
 
-    private func appResults(for query: String, in apps: [InstalledApp]) -> [SearchResult] {
+    private func renderedAppResults(for query: String) -> [SearchResult] {
+        appsLock.lock()
+        let apps = installedApps
+        appsLock.unlock()
+        return appResults(for: query, in: apps) { IconCache.shared.renderedIcon(for: $0) }
+    }
+
+    private func appResults(
+        for query: String,
+        in apps: [InstalledApp],
+        icon: (String) -> NSImage
+    ) -> [SearchResult] {
         guard !query.isEmpty else { return [] }
         let scored = apps.compactMap { app -> (app: InstalledApp, score: Int)? in
             let score = SearchScoreCalculator.shared.calculateScore(query: query, title: app.name, category: .application)
@@ -69,7 +82,7 @@ final class SearchEngine {
             SearchResult(
                 title: item.app.name,
                 subtitle: "Application",
-                icon: NSWorkspace.shared.icon(forFile: item.app.path),
+                icon: icon(item.app.path),
                 category: .application,
                 action: { Self.launchApp(bundleID: item.app.bundleID) },
                 score: item.score
@@ -90,11 +103,10 @@ final class SearchEngine {
 
     func searchStream(query: String) -> AsyncStream<[SearchResult]> {
         AsyncStream { continuation in
-            let context = QueryAnalyzer.shared.analyze(query)
             let resultsLimit = min(Self.maxResults, PreferencesManager.shared.searchResultsLimit)
 
             let span = tracer.startSearch(query: query)
-            if context.normalized.isEmpty {
+            if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 continuation.finish()
                 return
             }
@@ -116,7 +128,9 @@ final class SearchEngine {
                 continuation.yield(snapshot)
             }
 
-            let task = Task {
+            let task = Task.detached(priority: .userInitiated) { [self] in
+                let context = QueryAnalyzer.shared.analyze(query)
+
                 func finishSearch() {
                     span.finish()
                     lastSearchTrace = span
@@ -141,7 +155,7 @@ final class SearchEngine {
 
                 let appSpan = span.createChild(operationName: "Applications")
                 ensureAppsLoaded()
-                let finalApps = instantAppResults(for: context.normalized)
+                let finalApps = renderedAppResults(for: context.normalized)
                 emit(finalApps)
                 appSpan.setResultsCount(finalApps.count)
                 appSpan.finish()
@@ -169,6 +183,7 @@ final class SearchEngine {
                     }
                 }
                 fileNLSpan.finish()
+                guard !Task.isCancelled else { return finishSearch() }
 
                 let fileStandardSpan = span.createChild(operationName: "File Search (Standard)")
                 let fileSearchQuery = context.normalized

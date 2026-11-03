@@ -45,6 +45,7 @@ extension NSView {
 }
 
 final class ResultRowView: NSTableRowView {
+    static let reuseIdentifier = NSUserInterfaceItemIdentifier("ResultRow")
     private let horizontalInset: CGFloat = 6
     private let verticalInset: CGFloat = 1
 
@@ -82,8 +83,8 @@ final class ResultRowView: NSTableRowView {
             NSColor.systemRed.withAlphaComponent(0.15).setFill()
             let path = NSBezierPath(
                 roundedRect: bounds.insetBy(dx: horizontalInset, dy: verticalInset),
-                xRadius: 6,
-                yRadius: 6
+                xRadius: 8,
+                yRadius: 8
             )
             path.fill()
 
@@ -94,8 +95,8 @@ final class ResultRowView: NSTableRowView {
             AppStyle.Palette.rowSelectedFill.setFill()
             let path = NSBezierPath(
                 roundedRect: bounds.insetBy(dx: horizontalInset, dy: verticalInset),
-                xRadius: 6,
-                yRadius: 6
+                xRadius: 8,
+                yRadius: 8
             )
             path.fill()
             AppStyle.Palette.rowSelectedStroke.setStroke()
@@ -109,8 +110,8 @@ final class ResultRowView: NSTableRowView {
             NSColor.systemRed.withAlphaComponent(isKillAttempted && !isDangerMode ? 0.08 : 0.1).setFill()
             let path = NSBezierPath(
                 roundedRect: bounds.insetBy(dx: horizontalInset, dy: verticalInset),
-                xRadius: 6,
-                yRadius: 6
+                xRadius: 8,
+                yRadius: 8
             )
             path.fill()
 
@@ -121,8 +122,8 @@ final class ResultRowView: NSTableRowView {
             AppStyle.Palette.rowHoverFill.setFill()
             let path = NSBezierPath(
                 roundedRect: bounds.insetBy(dx: horizontalInset, dy: verticalInset),
-                xRadius: 6,
-                yRadius: 6
+                xRadius: 8,
+                yRadius: 8
             )
             path.fill()
         }
@@ -335,6 +336,8 @@ final class ResultsTableView: NSTableView {
 }
 
 final class CommandPaletteWindow: NSPanel {
+    static var showsOnScreen = true
+
     private(set) var searchField: NSTextField!
     private var searchIcon: NSImageView!
     private var resultsTableView: ResultsTableView!
@@ -424,12 +427,7 @@ final class CommandPaletteWindow: NSPanel {
                 scrollView.isHidden = false
             }
 
-            if let topY = initialWindowTop {
-                let newHeight = searchFieldHeight + hintHeight
-                let newY = topY - newHeight
-                let currentFrame = frame
-                resizeFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: newHeight))
-            }
+            resizePalette(to: emptyStateHeight)
 
             if !preservedSearchQuery.isEmpty {
                 performSearch(preservedSearchQuery)
@@ -648,6 +646,12 @@ final class CommandPaletteWindow: NSPanel {
     private let emptyStateHeight: CGFloat = 96
     private let maxVisibleResultRows: Int = 6
     private let resultsContainerVerticalPadding: CGFloat = 20
+    private var paletteCard: NSView?
+    private var paletteHeight: NSLayoutConstraint?
+
+    private var maximumPaletteHeight: CGFloat {
+        searchFieldHeight + CGFloat(maxVisibleResultRows) * rowHeight + resultsContainerVerticalPadding + contextualBarHeight
+    }
 
     override var canBecomeKey: Bool {
         true
@@ -720,16 +724,12 @@ final class CommandPaletteWindow: NSPanel {
             noResultsLabel.isHidden = true
             hintLabel.isHidden = true
             contextualActionBar.isHidden = true
-            if let topY = initialWindowTop {
-                let currentFrame = frame
-                let newY = topY - emptyStateHeight
-                resizeFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: emptyStateHeight))
-            }
+            resizePalette(to: emptyStateHeight)
             return
         }
 
-        guard let topY = initialWindowTop, let screen = NSScreen.main else { return }
-        updateSearchResults(state.results, topY: topY, screen: screen)
+        guard initialWindowTop != nil else { return }
+        updateSearchResults(state.results)
     }
 
     @objc private func handleShowAddQuicklink() {
@@ -747,34 +747,7 @@ final class CommandPaletteWindow: NSPanel {
         hasShadow = true
         isOpaque = false
         becomesKeyOnlyIfNeeded = false
-    }
-
-    private func makeKeycapView(text: String, font: NSFont) -> (container: NSView, label: NSTextField) {
-        let container = TintedLayerView()
-        container.wantsLayer = true
-        container.layer?.cornerRadius = AppStyle.KeyboardBadge.cornerRadius
-        container.layer?.masksToBounds = true
-        container.fillColor = AppStyle.KeyboardBadge.background
-        container.strokeColor = AppStyle.KeyboardBadge.border
-        container.layer?.borderWidth = 1
-        container.translatesAutoresizingMaskIntoConstraints = false
-
-        let label = NSTextField(labelWithString: text)
-        label.font = font
-        label.textColor = AppStyle.KeyboardBadge.text
-        label.alignment = .center
-        label.lineBreakMode = .byClipping
-        label.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(label)
-
-        NSLayoutConstraint.activate([
-            label.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-            label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            label.leadingAnchor.constraint(greaterThanOrEqualTo: container.leadingAnchor, constant: 6),
-            label.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor, constant: -6),
-        ])
-
-        return (container, label)
+        autorecalculatesKeyViewLoop = false
     }
 
     private func setupUI() {
@@ -785,14 +758,14 @@ final class CommandPaletteWindow: NSPanel {
             height: searchFieldHeight + hintHeight + contextualBarHeight
         ))
         contentView.wantsLayer = true
-        contentView.layer?.cornerRadius = 12
+        contentView.layer?.cornerRadius = 14
         contentView.layer?.masksToBounds = true
 
         let searchBarContainer = TintedLayerView()
         searchBarContainer.wantsLayer = true
         searchBarContainer.layer?.cornerRadius = 10
         searchBarContainer.layer?.masksToBounds = true
-        searchBarContainer.fillColor = AppStyle.adaptive(.controlBackgroundColor, alpha: 0.55)
+        searchBarContainer.fillColor = AppStyle.Palette.surface
         searchBarContainer.strokeColor = AppStyle.Palette.searchBarBorder
         searchBarContainer.layer?.borderWidth = 1
         searchBarContainer.translatesAutoresizingMaskIntoConstraints = false
@@ -825,7 +798,7 @@ final class CommandPaletteWindow: NSPanel {
         searchField.translatesAutoresizingMaskIntoConstraints = false
         searchBarContainer.addSubview(searchField)
 
-        let (escBadge, _) = makeKeycapView(text: "ESC", font: AppStyle.KeyboardBadge.escFont)
+        let (escBadge, _) = Keycap.make(text: "ESC", font: AppStyle.KeyboardBadge.escFont)
         searchBarContainer.addSubview(escBadge)
 
         hintLabel = NSTextField(labelWithString: "")
@@ -942,7 +915,19 @@ final class CommandPaletteWindow: NSPanel {
 
         setupHoverTracking(in: contentView)
 
-        self.contentView = contentView
+        let stage = NSView(frame: NSRect(x: 0, y: 0, width: windowWidth, height: maximumPaletteHeight))
+        contentView.translatesAutoresizingMaskIntoConstraints = false
+        stage.addSubview(contentView)
+        let height = contentView.heightAnchor.constraint(equalToConstant: emptyStateHeight)
+        NSLayoutConstraint.activate([
+            contentView.leadingAnchor.constraint(equalTo: stage.leadingAnchor),
+            contentView.trailingAnchor.constraint(equalTo: stage.trailingAnchor),
+            contentView.topAnchor.constraint(equalTo: stage.topAnchor),
+            height,
+        ])
+        paletteHeight = height
+        paletteCard = contentView
+        self.contentView = stage
     }
 
     private func setupHoverTracking(in view: NSView) {
@@ -1037,15 +1022,23 @@ final class CommandPaletteWindow: NSPanel {
         isDangerMode = false
         stateStore.clearIntent()
 
+        resizePalette(to: emptyStateHeight)
         if let screen = NSScreen.main {
             let screenFrame = screen.visibleFrame
             let windowX = screenFrame.midX - windowWidth / 2
-            let windowY = screenFrame.midY + 120
-            let frame = NSRect(x: windowX, y: windowY, width: windowWidth, height: emptyStateHeight)
+            let top = screenFrame.midY + 120 + emptyStateHeight
+            let frame = NSRect(x: windowX, y: top - maximumPaletteHeight, width: windowWidth, height: maximumPaletteHeight)
             setFrame(frame, display: true)
-            initialWindowTop = frame.maxY
+            initialWindowTop = top
         }
 
+        guard Self.showsOnScreen else {
+            alphaValue = 0
+            ignoresMouseEvents = true
+            orderFrontRegardless()
+            makeFirstResponder(searchField)
+            return
+        }
         NSApp.activate(ignoringOtherApps: true)
         makeKeyAndOrderFront(nil)
     }
@@ -1089,16 +1082,12 @@ final class CommandPaletteWindow: NSPanel {
     }
 
     private func showSettingsUI() {
-        guard let contentView else { return }
+        guard let contentView = paletteCard else { return }
 
         let settingsHeight: CGFloat = 180
+        resizePalette(to: settingsHeight)
 
-        var currentFrame = frame
-        currentFrame.size.height = settingsHeight
-        currentFrame.origin.y -= (settingsHeight - frame.height)
-        setFrame(currentFrame, display: true, animate: true)
-
-        let settingsView = NSView(frame: NSRect(x: 0, y: 0, width: currentFrame.width, height: currentFrame.height))
+        let settingsView = NSView(frame: NSRect(x: 0, y: 0, width: windowWidth, height: settingsHeight))
         settingsView.wantsLayer = true
 
         let backBtn = NSButton(title: "← Back", target: self, action: #selector(backButtonClicked))
@@ -1251,10 +1240,12 @@ final class CommandPaletteWindow: NSPanel {
         controller.handleQuery(query)
     }
 
-    private func updateSearchResults(_ results: [SearchResult], topY: CGFloat, screen _: NSScreen) {
+    private func updateSearchResults(_ results: [SearchResult]) {
         guard !isSettingsMode else { return }
-
-        let currentFrame = frame
+        guard !results.elementsEqual(searchResults, by: SearchResult.showsSameRow) || results.isEmpty else {
+            searchResults = results
+            return
+        }
 
         let previouslySelectedTitle: String? = {
             let row = resultsTableView.selectedRow
@@ -1272,9 +1263,7 @@ final class CommandPaletteWindow: NSPanel {
             hintLabel.isHidden = false
             contextualActionBar.isHidden = true
 
-            let newHeight = searchFieldHeight + 50
-            let newY = topY - newHeight
-            resizeFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: newHeight))
+            resizePalette(to: searchFieldHeight + 50)
         } else {
             scrollView.isHidden = false
             suggestionsLabel.isHidden = false
@@ -1295,17 +1284,14 @@ final class CommandPaletteWindow: NSPanel {
 
             let visibleRows = min(searchResults.count, maxVisibleResultRows)
             let resultsHeight = CGFloat(visibleRows) * rowHeight + resultsContainerVerticalPadding
-            let newHeight = searchFieldHeight + resultsHeight + contextualBarHeight
-
-            let newY = topY - newHeight
-            resizeFrame(NSRect(x: currentFrame.origin.x, y: newY, width: windowWidth, height: newHeight))
+            resizePalette(to: searchFieldHeight + resultsHeight + contextualBarHeight)
         }
     }
 
-    private func resizeFrame(_ newFrame: NSRect) {
-        let target = backingAlignedRect(newFrame, options: .alignAllEdgesNearest)
-        guard target != frame else { return }
-        setFrame(target, display: true)
+    private func resizePalette(to height: CGFloat) {
+        guard let paletteHeight, paletteHeight.constant != height else { return }
+        paletteHeight.constant = height
+        invalidateShadow()
     }
 
     override func keyDown(with event: NSEvent) {
@@ -1374,7 +1360,7 @@ final class CommandPaletteWindow: NSPanel {
 
     private func showActionBar() {
         guard actionBarView == nil else { return }
-        guard let contentView else { return }
+        guard let contentView = paletteCard else { return }
 
         let actionBar = createActionBarView()
         actionBarView = actionBar
@@ -1559,8 +1545,10 @@ final class CommandPaletteWindow: NSPanel {
         if isQuickLookOpen {
             closeQuickLook()
         } else {
-            NSApp.activate(ignoringOtherApps: true)
-            QLPreviewPanel.shared().makeKeyAndOrderFront(nil)
+            if Self.showsOnScreen {
+                NSApp.activate(ignoringOtherApps: true)
+                QLPreviewPanel.shared().makeKeyAndOrderFront(nil)
+            }
             isQuickLookOpen = true
             installQuickLookMonitors()
         }
@@ -1573,6 +1561,7 @@ final class CommandPaletteWindow: NSPanel {
             QLPreviewPanel.shared().orderOut(nil)
         }
         isQuickLookOpen = false
+        guard Self.showsOnScreen else { return }
         makeKeyAndOrderFront(nil)
     }
 
@@ -1680,9 +1669,10 @@ extension CommandPaletteWindow: NSTableViewDelegate, NSTableViewDataSource {
         updateContextualActionBar()
     }
 
-    func tableView(_: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
-        let rowView = ResultRowView()
-        rowView.identifier = NSUserInterfaceItemIdentifier("ResultRow")
+    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+        let rowView = tableView.makeView(withIdentifier: ResultRowView.reuseIdentifier, owner: nil) as? ResultRowView
+            ?? ResultRowView()
+        rowView.identifier = ResultRowView.reuseIdentifier
 
         if row >= 0, row < searchResults.count {
             let result = searchResults[row]
@@ -1692,217 +1682,33 @@ extension CommandPaletteWindow: NSTableViewDelegate, NSTableViewDataSource {
         return rowView
     }
 
-    func tableView(_: NSTableView, viewFor _: NSTableColumn?, row: Int) -> NSView? {
+    func tableView(_ tableView: NSTableView, viewFor _: NSTableColumn?, row: Int) -> NSView? {
         let result = searchResults[row]
 
-        let cellView = NSTableCellView()
-        cellView.identifier = NSUserInterfaceItemIdentifier("ResultCell")
-
         if result.category == .file, let filePath = result.filePath {
-            return buildFileCellView(result: result, filePath: filePath, container: cellView, row: row)
+            let cell = tableView.makeView(withIdentifier: FileResultCellView.reuseIdentifier, owner: nil) as? FileResultCellView
+                ?? FileResultCellView()
+            cell.configure(with: result, path: filePath, row: row, showsIndex: isCommandKeyPressed)
+            return cell
         }
 
-        let imageView = NSImageView()
-        imageView.image = result.icon
-        imageView.translatesAutoresizingMaskIntoConstraints = false
-
-        imageView.wantsLayer = true
-        imageView.layer?.cornerRadius = 10
-        imageView.layer?.masksToBounds = true
-        imageView.layer?.backgroundColor = AppStyle.Palette.iconChipBackground.cgColor
-
-        let titleLabel = NSTextField(labelWithString: result.title)
-        titleLabel.font = NSFont.systemFont(ofSize: 16, weight: .semibold)
-        titleLabel.textColor = AppStyle.Palette.primaryText
-        titleLabel.lineBreakMode = .byTruncatingTail
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-
-        let subtitleLabel = NSTextField(labelWithString: result.subtitle)
-        subtitleLabel.font = NSFont.systemFont(ofSize: 12, weight: .regular)
-        subtitleLabel.textColor = AppStyle.Palette.secondaryText
-        subtitleLabel.lineBreakMode = .byTruncatingTail
-        subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
-
-        let (indexBadge, _) = makeKeycapView(text: "\(row + 1)", font: AppStyle.KeyboardBadge.keyFont)
-        indexBadge.isHidden = !isCommandKeyPressed
-
-        cellView.addSubview(imageView)
-        cellView.addSubview(indexBadge)
-        cellView.addSubview(titleLabel)
-        cellView.addSubview(subtitleLabel)
-
-        NSLayoutConstraint.activate([
-            imageView.leadingAnchor.constraint(equalTo: cellView.leadingAnchor, constant: 10),
-            imageView.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
-            imageView.widthAnchor.constraint(equalToConstant: 34),
-            imageView.heightAnchor.constraint(equalToConstant: 34),
-
-            indexBadge.leadingAnchor.constraint(equalTo: cellView.leadingAnchor, constant: 10),
-            indexBadge.centerYAnchor.constraint(equalTo: cellView.centerYAnchor),
-            indexBadge.widthAnchor.constraint(equalToConstant: 34),
-            indexBadge.heightAnchor.constraint(equalToConstant: AppStyle.KeyboardBadge.keyHeight),
-
-            titleLabel.leadingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: 12),
-            titleLabel.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -12),
-            titleLabel.topAnchor.constraint(equalTo: cellView.topAnchor, constant: 8),
-
-            subtitleLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-            subtitleLabel.trailingAnchor.constraint(equalTo: cellView.trailingAnchor, constant: -12),
-            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
-        ])
-
-        imageView.isHidden = isCommandKeyPressed
-
-        return cellView
+        let cell = tableView.makeView(withIdentifier: ResultCellView.reuseIdentifier, owner: nil) as? ResultCellView
+            ?? ResultCellView()
+        cell.configure(with: result, row: row, showsIndex: isCommandKeyPressed)
+        return cell
     }
 
     func tableView(_: NSTableView, heightOfRow _: Int) -> CGFloat {
         rowHeight
     }
-
-    private func buildFileCellView(
-        result: SearchResult,
-        filePath: String,
-        container: NSTableCellView,
-        row: Int
-    ) -> NSView {
-        let imageView = NSImageView()
-        imageView.image = result.icon
-        imageView.translatesAutoresizingMaskIntoConstraints = false
-        imageView.wantsLayer = true
-        imageView.layer?.cornerRadius = 8
-        imageView.layer?.masksToBounds = true
-
-        let titleLabel = NSTextField(labelWithString: result.title)
-        titleLabel.font = NSFont.systemFont(ofSize: 14, weight: .semibold)
-        titleLabel.textColor = AppStyle.Palette.primaryText
-        titleLabel.lineBreakMode = .byTruncatingTail
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-
-        let pathLabel = NSTextField(labelWithString: displayPathSuffix(for: filePath))
-        pathLabel.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-        pathLabel.textColor = AppStyle.Palette.secondaryText
-        pathLabel.lineBreakMode = .byTruncatingHead
-        pathLabel.translatesAutoresizingMaskIntoConstraints = false
-
-        let metadataLabel = NSTextField(labelWithString: fileMetadataLine(filePath: filePath))
-        metadataLabel.font = NSFont.systemFont(ofSize: 12, weight: .regular)
-        metadataLabel.textColor = AppStyle.Palette.tertiaryText
-        metadataLabel.lineBreakMode = .byTruncatingTail
-        metadataLabel.translatesAutoresizingMaskIntoConstraints = false
-
-        let sizeLabel = NSTextField(labelWithString: fileSizeBadge(filePath: filePath))
-        sizeLabel.font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
-        sizeLabel.textColor = AppStyle.Palette.chipText
-        sizeLabel.alignment = .center
-        sizeLabel.translatesAutoresizingMaskIntoConstraints = false
-
-        let sizeBadge = NSView()
-        sizeBadge.wantsLayer = true
-        sizeBadge.layer?.cornerRadius = 6
-        sizeBadge.layer?.backgroundColor = AppStyle.Palette.chipBackground.cgColor
-        sizeBadge.layer?.borderColor = AppStyle.Palette.chipBorder.cgColor
-        sizeBadge.layer?.borderWidth = 1
-        sizeBadge.translatesAutoresizingMaskIntoConstraints = false
-        sizeBadge.addSubview(sizeLabel)
-
-        let (indexBadge, _) = makeKeycapView(text: "\(row + 1)", font: AppStyle.KeyboardBadge.keyFont)
-        indexBadge.isHidden = !isCommandKeyPressed
-
-        container.addSubview(imageView)
-        container.addSubview(indexBadge)
-        container.addSubview(titleLabel)
-        container.addSubview(pathLabel)
-        container.addSubview(metadataLabel)
-        container.addSubview(sizeBadge)
-
-        NSLayoutConstraint.activate([
-            imageView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
-            imageView.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            imageView.widthAnchor.constraint(equalToConstant: 34),
-            imageView.heightAnchor.constraint(equalToConstant: 34),
-
-            indexBadge.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
-            indexBadge.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            indexBadge.widthAnchor.constraint(equalToConstant: 34),
-            indexBadge.heightAnchor.constraint(equalToConstant: AppStyle.KeyboardBadge.keyHeight),
-
-            titleLabel.leadingAnchor.constraint(equalTo: imageView.trailingAnchor, constant: 12),
-            titleLabel.topAnchor.constraint(equalTo: container.topAnchor, constant: 8),
-            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: pathLabel.leadingAnchor, constant: -8),
-
-            pathLabel.trailingAnchor.constraint(equalTo: sizeBadge.leadingAnchor, constant: -10),
-            pathLabel.firstBaselineAnchor.constraint(equalTo: titleLabel.firstBaselineAnchor),
-            pathLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 260),
-
-            metadataLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-            metadataLabel.trailingAnchor.constraint(lessThanOrEqualTo: sizeBadge.leadingAnchor, constant: -8),
-            metadataLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 3),
-
-            sizeBadge.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -10),
-            sizeBadge.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-
-            sizeLabel.leadingAnchor.constraint(equalTo: sizeBadge.leadingAnchor, constant: 8),
-            sizeLabel.trailingAnchor.constraint(equalTo: sizeBadge.trailingAnchor, constant: -8),
-            sizeLabel.topAnchor.constraint(equalTo: sizeBadge.topAnchor, constant: 4),
-            sizeLabel.bottomAnchor.constraint(equalTo: sizeBadge.bottomAnchor, constant: -4),
-            sizeLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 42),
-        ])
-
-        imageView.isHidden = isCommandKeyPressed
-
-        return container
-    }
-
-    private func displayPathSuffix(for path: String) -> String {
-        let url = URL(fileURLWithPath: path)
-        let components = url.deletingLastPathComponent().pathComponents
-        if components.count <= 3 {
-            return url.deletingLastPathComponent().path
-        }
-        let suffix = components.suffix(3).joined(separator: "/")
-        return "/\(suffix)"
-    }
-
-    private func fileMetadataLine(filePath: String) -> String {
-        let url = URL(fileURLWithPath: filePath)
-        let ext = url.pathExtension.uppercased()
-        let typeText = ext.isEmpty ? "File" : "\(ext) Document"
-
-        let modifiedText: String = {
-            let attrs = try? FileManager.default.attributesOfItem(atPath: filePath)
-            guard let date = attrs?[.modificationDate] as? Date else { return "Updated recently" }
-            return "Updated \(relativeDateString(from: date))"
-        }()
-
-        return "\(modifiedText)  •  \(typeText)"
-    }
-
-    private func fileSizeBadge(filePath: String) -> String {
-        let attrs = try? FileManager.default.attributesOfItem(atPath: filePath)
-        guard let bytes = attrs?[.size] as? NSNumber else { return "--" }
-
-        let byteCount = bytes.int64Value
-
-        if byteCount == 0 {
-            return "empty"
-        }
-
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        formatter.includesUnit = true
-        formatter.allowedUnits = [.useBytes, .useKB, .useMB, .useGB]
-        return formatter.string(fromByteCount: byteCount)
-    }
-
-    private func relativeDateString(from date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: date, relativeTo: Date())
-    }
 }
 
 extension CommandPaletteWindow {
+    var visiblePaletteFrame: NSRect {
+        guard let paletteCard else { return .zero }
+        return convertToScreen(paletteCard.convert(paletteCard.bounds, to: nil))
+    }
+
     var selectedIndex: Int {
         resultsTableView.selectedRow
     }
@@ -1985,7 +1791,16 @@ extension CommandPaletteWindow {
             isARepeat: false,
             keyCode: keyCode
         ) else { return }
-        NSApplication.shared.sendEvent(event)
+        if modifiers.contains(.command), performKeyEquivalent(with: event) || performMenuAction(for: event) { return }
+        sendEvent(event)
+    }
+
+    private func performMenuAction(for event: NSEvent) -> Bool {
+        let key = event.charactersIgnoringModifiers ?? ""
+        let item = NSApplication.shared.mainMenu?.items.compactMap(\.submenu).flatMap(\.items)
+            .first { $0.keyEquivalent == key && $0.keyEquivalentModifierMask == .command }
+        guard let action = item?.action else { return false }
+        return NSApplication.shared.sendAction(action, to: firstResponder, from: item)
     }
 
     var isQuickLookRequested: Bool {

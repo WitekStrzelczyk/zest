@@ -2,40 +2,42 @@ import AppKit
 import Combine
 
 enum AppStyle {
-    static func adaptive(_ base: NSColor, alpha: CGFloat) -> NSColor {
+    static func tone(light: NSColor, dark: NSColor) -> NSColor {
         NSColor(name: nil) { appearance in
-            var resolved = base
-            appearance.performAsCurrentDrawingAppearance {
-                resolved = base.withAlphaComponent(alpha)
-            }
-            return resolved
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
         }
     }
 
+    static func gray(_ white: CGFloat, alpha: CGFloat = 1) -> NSColor {
+        NSColor(white: white, alpha: alpha)
+    }
+
     enum Palette {
-        static let backgroundTop = AppStyle.adaptive(.windowBackgroundColor, alpha: 0.94)
-        static let backgroundBottom = AppStyle.adaptive(.underPageBackgroundColor, alpha: 0.96)
-        static let backgroundGridStroke = AppStyle.adaptive(.separatorColor, alpha: 0.04)
+        static let backgroundTop = AppStyle.tone(light: AppStyle.gray(0.985), dark: AppStyle.gray(0.094))
+        static let backgroundBottom = AppStyle.tone(light: AppStyle.gray(0.975), dark: AppStyle.gray(0.078))
+        static let surface = AppStyle.tone(light: AppStyle.gray(1), dark: AppStyle.gray(0.13))
+        static let sidebar = AppStyle.tone(light: AppStyle.gray(0.96), dark: AppStyle.gray(0.11))
+        static let hairline = AppStyle.tone(light: AppStyle.gray(0, alpha: 0.08), dark: AppStyle.gray(1, alpha: 0.07))
 
-        static let rowSelectedFill = AppStyle.adaptive(.selectedContentBackgroundColor, alpha: 0.22)
-        static let rowSelectedStroke = AppStyle.adaptive(.separatorColor, alpha: 0.07)
-        static let rowHoverFill = AppStyle.adaptive(.separatorColor, alpha: 0.14)
+        static let rowSelectedFill = AppStyle.tone(light: AppStyle.gray(0.925), dark: AppStyle.gray(0.165))
+        static let rowSelectedStroke = AppStyle.tone(light: AppStyle.gray(0, alpha: 0.03), dark: AppStyle.gray(1, alpha: 0.04))
+        static let rowHoverFill = AppStyle.tone(light: AppStyle.gray(0, alpha: 0.035), dark: AppStyle.gray(1, alpha: 0.04))
 
-        static let footerBackground = AppStyle.adaptive(.controlBackgroundColor, alpha: 0.92)
-        static let footerBorder = AppStyle.adaptive(.separatorColor, alpha: 0.09)
-        static let searchBarBorder = AppStyle.adaptive(.separatorColor, alpha: 0.15)
+        static let footerBackground = AppStyle.tone(light: AppStyle.gray(0.955), dark: AppStyle.gray(0.105))
+        static let footerBorder = hairline
+        static let searchBarBorder = hairline
 
-        static let primaryText = NSColor.labelColor
-        static let secondaryText = NSColor.secondaryLabelColor
-        static let tertiaryText = NSColor.tertiaryLabelColor
-        static let mutedText = NSColor.quaternaryLabelColor
-        static let accentText = NSColor.secondaryLabelColor
+        static let primaryText = AppStyle.tone(light: AppStyle.gray(0.1), dark: AppStyle.gray(0.93))
+        static let secondaryText = AppStyle.tone(light: AppStyle.gray(0.42), dark: AppStyle.gray(0.61))
+        static let tertiaryText = AppStyle.tone(light: AppStyle.gray(0.6), dark: AppStyle.gray(0.43))
+        static let mutedText = AppStyle.tone(light: AppStyle.gray(0.7), dark: AppStyle.gray(0.36))
+        static let accentText = secondaryText
 
-        static let chipBackground = AppStyle.adaptive(.controlBackgroundColor, alpha: 0.80)
-        static let chipBorder = AppStyle.adaptive(.separatorColor, alpha: 0.12)
-        static let chipText = NSColor.secondaryLabelColor
+        static let chipBackground = AppStyle.tone(light: AppStyle.gray(0.94), dark: AppStyle.gray(0.15))
+        static let chipBorder = hairline
+        static let chipText = secondaryText
 
-        static let iconChipBackground = AppStyle.adaptive(.controlBackgroundColor, alpha: 0.72)
+        static let iconChipBackground = AppStyle.tone(light: AppStyle.gray(0.95), dark: AppStyle.gray(0.15))
     }
 
     enum KeyboardBadge {
@@ -43,13 +45,13 @@ enum AppStyle {
         static let escHeight: CGFloat = 22
         static let keyWidth: CGFloat = 52
         static let keyHeight: CGFloat = 22
-        static let cornerRadius: CGFloat = 5
-        static let escFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .semibold)
-        static let keyFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .semibold)
+        static let cornerRadius: CGFloat = 6
+        static let escFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .medium)
+        static let keyFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .medium)
 
-        static let background = AppStyle.adaptive(.controlBackgroundColor, alpha: 0.82)
-        static let border = AppStyle.adaptive(.separatorColor, alpha: 0.14)
-        static let text = NSColor.secondaryLabelColor
+        static let background = AppStyle.tone(light: AppStyle.gray(0.95), dark: AppStyle.gray(0.15))
+        static let border = Palette.hairline
+        static let text = Palette.secondaryText
     }
 }
 

@@ -8,6 +8,7 @@ final class InstantAppLaunchTests {
     private let store = CommandPaletteStateStore.shared
 
     init() {
+        CommandPaletteWindow.showsOnScreen = false
         ContactsService.isDisabled = true
         CalendarService.isDisabled = true
         FileSearchService.isDisabled = true

@@ -34,6 +34,7 @@ final class SearchResultsLimitTests {
 @MainActor
 final class PaletteThemeTests {
     init() {
+        CommandPaletteWindow.showsOnScreen = false
         PreferencesManager.shared.resetToDefaults()
     }
 

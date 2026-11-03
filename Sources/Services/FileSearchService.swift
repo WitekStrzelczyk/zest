@@ -15,6 +15,14 @@ final class FileSearchService {
     ]
 
     let searchTimeout: TimeInterval = 3.0
+    private let cancellationCheckInterval: TimeInterval = 0.02
+
+    private let queryQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.maxConcurrentOperationCount = 1
+        queue.qualityOfService = .userInitiated
+        return queue
+    }()
 
     private init() {}
 
@@ -51,107 +59,66 @@ final class FileSearchService {
     }
 
     func performNSMetadataQuery(predicate: NSPredicate, maxResults: Int, originalQuery: String? = nil) -> [URL] {
-        let startTime = CFAbsoluteTimeGetCurrent()
-
-        if let q = originalQuery {
-            queryLock.lock()
-            let isOutdated = (latestQuery != q)
-            queryLock.unlock()
-            if isOutdated { return [] }
-        }
-
-        let semaphore = DispatchSemaphore(value: 0)
-        var collectedURLs: [URL] = []
+        guard !isAbandoned(originalQuery) else { return [] }
 
         let metadataQuery = NSMetadataQuery()
-
-        print("📁 FileSearchService: Starting native Spotlight query")
-
-        var observers: [NSObjectProtocol] = []
+        let finished = DispatchSemaphore(value: 0)
         let nc = NotificationCenter.default
+        var observers: [NSObjectProtocol] = []
+        var collectedURLs: [URL] = []
 
         let collect = {
             metadataQuery.disableUpdates()
-            let count = metadataQuery.resultCount
-            var urls: [URL] = []
-            let limit = min(count, maxResults * 2)
-            for i in 0..<limit {
-                if let item = metadataQuery.result(at: i) as? NSMetadataItem,
-                   let path = item.value(forAttribute: NSMetadataItemPathKey) as? String
-                {
-                    urls.append(URL(fileURLWithPath: path))
-                }
-            }
-            collectedURLs = urls
+            let limit = min(metadataQuery.resultCount, maxResults * 2)
+            collectedURLs = (0..<limit).compactMap { index in
+                (metadataQuery.result(at: index) as? NSMetadataItem)?
+                    .value(forAttribute: NSMetadataItemPathKey) as? String
+            }.map { URL(fileURLWithPath: $0) }
             metadataQuery.enableUpdates()
         }
 
-        DispatchQueue.main.async {
+        queryQueue.addOperation { [queryQueue] in
+            metadataQuery.operationQueue = queryQueue
             metadataQuery.searchScopes = [NSMetadataQueryIndexedLocalComputerScope, NSMetadataQueryUserHomeScope]
             metadataQuery.predicate = predicate
             metadataQuery.notificationBatchingInterval = 0.1
-
-            metadataQuery.sortDescriptors = [NSSortDescriptor(
-                key: NSMetadataItemContentModificationDateKey,
-                ascending: false
-            )]
-
-            let updateObs = nc
-                .addObserver(forName: .NSMetadataQueryDidUpdate, object: metadataQuery, queue: .main) { _ in
+            metadataQuery.sortDescriptors = [NSSortDescriptor(key: NSMetadataItemContentModificationDateKey, ascending: false)]
+            observers = [
+                nc.addObserver(forName: .NSMetadataQueryDidUpdate, object: metadataQuery, queue: queryQueue) { _ in
                     collect()
-                    if collectedURLs.count >= maxResults {
-                        semaphore.signal()
-                    }
-                }
-
-            let finishObs = nc.addObserver(
-                forName: .NSMetadataQueryDidFinishGathering,
-                object: metadataQuery,
-                queue: .main
-            ) { _ in
-                collect()
-                semaphore.signal()
-            }
-
-            observers = [updateObs, finishObs]
-
-            if !metadataQuery.start() {
-                print("📁 FileSearchService: Failed to start query")
-                semaphore.signal()
-            }
+                    if collectedURLs.count >= maxResults { finished.signal() }
+                },
+                nc.addObserver(forName: .NSMetadataQueryDidFinishGathering, object: metadataQuery, queue: queryQueue) { _ in
+                    collect()
+                    finished.signal()
+                },
+            ]
+            if !metadataQuery.start() { finished.signal() }
         }
 
-        let waitResult = semaphore.wait(timeout: .now() + searchTimeout)
-
-        if let q = originalQuery {
-            queryLock.lock()
-            let isOutdated = (latestQuery != q)
-            queryLock.unlock()
-            if isOutdated {
-                DispatchQueue.main.async {
-                    metadataQuery.stop()
-                    observers.forEach { nc.removeObserver($0) }
-                }
-                return []
-            }
+        let deadline = Date().addingTimeInterval(searchTimeout)
+        var didFinish = false
+        while !didFinish, Date() < deadline, !isAbandoned(originalQuery) {
+            didFinish = finished.wait(timeout: .now() + cancellationCheckInterval) == .success
         }
+        let abandoned = !didFinish && isAbandoned(originalQuery)
 
-        if waitResult == .timedOut || collectedURLs.isEmpty {
-            DispatchQueue.main.sync {
-                collect()
-            }
-        }
-
-        DispatchQueue.main.sync {
+        let stop = BlockOperation {
+            if !didFinish, !abandoned { collect() }
             metadataQuery.stop()
             observers.forEach { nc.removeObserver($0) }
         }
+        queryQueue.addOperations([stop], waitUntilFinished: !abandoned)
 
-        let duration = CFAbsoluteTimeGetCurrent() - startTime
-        let durStr = String(format: "%.3f", duration)
-        print("📁 FileSearchService: Native search found \(collectedURLs.count) results in \(durStr)s")
+        return abandoned ? [] : collectedURLs
+    }
 
-        return collectedURLs
+    private func isAbandoned(_ originalQuery: String?) -> Bool {
+        guard !Task.isCancelled else { return true }
+        guard let originalQuery else { return false }
+        queryLock.lock()
+        defer { queryLock.unlock() }
+        return latestQuery != originalQuery
     }
 
     private func buildSearchResults(from urls: [URL], maxResults: Int) -> [SearchResult] {
@@ -164,11 +131,12 @@ final class FileSearchService {
             results.append(SearchResult(
                 title: url.lastPathComponent,
                 subtitle: "File",
-                icon: NSWorkspace.shared.icon(forFile: path),
+                icon: IconCache.shared.renderedIcon(for: path),
                 category: .file,
                 action: { NSWorkspace.shared.open(url) },
                 revealAction: { NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: "") },
-                filePath: path
+                filePath: path,
+                fileDetails: FileDetails(path: path)
             ))
         }
         return results

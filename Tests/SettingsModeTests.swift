@@ -7,6 +7,7 @@ final class SettingsModeTests {
     var window: CommandPaletteWindow!
     
     init() {
+        CommandPaletteWindow.showsOnScreen = false
         window = CommandPaletteWindow()
     }
     

@@ -69,6 +69,8 @@ struct SearchResult {
 
     let pid: pid_t?
 
+    let fileDetails: FileDetails?
+
     init(
         title: String,
         subtitle: String,
@@ -84,7 +86,8 @@ struct SearchResult {
         trailingIcon: NSImage? = nil,
         source: SearchResultSource = .standard,
         isKillAttempted: Bool = false,
-        pid: pid_t? = nil
+        pid: pid_t? = nil,
+        fileDetails: FileDetails? = nil
     ) {
         self.title = title
         self.subtitle = subtitle
@@ -101,6 +104,12 @@ struct SearchResult {
         self.source = source
         self.isKillAttempted = isKillAttempted
         self.pid = pid
+        self.fileDetails = fileDetails
+    }
+
+    static func showsSameRow(_ lhs: SearchResult, _ rhs: SearchResult) -> Bool {
+        lhs.title == rhs.title && lhs.subtitle == rhs.subtitle && lhs.category == rhs.category
+            && lhs.isKillAttempted == rhs.isKillAttempted
     }
 
     static func rankedBefore(_ lhs: SearchResult, _ rhs: SearchResult) -> Bool {

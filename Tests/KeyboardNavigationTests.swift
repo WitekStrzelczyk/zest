@@ -7,6 +7,7 @@ final class KeyboardNavigationTests {
     var window: CommandPaletteWindow!
 
     init() {
+        CommandPaletteWindow.showsOnScreen = false
         NSApplication.shared.mainMenu = AppDelegate.makeMainMenu()
         window = CommandPaletteWindow(
             contentRect: .zero,

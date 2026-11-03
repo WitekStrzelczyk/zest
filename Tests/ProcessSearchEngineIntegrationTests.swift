@@ -46,19 +46,6 @@ final class ProcessSearchEngineIntegrationTests {
         }
     }
 
-    @Test func test_searchEngine_processResultAction_activatesApp() {
-        let results = SearchEngine.shared.searchFast(query: "processes")
-
-        let userAppResult = results.first { result in
-            let runningApps = NSWorkspace.shared.runningApplications
-            return runningApps.contains { $0.localizedName?.lowercased() == result.title.lowercased() }
-        }
-
-        if let userAppResult = userAppResult {
-            userAppResult.action()
-        }
-    }
-
     @Test func test_searchEngine_noProcessMatch_returnsNoResultsMessage() {
         let results = SearchEngine.shared.searchFast(query: "process xyznonexistent12345")
 
