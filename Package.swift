@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "Zest",
     platforms: [
-        .macOS("15.0")  // macOS 15 minimum for Apple Translation framework
+        .macOS("15.0")
     ],
     products: [
         .executable(
@@ -25,16 +25,14 @@ let package = Package(
             exclude: ["Info.plist", "Zest.entitlements"],
             linkerSettings: [
                 .linkedFramework("QuickLook"),
-                .linkedFramework("IOKit"),
-                .linkedFramework("Translation"),
-                .unsafeFlags(["-L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/lib/darwin"]),
-                .linkedLibrary("clang_rt.profile_osx")
+                .linkedFramework("IOKit")
             ]
         ),
         .testTarget(
             name: "ZestTests",
             dependencies: ["ZestApp"],
-            path: "Tests"
+            path: "Tests",
+            exclude: ["Fixtures"]
         )
     ]
 )

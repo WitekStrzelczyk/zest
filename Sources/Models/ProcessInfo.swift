@@ -3,17 +3,10 @@ import Darwin
 import Foundation
 import os.log
 
-// MARK: - Kill Result (Story 22)
-
-/// Result of a two-phase kill attempt
 enum KillResult: Equatable {
-    /// SIGTERM was sent (first phase - polite quit request)
     case sigtermSent
-    /// SIGKILL was sent (second phase - force quit)
     case sigkillSent
-    /// Process terminated successfully
     case success
-    /// Kill failed with an error
     case failed(Error)
 
     static func == (lhs: KillResult, rhs: KillResult) -> Bool {
@@ -27,10 +20,6 @@ enum KillResult: Equatable {
     }
 }
 
-// MARK: - Process Kill State (Story 22)
-
-/// Singleton to track kill attempts across process list refreshes
-/// Uses PID as the key since RunningProcess UUID is regenerated on each fetch
 final class ProcessKillState {
     static let shared = ProcessKillState()
 
@@ -39,28 +28,24 @@ final class ProcessKillState {
 
     private init() {}
 
-    /// Check if a kill attempt has been made for the given PID
     func hasAttemptedKill(pid: pid_t) -> Bool {
         lock.lock()
         defer { lock.unlock() }
         return attemptedKills.contains(pid)
     }
 
-    /// Mark a PID as having a kill attempt
     func markKillAttempted(pid: pid_t) {
         lock.lock()
         defer { lock.unlock() }
         attemptedKills.insert(pid)
     }
 
-    /// Clear kill attempt for a specific PID
     func clearKillAttempt(pid: pid_t) {
         lock.lock()
         defer { lock.unlock() }
         attemptedKills.remove(pid)
     }
 
-    /// Clear all kill attempts
     func clearAll() {
         lock.lock()
         defer { lock.unlock() }
@@ -68,7 +53,6 @@ final class ProcessKillState {
     }
 }
 
-/// Represents a running process with its resource usage information
 struct RunningProcess: Identifiable, Equatable {
     let id: UUID
     let name: String
@@ -78,7 +62,6 @@ struct RunningProcess: Identifiable, Equatable {
     let icon: NSImage?
     let bundleIdentifier: String?
     let isUserApp: Bool
-    /// Whether SIGTERM has been sent (two-phase kill state)
     let attemptedKill: Bool
 
     init(
@@ -102,7 +85,6 @@ struct RunningProcess: Identifiable, Equatable {
         self.attemptedKill = attemptedKill
     }
 
-    /// Formats memory in human-readable format (e.g., "256 MB", "1.2 GB")
     var memoryFormatted: String {
         let megabytes = Double(memoryBytes) / 1_000_000.0
         let gigabytes = Double(memoryBytes) / 1_000_000_000.0
@@ -114,7 +96,6 @@ struct RunningProcess: Identifiable, Equatable {
         }
     }
 
-    /// Formats CPU as percentage (e.g., "5%", "12.3%")
     var cpuFormatted: String {
         if cpuPercent == floor(cpuPercent) {
             String(format: "%.0f%%", cpuPercent)
@@ -123,7 +104,6 @@ struct RunningProcess: Identifiable, Equatable {
         }
     }
 
-    /// Subtitle for search results display: "PID: 12345 | 256 MB | 5.0%"
     var resourceSubtitle: String {
         "PID: \(pid) | \(memoryFormatted) | \(cpuFormatted)"
     }
@@ -133,26 +113,17 @@ struct RunningProcess: Identifiable, Equatable {
     }
 }
 
-// MARK: - Process Search Service
-
-/// Service for fetching and searching running processes
-/// Uses libproc for accurate process information on macOS
 final class ProcessSearchService {
     static let shared = ProcessSearchService()
 
     private let logger = Logger(subsystem: "com.zest.app", category: "ProcessSearch")
 
-    /// Maximum number of results to return
     private let maxResults = 30
 
-    /// Message shown when no processes match the search
     static let noResultsMessage = "No matching processes found"
 
     private init() {}
 
-    // MARK: - Process Fetching
-
-    /// Fetches all running processes using sysctl
     func fetchRunningProcesses() -> [RunningProcess] {
         var processes: [RunningProcess] = []
 
@@ -287,9 +258,6 @@ final class ProcessSearchService {
             let processCopy = process
             let isKillAttempted = ProcessKillState.shared.hasAttemptedKill(pid: process.pid)
 
-            // Multi-Stage Kill Flow:
-            // 1. Initial State: Name, revealAction = gentle kill
-            // 2. Red State (if isKillAttempted): [FORCE KILL] Name, revealAction = force kill
             let displayTitle = isKillAttempted ? "[FORCE KILL] \(process.name)" : process.name
 
             return SearchResult(
@@ -299,11 +267,10 @@ final class ProcessSearchService {
                 category: .process,
                 action: { ProcessSearchService.activateProcess(processCopy) },
                 revealAction: {
-                    // This will handle both gentle and force kill based on ProcessKillState
                     ProcessSearchService.twoPhaseKillWithConfirmation(process: processCopy)
                 },
                 score: Int(process.cpuPercent * 10),
-                isWarning: isKillAttempted, // This triggers the Red style
+                isWarning: isKillAttempted,
                 isKillAttempted: isKillAttempted,
                 pid: process.pid
             )
@@ -331,7 +298,6 @@ final class ProcessSearchService {
         let result = kill(pid, SIGKILL)
         if result != 0 { return false }
 
-        // Wait for process to exit
         let start = Date()
         while Date().timeIntervalSince(start) < 5.0 {
             if kill(pid, 0) != 0 {
@@ -353,7 +319,6 @@ final class ProcessSearchService {
         }
     }
 
-    /// Attempts to kill a process and waits for it to exit
     static func attemptKill(pid: pid_t) -> KillResult {
         let hasAttempted = ProcessKillState.shared.hasAttemptedKill(pid: pid)
         let signal = hasAttempted ? SIGKILL : SIGTERM
@@ -369,13 +334,9 @@ final class ProcessSearchService {
             ProcessKillState.shared.clearKillAttempt(pid: pid)
         }
 
-        // --- VERIFICATION LOOP ---
-        // Wait up to 5 seconds for the process to actually disappear
         let start = Date()
         while Date().timeIntervalSince(start) < 5.0 {
-            // kill(pid, 0) checks if process exists without sending a signal
             if kill(pid, 0) != 0 {
-                // Process is gone!
                 ProcessKillState.shared.clearKillAttempt(pid: pid)
                 NotificationCenter.default.post(name: .processWasKilled, object: nil)
                 return .success
@@ -383,7 +344,6 @@ final class ProcessSearchService {
             Thread.sleep(forTimeInterval: 0.2)
         }
 
-        // If we reach here, process is still alive after 5s
         NotificationCenter.default.post(name: .processWasKilled, object: nil)
         return hasAttempted ? .failed(NSError(
             domain: "zest",

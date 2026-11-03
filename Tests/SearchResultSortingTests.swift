@@ -1,12 +1,10 @@
-import XCTest
+import AppKit
+import Testing
 @testable import ZestApp
 
-/// Tests for search result sorting behavior
-/// Verifies that when results are merged, they are sorted by score (descending), then by category
-final class SearchResultSortingTests: XCTestCase {
-
-    /// Tests that results with higher scores appear before lower scores
-    func test_sorting_higherScoreAppearsFirst() {
+@MainActor
+final class SearchResultSortingTests {
+    @Test func test_sorting_higherScoreAppearsFirst() {
         let results: [SearchResult] = [
             SearchResult(
                 title: "Low Score App",
@@ -38,13 +36,12 @@ final class SearchResultSortingTests: XCTestCase {
             SearchResult.rankedBefore(a, b)
         }
 
-        XCTAssertEqual(sorted[0].title, "High Score App")
-        XCTAssertEqual(sorted[1].title, "Medium Score App")
-        XCTAssertEqual(sorted[2].title, "Low Score App")
+        #expect(sorted[0].title == "High Score App")
+        #expect(sorted[1].title == "Medium Score App")
+        #expect(sorted[2].title == "Low Score App")
     }
 
-    /// Tests that when scores are equal, category determines order
-    func test_sorting_sameScore_usesCategoryOrder() {
+    @Test func test_sorting_sameScore_usesCategoryOrder() {
         let results: [SearchResult] = [
             SearchResult(
                 title: "Action Result",
@@ -76,15 +73,12 @@ final class SearchResultSortingTests: XCTestCase {
             SearchResult.rankedBefore(a, b)
         }
 
-        // Category order: application < action < file
-        XCTAssertEqual(sorted[0].category, .application)
-        XCTAssertEqual(sorted[1].category, .action)
-        XCTAssertEqual(sorted[2].category, .file)
+        #expect(sorted[0].category == .application)
+        #expect(sorted[1].category == .action)
+        #expect(sorted[2].category == .file)
     }
 
-    /// Tests merging fast results with file results and sorting by score
-    func test_merging_fastResultsAndFileResults_sortedByScore() {
-        // Simulate fast results (apps) - already have scores
+    @Test func test_merging_fastResultsAndFileResults_sortedByScore() {
         var fastResults: [SearchResult] = [
             SearchResult(
                 title: "Slack",
@@ -104,7 +98,6 @@ final class SearchResultSortingTests: XCTestCase {
             )
         ]
 
-        // Simulate file results from Spotlight
         let fileResults: [SearchResult] = [
             SearchResult(
                 title: "screenshot.png",
@@ -124,26 +117,23 @@ final class SearchResultSortingTests: XCTestCase {
             )
         ]
 
-        // Merge results (simulating what happens in CommandPaletteWindow)
         for fileResult in fileResults {
             if !fastResults.contains(where: { $0.title == fileResult.title }) {
                 fastResults.append(fileResult)
             }
         }
 
-        // Sort by score descending, then by category
         let sorted = fastResults.sorted { (a, b) -> Bool in
             SearchResult.rankedBefore(a, b)
         }
 
-        // Expected order: Safari(95) > package.swift(90) > Slack(80) > screenshot.png(60)
-        XCTAssertEqual(sorted[0].title, "Safari")
-        XCTAssertEqual(sorted[1].title, "package.swift")
-        XCTAssertEqual(sorted[2].title, "Slack")
-        XCTAssertEqual(sorted[3].title, "screenshot.png")
+        #expect(sorted[0].title == "Safari")
+        #expect(sorted[1].title == "package.swift")
+        #expect(sorted[2].title == "Slack")
+        #expect(sorted[3].title == "screenshot.png")
     }
 
-    func test_sorting_toolSourceBoostsAboveHigherScoreStandard() {
+    @Test func test_sorting_toolSourceBoostsAboveHigherScoreStandard() {
         let standardHigh = SearchResult(
             title: "Standard High",
             subtitle: "Application",
@@ -164,6 +154,6 @@ final class SearchResultSortingTests: XCTestCase {
         )
 
         let sorted = [standardHigh, toolLower].sorted(by: SearchResult.rankedBefore)
-        XCTAssertEqual(sorted.first?.title, "Tool Lower")
+        #expect(sorted.first?.title == "Tool Lower")
     }
 }

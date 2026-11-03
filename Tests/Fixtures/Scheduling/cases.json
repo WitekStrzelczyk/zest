@@ -1,0 +1,176 @@
+[
+  {
+    "name": "Coulomb Beach with Roger tomorrow 4pm",
+    "date": "2026-11-03", "time": "16:00", "place": "Coulomb Beach", "people": ["Roger"],
+    "sentences": [
+      "tomorrow meeting at Coulomb Beach with Roger at 4 p.m.",
+      "meet Roger at Coulomb Beach tmrw 4pm",
+      "Roger, Coulomb Beach, tomorrow 16:00",
+      "catch up with roger tomorrow arvo at 4 down at coulomb beach",
+      "can you put in a meeting with Roger for tomorrow at four in the afternoon at Coulomb Beach"
+    ]
+  },
+  {
+    "name": "call John just after meeting Roger",
+    "date": "2026-11-02", "time": "13:45", "people": ["John"],
+    "sentences": [
+      "schedule my call with John just after meeting Roger",
+      "call John once I'm done with Roger",
+      "ring john straight after the roger meeting",
+      "John call when my meeting with Roger ends",
+      "after Roger, call with John"
+    ]
+  },
+  {
+    "name": "lunch with Anna Friday 1pm at Cafe Nero",
+    "date": "2026-11-06", "time": "13:00", "place": "Cafe Nero", "people": ["Anna"],
+    "sentences": [
+      "lunch with Anna friday 1pm at Cafe Nero",
+      "Cafe Nero lunch w/ Anna on Fri at 1",
+      "friday lunch 13:00 Anna @ Cafe Nero",
+      "grab lunch with anna this friday at one, cafe nero",
+      "Anna lunch fri 1 pm cafe nero"
+    ]
+  },
+  {
+    "name": "design review Thursday at standup time",
+    "date": "2026-11-05", "time": "09:30", "people": [],
+    "sentences": [
+      "design review same time as standup but on Thursday",
+      "design review thursday at standup time",
+      "put a design review on thu when standup usually starts",
+      "Thursday design review, same slot as standup",
+      "design review on thursday at the same time as the standup"
+    ]
+  },
+  {
+    "name": "coffee with Mia 30 min after the 1:1 today",
+    "date": "2026-11-02", "time": "16:00", "people": ["Mia"],
+    "sentences": [
+      "coffee with Mia half an hour after my 1:1 today",
+      "coffee w Mia 30 min after the Sarah 1:1",
+      "Mia coffee, thirty minutes after I finish with Sarah today",
+      "coffee with mia today 30 mins after my one on one",
+      "half an hour after the 1:1 with Sarah, coffee with Mia"
+    ]
+  },
+  {
+    "name": "dentist on the 12th at 9:30",
+    "date": "2026-11-12", "time": "09:30", "people": [],
+    "sentences": [
+      "dentist on the 12th at 9:30",
+      "dentist appt 12th 9.30am",
+      "dentist 12 Nov half nine",
+      "book the dentist for the twelfth at 9:30 in the morning",
+      "12th - dentist - 09:30"
+    ]
+  },
+  {
+    "name": "30 min prep right before the board meeting",
+    "date": "2026-11-04", "time": "13:30", "durationMinutes": 30, "people": [],
+    "sentences": [
+      "30 minutes prep right before the board meeting",
+      "half an hour of prep just before the board meeting",
+      "prep for board mtg, 30 min, right before it",
+      "block 30 mins before the board meeting to prepare",
+      "board meeting prep 30m immediately before"
+    ]
+  },
+  {
+    "name": "an hour of slides ending 15 min before the board meeting",
+    "date": "2026-11-04", "time": "12:45", "durationMinutes": 60, "people": [],
+    "sentences": [
+      "book an hour to review slides, finishing 15 minutes before the board meeting",
+      "1 hour slide review that ends 15 min before the board meeting",
+      "review slides for an hour, done a quarter of an hour before the board meeting",
+      "slides review 60 min, wrap up 15 minutes ahead of the board meeting",
+      "an hour for the slides with a 15 minute buffer before the board meeting"
+    ]
+  },
+  {
+    "name": "2 hour workshop with Priya and Tom tomorrow afternoon at the office",
+    "date": "2026-11-03", "time": "14:00", "durationMinutes": 120, "place": "office", "people": ["Priya", "Tom"],
+    "sentences": [
+      "2 hour workshop with Priya and Tom tomorrow afternoon at the office",
+      "workshop w/ Priya + Tom tmrw arvo, 2 hrs, office",
+      "tomorrow afternoon: two-hour workshop with Tom and Priya in the office",
+      "Priya and Tom workshop at the office tomorrow afternoon for 2h",
+      "set up a 120 min workshop tomorrow afternoon at the office with priya and tom"
+    ]
+  },
+  {
+    "name": "45 min focus right after standup tomorrow",
+    "date": "2026-11-03", "time": "09:45", "durationMinutes": 45, "people": [],
+    "sentences": [
+      "block 45 min for focus right after standup tomorrow",
+      "45 min focus block after tomorrow's standup",
+      "tomorrow, straight after standup, 45 minutes of focus",
+      "deep work block of 45m following standup tmrw",
+      "after standup tomorrow, block forty-five minutes for focus"
+    ]
+  },
+  {
+    "name": "drinks with Roger the day after the board meeting at 6pm",
+    "date": "2026-11-05", "time": "18:00", "people": ["Roger"],
+    "sentences": [
+      "drinks with Roger the day after the board meeting at 6pm",
+      "day after the board meeting, drinks w Roger 6pm",
+      "drinks with roger at 6 the day after board meeting",
+      "Roger drinks 18:00, the day following the board meeting",
+      "the day after my board meeting grab drinks with Roger at six in the evening"
+    ]
+  },
+  {
+    "name": "catch up with Sarah in two weeks at the 1:1 time",
+    "date": "2026-11-16", "time": "15:00", "people": ["Sarah"],
+    "sentences": [
+      "catch up with Sarah in two weeks, same time as our 1:1",
+      "catch up w Sarah in a fortnight, same time as today's 1:1",
+      "Sarah catch-up 2 weeks from today at the time of our 1:1",
+      "in 14 days catch up with Sarah, same slot as the 1:1",
+      "two weeks from now, catch up with sarah at the same time as my 1:1 with her"
+    ]
+  },
+  {
+    "name": "quick sync with Roger right before lunch tomorrow",
+    "date": "2026-11-03", "time": "12:00", "end": "12:30", "people": ["Roger"],
+    "sentences": [
+      "quick sync with Roger right before his lunch tomorrow",
+      "quick sync with Roger just before our lunch tomorrow",
+      "tomorrow, right before lunch with Roger, a quick sync with him",
+      "short sync with roger immediately before tomorrow's lunch",
+      "sync with Roger tmrw, ending when our lunch starts"
+    ]
+  },
+  {
+    "name": "dinner with Kate on Saturday, no time",
+    "date": "2026-11-07", "people": ["Kate"],
+    "sentences": [
+      "dinner with Kate on Saturday",
+      "sat dinner w kate",
+      "dinner Kate this saturday",
+      "have dinner with Kate saturday",
+      "saturday: dinner with kate"
+    ]
+  },
+  {
+    "name": "call mum, no day or time",
+    "sentences": [
+      "call mum",
+      "remind me to ring mum",
+      "phone call with mom",
+      "need to call my mother",
+      "mum call"
+    ]
+  },
+  {
+    "name": "accountant sometime next week, no day or time",
+    "sentences": [
+      "meeting with the accountant sometime next week",
+      "accountant meeting next week at some point",
+      "see the accountant next week",
+      "catch up with accountant whenever next week",
+      "next week sometime: accountant"
+    ]
+  }
+]

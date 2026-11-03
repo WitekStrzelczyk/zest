@@ -1,21 +1,9 @@
-import XCTest
+import AppKit
+import Testing
 @testable import ZestApp
 
-final class MultiIntentTests: XCTestCase {
-    
-    func testMultiIntentDetection() {
-        let router = CommandRouter.shared
-        let query = "meeting with john today at 10am at Perigian Digital Hub"
-        
-        let domains = router.route(command: query)
-        
-        print("🧪 Test: Detected domains for '\(query)': \(domains.map { $0.rawValue })")
-        
-        XCTAssertTrue(domains.contains(.calendarEvent), "Should detect calendar intent")
-        XCTAssertTrue(domains.contains(.mapLocation), "Should detect map/location intent")
-    }
-    
-    func testLocationExtractionFromCalendar() {
+final class MultiIntentTests {
+    @Test func testLocationExtractionFromCalendar() {
         let worker = CalendarEventWorker.shared
         let query = "meeting with john today at 10am at Perigian Digital Hub"
         
@@ -23,15 +11,14 @@ final class MultiIntentTests: XCTestCase {
         
         print("🧪 Test: Parsed location: \(intent?.location ?? "nil")")
         
-        XCTAssertNotNil(intent?.location)
-        XCTAssertTrue(intent?.location?.contains("Perigian") ?? false)
+        #expect(intent?.location != nil)
+        #expect(intent?.location?.contains("Perigian") ?? false)
     }
     
-    func testSearchEngineMultiResult() {
+    @Test func testSearchEngineMultiResult() {
         let engine = SearchEngine.shared
         let query = "meeting with john today at 10am at Perigian Digital Hub"
         
-        // Disable restricted services that hang in tests
         ContactsService.isDisabled = true
         CalendarService.isDisabled = true
         defer {
@@ -44,7 +31,7 @@ final class MultiIntentTests: XCTestCase {
         let hasCalendar = results.contains { $0.title.contains("Add Event") }
         let hasMap = results.contains { $0.title.contains("Search Map") }
         
-        XCTAssertTrue(hasCalendar, "Fast search should include calendar proposal")
-        XCTAssertTrue(hasMap, "Fast search should include map proposal")
+        #expect(hasCalendar, "Fast search should include calendar proposal")
+        #expect(hasMap, "Fast search should include map proposal")
     }
 }

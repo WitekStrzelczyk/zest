@@ -1,42 +1,39 @@
-import XCTest
+import AppKit
+import Testing
 @testable import ZestApp
 
-final class SearchTracerTests: XCTestCase {
-    
+@MainActor
+final class SearchTracerTests {
     var tracer: SearchTracer!
     
-    override func setUp() {
-        super.setUp()
+    init() {
         tracer = SearchTracer.shared
         tracer.setOutputEnabled(true)
     }
     
-    override func tearDown() {
+    isolated deinit {
         tracer.setOutputEnabled(false)
-        super.tearDown()
     }
     
-    // MARK: - Span Tests
-    
-    func test_span_recordsDuration() {
+    @Test func test_span_recordsDuration() {
         let span = SearchSpan(operationName: "test")
-        Thread.sleep(forTimeInterval: 0.01) // 10ms
+        Thread.sleep(forTimeInterval: 0.01)
         span.finish()
         
-        XCTAssertGreaterThanOrEqual(span.durationMs, 10)
+        #expect(span.durationMs >= 10)
     }
     
-    func test_span_recordsTags() {
+    @Test func test_span_recordsTags() {
         let span = SearchSpan(operationName: "test")
         span.setTag("query", "test query")
         span.setTag("count", 5)
         span.finish()
         
-        XCTAssertEqual(span.tags["query"] as? String, "test query")
-        XCTAssertEqual(span.tags["count"] as? Int, 5)
+        #expect((span.tags["query"] as? String) == "test query")
+        #expect((span.tags["count"] as? Int) == 5)
     }
     
-    func test_span_recordsChildren() {
+    @Test func test_span_recordsChildren() {
         let parent = SearchSpan(operationName: "parent")
         let child1 = parent.createChild(operationName: "child1")
         let child2 = parent.createChild(operationName: "child2")
@@ -45,36 +42,32 @@ final class SearchTracerTests: XCTestCase {
         child2.finish()
         parent.finish()
         
-        XCTAssertEqual(parent.children.count, 2)
-        XCTAssertEqual(parent.children[0].operationName, "child1")
-        XCTAssertEqual(parent.children[1].operationName, "child2")
+        #expect(parent.children.count == 2)
+        #expect(parent.children[0].operationName == "child1")
+        #expect(parent.children[1].operationName == "child2")
     }
     
-    func test_span_totalDuration_includesChildren() {
+    @Test func test_span_totalDuration_includesChildren() {
         let parent = SearchSpan(operationName: "parent")
         let child = parent.createChild(operationName: "child")
         Thread.sleep(forTimeInterval: 0.01)
         child.finish()
         parent.finish()
         
-        XCTAssertGreaterThanOrEqual(parent.totalDurationMs, parent.durationMs)
+        #expect(parent.totalDurationMs >= parent.durationMs)
     }
     
-    // MARK: - TraceSpan Tests
-    
-    func test_traceSpan_convenienceMethods() {
+    @Test func test_traceSpan_convenienceMethods() {
         let span = SearchTraceSpan(operationName: "search")
         span.setQuery("test")
         span.setResultsCount(5)
         span.finish()
         
-        XCTAssertEqual(span.tags["query"] as? String, "test")
-        XCTAssertEqual(span.tags["results_count"] as? Int, 5)
+        #expect((span.tags["query"] as? String) == "test")
+        #expect((span.tags["results_count"] as? Int) == 5)
     }
     
-    // MARK: - Output Tests
-    
-    func test_span_toString() {
+    @Test func test_span_toString() {
         let parent = SearchSpan(operationName: "search")
         parent.setTag("query", "test")
         
@@ -85,23 +78,23 @@ final class SearchTracerTests: XCTestCase {
         parent.finish()
         
         let output = parent.toString()
-        XCTAssertTrue(output.contains("search"))
-        XCTAssertTrue(output.contains("applications"))
-        XCTAssertTrue(output.contains("query=test"))
-        XCTAssertTrue(output.contains("results=3"))
+        #expect(output.contains("search"))
+        #expect(output.contains("applications"))
+        #expect(output.contains("query=test"))
+        #expect(output.contains("results=3"))
     }
     
-    func test_span_toDictionary() {
+    @Test func test_span_toDictionary() {
         let span = SearchSpan(operationName: "test")
         span.setTag("key", "value")
         span.finish()
         
         let dict = span.toDictionary()
         
-        XCTAssertEqual(dict["operation"] as? String, "test")
-        XCTAssertNotNil(dict["duration_ms"])
-        XCTAssertNotNil(dict["start_time"])
-        XCTAssertNotNil(dict["end_time"])
-        XCTAssertNotNil(dict["tags"])
+        #expect((dict["operation"] as? String) == "test")
+        #expect(dict["duration_ms"] != nil)
+        #expect(dict["start_time"] != nil)
+        #expect(dict["end_time"] != nil)
+        #expect(dict["tags"] != nil)
     }
 }

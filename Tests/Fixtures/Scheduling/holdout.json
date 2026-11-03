@@ -1,0 +1,90 @@
+[
+  {
+    "name": "yoga Wednesday 7am",
+    "date": "2026-11-04", "time": "07:00", "people": [],
+    "sentences": [
+      "yoga wednesday 7am",
+      "Wed 7 a.m. yoga",
+      "yoga class on wednesday at 07:00",
+      "book yoga for wednesday morning at 7am",
+      "yoga - wed - 7am"
+    ]
+  },
+  {
+    "name": "call with Lisa after the product review",
+    "date": "2026-11-03", "time": "12:00", "people": ["Lisa"],
+    "sentences": [
+      "call Lisa after the product review",
+      "phone Lisa once product review wraps up",
+      "Lisa call right after product review",
+      "after the product review, a call with Lisa",
+      "catch Lisa on a call when the product review is over"
+    ]
+  },
+  {
+    "name": "team dinner Friday 7:30pm at Sushi Train",
+    "date": "2026-11-06", "time": "19:30", "place": "Sushi Train", "people": [],
+    "sentences": [
+      "team dinner friday 7:30pm at Sushi Train",
+      "Sushi Train team dinner fri 19:30",
+      "friday team dinner at sushi train, 7.30 pm",
+      "book team dinner at Sushi Train on Friday at half seven",
+      "Team dinner — Sushi Train — Friday 7:30 pm"
+    ]
+  },
+  {
+    "name": "1 hour code review with Dev and Maya tomorrow 10am",
+    "date": "2026-11-03", "time": "10:00", "durationMinutes": 60, "people": ["Dev", "Maya"],
+    "sentences": [
+      "1 hour code review with Dev and Maya tomorrow at 10am",
+      "code review w/ Maya & Dev tmrw 10am, 60 mins",
+      "tomorrow 10:00 code review with dev and maya for an hour",
+      "set up an hour-long code review with Dev and Maya tomorrow at 10 a.m.",
+      "Dev + Maya code review 10am tomorrow, 1h"
+    ]
+  },
+  {
+    "name": "15 min break 10 min after the board meeting",
+    "date": "2026-11-04", "time": "15:10", "durationMinutes": 15, "people": [],
+    "sentences": [
+      "15 min break 10 minutes after the board meeting",
+      "take a 15 minute break ten minutes after board meeting ends",
+      "break for 15 mins, 10 mins after the board meeting",
+      "10 min after the board meeting, a 15 min break",
+      "quarter hour break 10 minutes after the board mtg"
+    ]
+  },
+  {
+    "name": "gym the day after tomorrow at 6pm",
+    "date": "2026-11-04", "time": "18:00", "people": [],
+    "sentences": [
+      "gym the day after tomorrow at 6pm",
+      "workout day after tomorrow 6 pm",
+      "gym session on wednesday at 18:00",
+      "the day after tomorrow, gym at 6 in the evening",
+      "gym wed 6pm"
+    ]
+  },
+  {
+    "name": "pick up the kids Thursday 3:15pm",
+    "date": "2026-11-05", "time": "15:15", "people": [],
+    "sentences": [
+      "pick up the kids thursday 3:15pm",
+      "kids pickup thu 3.15pm",
+      "school pickup on Thursday at 15:15",
+      "remind me to collect the kids on thursday at quarter past three",
+      "Thursday 3:15 pm - pick up kids"
+    ]
+  },
+  {
+    "name": "lunch with Tom on the 20th at noon at the Italian place",
+    "date": "2026-11-20", "time": "12:00", "place": "Italian place", "people": ["Tom"],
+    "sentences": [
+      "lunch with Tom on the 20th at noon at the Italian place",
+      "Tom lunch 20 Nov 12pm, Italian place",
+      "lunch w tom 20th midday at the italian place",
+      "grab lunch with Tom at the Italian place on November 20 at 12:00",
+      "20th: lunch with Tom, noon, Italian place"
+    ]
+  }
+]

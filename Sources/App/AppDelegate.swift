@@ -1,50 +1,31 @@
 import AppKit
 import Carbon
+import Combine
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var commandPaletteWindow: CommandPaletteWindow?
 
-    /// Global hotkey identifiers for cleanup
     private var registeredHotkeyIds: [HotkeyIdentifier] = []
+    private var themeSubscription: AnyCancellable?
 
     func applicationDidFinishLaunching(_: Notification) {
-        // Sync launch at login preference with system
         LaunchAtLoginService.shared.enabled = PreferencesManager.shared.launchAtLogin
 
-        // Apply saved awake preference if system is not already caffeinated
         AwakeService.shared.applySavedPreference()
+        themeSubscription = AppStyle.followTheme(of: PreferencesManager.shared)
 
-        setupMainMenu()
+        NSApp.mainMenu = Self.makeMainMenu()
         setupMenuBar()
         setupGlobalCommandHotkeys()
         setupColorPickerNotifications()
 
-        // Register color picker plugin
         ColorPickerPlugin.shared.onRegister()
-
-        // Setup scheduler for recurring tasks (calendar cache refresh, etc.)
-        setupScheduler()
-    }
-
-    private func setupScheduler() {
-        // Register calendar cache refresh task (every 10 minutes)
-        SchedulerService.shared.register(
-            id: SchedulerService.TaskID.calendarCacheRefresh,
-            intervalMinutes: 10
-        ) {
-            await CalendarService.shared.refreshCache()
-        }
-
-        // Start the scheduler (runs all tasks immediately, then on interval)
-        SchedulerService.shared.start()
     }
 
     func applicationWillTerminate(_: Notification) {
         GlobalHotkeyManager.shared.unregisterAll()
     }
-
-    // MARK: - Color Picker Notifications
 
     private func setupColorPickerNotifications() {
         NotificationCenter.default.addObserver(
@@ -61,9 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: - Main Menu (enables standard edit shortcuts in text fields)
-
-    private func setupMainMenu() {
+    static func makeMainMenu() -> NSMenu {
         let mainMenu = NSMenu()
 
         let appMenuItem = NSMenuItem()
@@ -88,10 +67,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         editMenuItem.submenu = editMenu
         mainMenu.addItem(editMenuItem)
 
-        NSApp.mainMenu = mainMenu
+        return mainMenu
     }
-
-    // MARK: - Menu Bar
 
     private func setupMenuBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -139,13 +116,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.terminate(nil)
     }
 
-    // MARK: - Global Command Hotkeys
-
     private func setupGlobalCommandHotkeys() {
         let hotkeyManager = GlobalHotkeyManager.shared
         let commandsService = GlobalCommandsService.shared
 
-        // Register Cmd+Space for command palette toggle (highest priority)
         let cmdSpaceId = hotkeyManager.register(
             keyCode: UInt32(kVK_Space),
             modifiers: UInt32(cmdKey)
@@ -156,7 +130,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         registeredHotkeyIds.append(cmdSpaceId)
 
-        // Register each global command
         for command in commandsService.availableCommands {
             let identifier = hotkeyManager.register(
                 keyCode: command.keyCode,
@@ -166,8 +139,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             registeredHotkeyIds.append(identifier)
         }
     }
-
-    // MARK: - Command Palette
 
     private func toggleCommandPalette() {
         if let window = commandPaletteWindow, window.isVisible {

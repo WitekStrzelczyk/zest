@@ -1,144 +1,118 @@
-import XCTest
+import AppKit
+import Testing
 @testable import ZestApp
 
-/// Tests for BatteryService - Battery information retrieval
-final class BatteryServiceTests: XCTestCase {
-    
+@MainActor
+final class BatteryServiceTests {
     var sut: BatteryService!
     
-    override func setUp() {
-        super.setUp()
+    init() {
         sut = BatteryService.shared
     }
     
-    override func tearDown() {
+    isolated deinit {
         sut = nil
-        super.tearDown()
     }
     
-    // MARK: - Singleton Tests
-    
-    func testBatteryServiceCreation() {
-        XCTAssertNotNil(sut)
+    @Test func testBatteryServiceCreation() {
+        #expect(sut != nil)
     }
     
-    func testBatteryServiceSingleton() {
+    @Test func testBatteryServiceSingleton() {
         let service1 = BatteryService.shared
         let service2 = BatteryService.shared
-        XCTAssertTrue(service1 === service2)
+        #expect(service1 === service2)
     }
     
-    // MARK: - Battery Info Tests
-    
-    func testGetBatteryInfoReturnsValidPercentage() {
+    @Test func testGetBatteryInfoReturnsValidPercentage() {
         let info = sut.getBatteryInfo()
         
-        // Percentage should be between 0 and 100
-        XCTAssertGreaterThanOrEqual(info.percentage, 0.0, "Battery percentage should be >= 0%")
-        XCTAssertLessThanOrEqual(info.percentage, 100.0, "Battery percentage should be <= 100%")
+        #expect(info.percentage >= 0.0, "Battery percentage should be >= 0%")
+        #expect(info.percentage <= 100.0, "Battery percentage should be <= 100%")
     }
     
-    func testGetBatteryInfoReturnsValidCycleCount() {
+    @Test func testGetBatteryInfoReturnsValidCycleCount() {
         let info = sut.getBatteryInfo()
         
-        // Cycle count should be non-negative
-        XCTAssertGreaterThanOrEqual(info.cycleCount, 0, "Cycle count should be >= 0")
+        #expect(info.cycleCount >= 0, "Cycle count should be >= 0")
     }
     
-    func testGetBatteryInfoReturnsChargingStatus() {
+    @Test func testGetBatteryInfoReturnsChargingStatus() {
         let info = sut.getBatteryInfo()
         
-        // Charging status should be one of the defined cases
         let validStates: [ChargingState] = [.charging, .discharging, .fullyCharged, .notCharging, .unknown]
-        XCTAssertTrue(validStates.contains(info.chargingState), "Charging state should be valid")
+        #expect(validStates.contains(info.chargingState), "Charging state should be valid")
     }
     
-    func testGetBatteryInfoReturnsHealthPercentage() {
+    @Test func testGetBatteryInfoReturnsHealthPercentage() {
         let info = sut.getBatteryInfo()
         
-        // Health percentage should be between 0 and 100 (or -1 for unavailable)
-        XCTAssertGreaterThanOrEqual(info.healthPercentage, -1.0, "Health percentage should be >= -1")
-        XCTAssertLessThanOrEqual(info.healthPercentage, 100.0, "Health percentage should be <= 100%")
+        #expect(info.healthPercentage >= -1.0, "Health percentage should be >= -1")
+        #expect(info.healthPercentage <= 100.0, "Health percentage should be <= 100%")
         
-        // If health is available (not -1), it should be either:
-        // - A reasonable value (> 0%), OR
-        // - -1 (unavailable)
-        // A very low positive value like 1% indicates a bug where we couldn't read the value correctly
         if info.healthPercentage >= 0 {
-            XCTAssertGreaterThan(info.healthPercentage, 5.0, 
-                "Health percentage should be > 5% if available - a very low value like 1% indicates a read error")
+            #expect(info.healthPercentage > 5.0, "Health percentage should be > 5% if available - a very low value like 1% indicates a read error")
         }
     }
     
-    func testGetBatteryInfoReturnsHasBatteryFlag() {
+    @Test func testGetBatteryInfoReturnsHasBatteryFlag() {
         let info = sut.getBatteryInfo()
         
-        // hasBattery should be a boolean - just verify the property exists and is accessible
-        // On desktop Macs, this will be false. On laptops, this will typically be true.
-        // We can't predict the value, but we can verify it's a valid boolean
         let hasBattery = info.hasBattery
-        XCTAssertTrue(hasBattery == true || hasBattery == false, "hasBattery should be a valid boolean")
+        #expect(hasBattery == true || hasBattery == false, "hasBattery should be a valid boolean")
     }
     
-    func testGetBatteryInfoReturnsTimeRemaining() {
+    @Test func testGetBatteryInfoReturnsTimeRemaining() {
         let info = sut.getBatteryInfo()
         
-        // Time remaining should be >= -1 (negative means calculating or unknown)
-        XCTAssertGreaterThanOrEqual(info.timeRemaining, -1, "Time remaining should be >= -1")
+        #expect(info.timeRemaining >= -1, "Time remaining should be >= -1")
     }
     
-    // MARK: - Warning Status Tests
-    
-    func testIsLowBatteryReturnsCorrectValue() {
-        // This tests the logic, not the actual battery state
+    @Test func testIsLowBatteryReturnsCorrectValue() {
         let info = sut.getBatteryInfo()
         
         if info.percentage < 20 && !info.isCharging {
-            XCTAssertTrue(sut.isLowBattery(info), "Should be low battery when < 20% and not charging")
+            #expect(sut.isLowBattery(info), "Should be low battery when < 20% and not charging")
         } else {
-            XCTAssertFalse(sut.isLowBattery(info) && info.percentage >= 20, "Should not be low battery at >= 20%")
+            #expect(!(sut.isLowBattery(info) && info.percentage >= 20), "Should not be low battery at >= 20%")
         }
     }
     
-    // MARK: - Search Results Tests
-    
-    func testSearchBatteryReturnsResults() {
+    @Test func testSearchBatteryReturnsResults() {
         let results = sut.search(query: "battery")
-        XCTAssertFalse(results.isEmpty, "Search for 'battery' should return results")
+        #expect(!results.isEmpty, "Search for 'battery' should return results")
     }
     
-    func testSearchBatteryIncludesPercentageInTitle() {
+    @Test func testSearchBatteryIncludesPercentageInTitle() {
         let results = sut.search(query: "battery")
         guard let first = results.first else {
-            XCTFail("Should have at least one result")
+            Issue.record("Should have at least one result")
             return
         }
-        XCTAssertTrue(first.title.contains("%") || first.title.contains("Battery"), "Title should contain battery info")
+        #expect(first.title.contains("%") || first.title.contains("Battery"), "Title should contain battery info")
     }
     
-    func testSearchPowerReturnsResults() {
+    @Test func testSearchPowerReturnsResults() {
         let results = sut.search(query: "power")
-        XCTAssertFalse(results.isEmpty, "Search for 'power' should return battery results")
+        #expect(!results.isEmpty, "Search for 'power' should return battery results")
     }
     
-    func testSearchChargeReturnsResults() {
+    @Test func testSearchChargeReturnsResults() {
         let results = sut.search(query: "charge")
-        XCTAssertFalse(results.isEmpty, "Search for 'charge' should return battery results")
+        #expect(!results.isEmpty, "Search for 'charge' should return battery results")
     }
     
-    func testEmptySearchReturnsEmpty() {
+    @Test func testEmptySearchReturnsEmpty() {
         let results = sut.search(query: "")
-        XCTAssertTrue(results.isEmpty, "Empty search should return no results")
+        #expect(results.isEmpty, "Empty search should return no results")
     }
     
-    func testUnrelatedSearchReturnsEmpty() {
+    @Test func testUnrelatedSearchReturnsEmpty() {
         let results = sut.search(query: "xyzabc123notreal")
-        XCTAssertTrue(results.isEmpty, "Unrelated search should return no results")
+        #expect(results.isEmpty, "Unrelated search should return no results")
     }
     
-    // MARK: - Formatting Tests
-    
-    func testFormatBatteryInfoIncludesPercentage() {
+    @Test func testFormatBatteryInfoIncludesPercentage() {
         let info = BatteryInfo(
             percentage: 75.0,
             cycleCount: 100,
@@ -148,11 +122,10 @@ final class BatteryServiceTests: XCTestCase {
             timeRemaining: 240
         )
         let formatted = sut.formatBatteryInfo(info)
-        // Check for "Discharging" instead of percentage since percentage is shown in title
-        XCTAssertTrue(formatted.contains("Discharging"), "Formatted info should include charging state")
+        #expect(formatted.contains("Discharging"), "Formatted info should include charging state")
     }
     
-    func testFormatBatteryInfoIncludesCycleCount() {
+    @Test func testFormatBatteryInfoIncludesCycleCount() {
         let info = BatteryInfo(
             percentage: 75.0,
             cycleCount: 100,
@@ -162,10 +135,10 @@ final class BatteryServiceTests: XCTestCase {
             timeRemaining: 240
         )
         let formatted = sut.formatBatteryInfo(info)
-        XCTAssertTrue(formatted.contains("100"), "Formatted info should include cycle count")
+        #expect(formatted.contains("100"), "Formatted info should include cycle count")
     }
     
-    func testFormatBatteryInfoIncludesHealth() {
+    @Test func testFormatBatteryInfoIncludesHealth() {
         let info = BatteryInfo(
             percentage: 75.0,
             cycleCount: 100,
@@ -175,44 +148,40 @@ final class BatteryServiceTests: XCTestCase {
             timeRemaining: 240
         )
         let formatted = sut.formatBatteryInfo(info)
-        XCTAssertTrue(formatted.contains("95"), "Formatted info should include health percentage")
+        #expect(formatted.contains("95"), "Formatted info should include health percentage")
     }
     
-    func testFormatChargingStateCharging() {
+    @Test func testFormatChargingStateCharging() {
         let state: ChargingState = .charging
-        XCTAssertEqual(sut.formatChargingState(state), "Charging")
+        #expect(sut.formatChargingState(state) == "Charging")
     }
     
-    func testFormatChargingStateDischarging() {
+    @Test func testFormatChargingStateDischarging() {
         let state: ChargingState = .discharging
-        XCTAssertEqual(sut.formatChargingState(state), "Discharging")
+        #expect(sut.formatChargingState(state) == "Discharging")
     }
     
-    func testFormatChargingStateFullyCharged() {
+    @Test func testFormatChargingStateFullyCharged() {
         let state: ChargingState = .fullyCharged
-        XCTAssertEqual(sut.formatChargingState(state), "Fully Charged")
+        #expect(sut.formatChargingState(state) == "Fully Charged")
     }
     
-    func testFormatTimeRemaining() {
-        // 240 minutes = 4 hours
+    @Test func testFormatTimeRemaining() {
         let formatted = sut.formatTimeRemaining(240)
-        XCTAssertTrue(formatted.contains("4") && formatted.contains("hr"), "Should format 240 minutes as 4 hours")
+        #expect(formatted.contains("4") && formatted.contains("hr"), "Should format 240 minutes as 4 hours")
     }
     
-    func testFormatTimeRemainingShortDuration() {
-        // 30 minutes
+    @Test func testFormatTimeRemainingShortDuration() {
         let formatted = sut.formatTimeRemaining(30)
-        XCTAssertTrue(formatted.contains("30") && formatted.contains("min"), "Should format 30 minutes")
+        #expect(formatted.contains("30") && formatted.contains("min"), "Should format 30 minutes")
     }
     
-    func testFormatTimeRemainingUnknown() {
+    @Test func testFormatTimeRemainingUnknown() {
         let formatted = sut.formatTimeRemaining(-1)
-        XCTAssertEqual(formatted, "Calculating...", "Should show 'Calculating...' for unknown time")
+        #expect(formatted == "Calculating...", "Should show 'Calculating...' for unknown time")
     }
     
-    // MARK: - Copy to Clipboard Tests
-    
-    func testCopyBatteryInfoToClipboard() {
+    @Test func testCopyBatteryInfoToClipboard() {
         let info = BatteryInfo(
             percentage: 75.0,
             cycleCount: 100,
@@ -224,10 +193,9 @@ final class BatteryServiceTests: XCTestCase {
         
         sut.copyToClipboard(info)
         
-        // Verify clipboard contains battery info
         let pasteboard = NSPasteboard.general
         let clipboardContent = pasteboard.string(forType: .string)
-        XCTAssertNotNil(clipboardContent, "Clipboard should have content")
-        XCTAssertTrue(clipboardContent?.contains("Battery") ?? false, "Clipboard should contain 'Battery'")
+        #expect(clipboardContent != nil, "Clipboard should have content")
+        #expect(clipboardContent?.contains("Battery") ?? false, "Clipboard should contain 'Battery'")
     }
 }

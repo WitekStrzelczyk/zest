@@ -1,77 +1,53 @@
 import Carbon
-import XCTest
+import AppKit
+import Testing
 @testable import ZestApp
 
-/// Tests for GlobalCommandsService - defines available global commands
-final class GlobalCommandsServiceTests: XCTestCase {
-
+@MainActor
+final class GlobalCommandsServiceTests {
     var commandsService: GlobalCommandsService!
 
-    override func setUp() {
-        super.setUp()
+    init() {
         commandsService = GlobalCommandsService.shared
     }
 
-    override func tearDown() {
+    isolated deinit {
         commandsService = nil
-        super.tearDown()
     }
 
-    // MARK: - Open Spotify Tests
-
-    func test_openSpotify_returnsTrue() {
-        // Given/When
+    @Test func test_openSpotify_returnsTrue() {
         let result = commandsService.openSpotify()
 
-        // Then - returns true if Spotify is available or launches successfully
-        // Note: May return false if Spotify is not installed
-        XCTAssertTrue(result || !result, "openSpotify should return a boolean")
+        #expect(result || !result, "openSpotify should return a boolean")
     }
 
-    // MARK: - Maximize Window Tests
+    @Test func test_maximizeWindow_usesWindowManager() {
+        _ = WindowManager.shared
 
-    func test_maximizeWindow_usesWindowManager() {
-        // Given - WindowManager is a singleton
-        let windowManager = WindowManager.shared
-        XCTAssertNotNil(windowManager, "WindowManager should be available")
-
-        // When - calling maximizeWindow
         _ = commandsService.maximizeWindow()
 
-        // Then - No crash means it delegated to WindowManager
-        XCTAssertTrue(true, "maximizeWindow should delegate to WindowManager")
+        #expect(true, "maximizeWindow should delegate to WindowManager")
     }
 
-    // MARK: - Command Registration Tests
-
-    func test_commands_returnsListOfAvailableCommands() {
-        // When
+    @Test func test_commands_returnsListOfAvailableCommands() {
         let commands = commandsService.availableCommands
 
-        // Then
-        XCTAssertGreaterThan(commands.count, 0, "Should have available commands")
+        #expect(commands.count > 0, "Should have available commands")
     }
 
-    func test_commands_includesOpenSpotify() {
-        // When
+    @Test func test_commands_includesOpenSpotify() {
         let commands = commandsService.availableCommands
 
-        // Then
-        XCTAssertTrue(commands.contains { $0.name == "Open Spotify" }, "Should include Open Spotify command")
+        #expect(commands.contains { $0.name == "Open Spotify" }, "Should include Open Spotify command")
     }
 
-    func test_commands_includesMaximizeWindow() {
-        // When
+    @Test func test_commands_includesMaximizeWindow() {
         let commands = commandsService.availableCommands
 
-        // Then
-        XCTAssertTrue(commands.contains { $0.name == "Maximize Window" }, "Should include Maximize Window command")
+        #expect(commands.contains { $0.name == "Maximize Window" }, "Should include Maximize Window command")
     }
 
-    // MARK: - Command Model Tests
-
-    func test_globalCommand_hasCorrectProperties() {
-        // Given
+    @Test func test_globalCommand_hasCorrectProperties() {
         let command = GlobalCommand(
             name: "Test Command",
             keyCode: 46,
@@ -80,10 +56,9 @@ final class GlobalCommandsServiceTests: XCTestCase {
             shortcutDisplay: "⌥⌘P"
         ) {}
 
-        // Then
-        XCTAssertEqual(command.name, "Test Command")
-        XCTAssertEqual(command.keyCode, 46)
-        XCTAssertEqual(command.modifiers, UInt32(optionKey | cmdKey))
-        XCTAssertEqual(command.description, "A test command")
+        #expect(command.name == "Test Command")
+        #expect(command.keyCode == 46)
+        #expect(command.modifiers == UInt32(optionKey | cmdKey))
+        #expect(command.description == "A test command")
     }
 }

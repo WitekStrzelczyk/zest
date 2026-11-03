@@ -68,7 +68,12 @@ run_swiftpm() {
   fi
 
   echo "Running via SwiftPM fallback..."
-  exec swift run
+  swift build
+  local bin_dir
+  bin_dir="$(swift build --show-bin-path)"
+  echo "Launching: ${bin_dir}/Zest"
+  export DYLD_FALLBACK_FRAMEWORK_PATH="${bin_dir}:/Library/Frameworks:/System/Library/Frameworks"
+  exec "${bin_dir}/Zest"
 }
 
 if [[ "$CLEAN_BUILD" -eq 1 ]]; then

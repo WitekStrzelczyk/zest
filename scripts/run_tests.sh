@@ -39,12 +39,14 @@ swift build 2>&1 | grep -E "(error:|warning:|Build complete)" || true
 # Run tests with timeout
 echo "🧪 Testing..."
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+TESTING_PLUGINS="$(cd "$(dirname "$(xcrun -f swift)")/../lib/swift/host/plugins/testing" && pwd)"
+TEST_FLAGS=(--no-parallel --disable-xctest -Xswiftc -plugin-path -Xswiftc "$TESTING_PLUGINS")
 
 if [[ -f "$SCRIPT_DIR/timeout.sh" ]]; then
-    "$SCRIPT_DIR/timeout.sh" "$TIMEOUT" swift test $COVERAGE
+    "$SCRIPT_DIR/timeout.sh" "$TIMEOUT" swift test $COVERAGE "${TEST_FLAGS[@]}"
 else
     # Fallback: simple background + wait
-    swift test $COVERAGE &
+    swift test $COVERAGE "${TEST_FLAGS[@]}" &
     TEST_PID=$!
     
     COUNT=0
