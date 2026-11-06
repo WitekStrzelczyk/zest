@@ -28,6 +28,7 @@ final class SearchEngine {
         TimeZoneConverterService.shared,
         CalendarService.shared,
         ContactsService.shared,
+        SystemSettingsSearch.shared,
     ]
     private let fileSearchPrefix = "file:"
     private var currentSearchTask: Task<[SearchResult], Never>?

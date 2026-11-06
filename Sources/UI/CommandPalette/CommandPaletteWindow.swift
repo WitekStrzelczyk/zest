@@ -376,7 +376,7 @@ final class CommandPaletteWindow: NSPanel {
 
     private let actionBarOptionLabels: [String] = ["convert", "translate"]
 
-    private let contextualBarHeight: CGFloat = 36
+    private let contextualBarHeight: CGFloat = 28
 
     private var actionBarScrollViewTopConstraint: NSLayoutConstraint?
 
@@ -524,23 +524,23 @@ final class CommandPaletteWindow: NSPanel {
         let leftStack = NSStackView()
         leftStack.orientation = .horizontal
         leftStack.alignment = .centerY
-        leftStack.spacing = 16
+        leftStack.spacing = 14
         leftStack.translatesAutoresizingMaskIntoConstraints = false
 
         let prefStack = NSStackView()
         prefStack.orientation = .horizontal
         prefStack.alignment = .centerY
-        prefStack.spacing = 6
+        prefStack.spacing = 5
         prefStack.translatesAutoresizingMaskIntoConstraints = false
         preferencesIconView = NSImageView(image: NSImage(
             systemSymbolName: "gearshape.fill",
             accessibilityDescription: "Preferences"
         ) ?? NSImage())
-        preferencesIconView.contentTintColor = AppStyle.Palette.secondaryText
+        preferencesIconView.contentTintColor = AppStyle.Palette.tertiaryText
         preferencesIconView.translatesAutoresizingMaskIntoConstraints = false
         preferencesLabel = NSTextField(labelWithString: "Preferences")
-        preferencesLabel.font = NSFont.systemFont(ofSize: 12, weight: .medium)
-        preferencesLabel.textColor = AppStyle.Palette.secondaryText
+        preferencesLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+        preferencesLabel.textColor = AppStyle.Palette.tertiaryText
         preferencesLabel.translatesAutoresizingMaskIntoConstraints = false
         prefStack.addArrangedSubview(preferencesIconView)
         prefStack.addArrangedSubview(preferencesLabel)
@@ -549,17 +549,17 @@ final class CommandPaletteWindow: NSPanel {
         let storeStack = NSStackView()
         storeStack.orientation = .horizontal
         storeStack.alignment = .centerY
-        storeStack.spacing = 6
+        storeStack.spacing = 5
         storeStack.translatesAutoresizingMaskIntoConstraints = false
         storeIconView = NSImageView(image: NSImage(
             systemSymbolName: "shippingbox.fill",
             accessibilityDescription: "Store"
         ) ?? NSImage())
-        storeIconView.contentTintColor = AppStyle.Palette.secondaryText
+        storeIconView.contentTintColor = AppStyle.Palette.tertiaryText
         storeIconView.translatesAutoresizingMaskIntoConstraints = false
         storeLabel = NSTextField(labelWithString: "Store")
-        storeLabel.font = NSFont.systemFont(ofSize: 12, weight: .medium)
-        storeLabel.textColor = AppStyle.Palette.secondaryText
+        storeLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+        storeLabel.textColor = AppStyle.Palette.tertiaryText
         storeLabel.translatesAutoresizingMaskIntoConstraints = false
         storeStack.addArrangedSubview(storeIconView)
         storeStack.addArrangedSubview(storeLabel)
@@ -569,8 +569,8 @@ final class CommandPaletteWindow: NSPanel {
         container.addSubview(leftStack)
 
         contextualActionLabel = NSTextField(labelWithString: "")
-        contextualActionLabel.font = NSFont.systemFont(ofSize: 14, weight: .medium)
-        contextualActionLabel.textColor = AppStyle.Palette.secondaryText
+        contextualActionLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+        contextualActionLabel.textColor = AppStyle.Palette.tertiaryText
         contextualActionLabel.alignment = .right
         contextualActionLabel.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(contextualActionLabel)
@@ -581,19 +581,19 @@ final class CommandPaletteWindow: NSPanel {
             borderView.topAnchor.constraint(equalTo: container.topAnchor),
             borderView.heightAnchor.constraint(equalToConstant: 1),
 
-            leftStack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 14),
+            leftStack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 18),
             leftStack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
 
-            preferencesIconView.widthAnchor.constraint(equalToConstant: 14),
-            preferencesIconView.heightAnchor.constraint(equalToConstant: 14),
-            storeIconView.widthAnchor.constraint(equalToConstant: 14),
-            storeIconView.heightAnchor.constraint(equalToConstant: 14),
+            preferencesIconView.widthAnchor.constraint(equalToConstant: 11),
+            preferencesIconView.heightAnchor.constraint(equalToConstant: 11),
+            storeIconView.widthAnchor.constraint(equalToConstant: 11),
+            storeIconView.heightAnchor.constraint(equalToConstant: 11),
 
             contextualActionLabel.leadingAnchor.constraint(
                 greaterThanOrEqualTo: leftStack.trailingAnchor,
                 constant: 12
             ),
-            contextualActionLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
+            contextualActionLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -18),
             contextualActionLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor),
         ])
 
@@ -643,7 +643,7 @@ final class CommandPaletteWindow: NSPanel {
     private let searchFieldHeight: CGFloat = 56
     private let rowHeight: CGFloat = 52
     private let hintHeight: CGFloat = 0
-    private let emptyStateHeight: CGFloat = 96
+    private let emptyStateHeight: CGFloat = 88
     private let maxVisibleResultRows: Int = 6
     private let resultsContainerVerticalPadding: CGFloat = 20
     private var paletteCard: NSView?
@@ -1510,12 +1510,8 @@ final class CommandPaletteWindow: NSPanel {
         guard index >= 0, index < searchResults.count else { return }
         let result = searchResults[index]
 
-        if result.category == .settings {
-            enterSettingsMode()
-            return
-        }
-
         result.execute()
+        guard !isSettingsMode else { return }
         close()
     }
 

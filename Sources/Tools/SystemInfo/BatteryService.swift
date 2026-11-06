@@ -56,6 +56,14 @@ final class BatteryService {
         systemSymbolName: "exclamationmark.triangle",
         accessibilityDescription: "Warning"
     )
+    private static let headphonesIcon = NSImage(
+        systemSymbolName: "headphones",
+        accessibilityDescription: "Headphones"
+    )
+    private static let accessoryIcon = NSImage(
+        systemSymbolName: "battery.75percent",
+        accessibilityDescription: "Accessory battery"
+    )
 
     private init() {}
 
@@ -125,7 +133,26 @@ final class BatteryService {
             ))
         }
 
+        results += BluetoothBatteryService.shared.accessories().map { accessoryResult($0, score: score) }
+
         return results
+    }
+
+    private func accessoryResult(_ accessory: AccessoryBattery, score: Int) -> SearchResult {
+        let levels = accessory.levels.map { $0.part.isEmpty ? "\($0.percent)%" : "\($0.part) \($0.percent)%" }
+        let status = accessory.isConnected ? [] : ["Last known"]
+        let summary = (levels + status).joined(separator: " • ")
+        let isHeadphones = ["Headphones", "Headset"].contains(accessory.kind)
+        return SearchResult(
+            title: "\(accessory.name): \(accessory.headlinePercent)%",
+            subtitle: summary,
+            icon: isHeadphones ? Self.headphonesIcon : Self.accessoryIcon,
+            category: .action,
+            action: { [weak self] in
+                self?.copyText("\(accessory.name): \(summary)")
+            },
+            score: max(score, 100) - 1
+        )
     }
 
     func formatBatteryInfo(_ info: BatteryInfo) -> String {
@@ -180,6 +207,10 @@ final class BatteryService {
         Time Remaining: \(formatTimeRemaining(info.timeRemaining))
         """
 
+        copyText(text)
+    }
+
+    private func copyText(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
 

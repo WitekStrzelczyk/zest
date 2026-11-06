@@ -23,7 +23,7 @@ enum AppStyle {
         static let rowSelectedStroke = AppStyle.tone(light: AppStyle.gray(0, alpha: 0.03), dark: AppStyle.gray(1, alpha: 0.04))
         static let rowHoverFill = AppStyle.tone(light: AppStyle.gray(0, alpha: 0.035), dark: AppStyle.gray(1, alpha: 0.04))
 
-        static let footerBackground = AppStyle.tone(light: AppStyle.gray(0.955), dark: AppStyle.gray(0.105))
+        static let footerBackground = backgroundBottom
         static let footerBorder = hairline
         static let searchBarBorder = hairline
 

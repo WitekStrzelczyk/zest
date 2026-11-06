@@ -1,0 +1,56 @@
+{
+  "SPBluetoothDataType": [
+    {
+      "device_not_connected": [
+        {
+          "AirPods Pro": {
+            "device_caseVersion": "9A348",
+            "device_firmwareVersion": "33.5.12",
+            "device_minorType": "Headphones",
+            "device_productID": "0x2014",
+            "device_vendorID": "0x004C"
+          }
+        },
+        {
+          "WH-1000XM6": {
+            "device_firmwareVersion": "3.1.5",
+            "device_minorType": "Headset",
+            "device_productID": "0x0F8A",
+            "device_vendorID": "0x054C"
+          }
+        },
+        {
+          "Witek’s AirPods Pro 3": {
+            "device_batteryLevelCase": "23%",
+            "device_batteryLevelLeft": "96%",
+            "device_batteryLevelRight": "96%",
+            "device_caseVersion": "9A348",
+            "device_firmwareVersion": "9A348",
+            "device_minorType": "Headphones",
+            "device_productID": "0x2027",
+            "device_vendorID": "0x004C"
+          }
+        },
+        {
+          "Witek’s MacBook Pro (3)": {}
+        },
+        {
+          "Witek’s MacBook Pro (3)": {}
+        },
+        {
+          "Witek’s MacBook Pro (5)": {}
+        },
+        {
+          "Witold’s Apple Watch": {
+            "device_rssi": "-41"
+          }
+        },
+        {
+          "Witold’s iPhone": {
+            "device_rssi": "-53"
+          }
+        }
+      ]
+    }
+  ]
+}
