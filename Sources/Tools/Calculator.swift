@@ -71,9 +71,16 @@ final class Calculator {
         }
     }
 
+    private static let parsableCharacters = CharacterSet(charactersIn: "0123456789. +-*/()")
+
     private func isValidForNSExpression(_ expression: String) -> Bool {
-        guard hasBalancedParentheses(expression) else { return false }
+        guard hasOnlyParsableCharacters(expression), hasBalancedParentheses(expression) else { return false }
         return hasNoConsecutiveOperators(expression)
+    }
+
+    private func hasOnlyParsableCharacters(_ expression: String) -> Bool {
+        let withoutFunctions = expression.replacingOccurrences(of: "sqrt(", with: "(")
+        return withoutFunctions.unicodeScalars.allSatisfy { Self.parsableCharacters.contains($0) }
     }
 
     private func hasBalancedParentheses(_ expression: String) -> Bool {
