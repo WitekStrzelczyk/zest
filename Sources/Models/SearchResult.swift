@@ -150,4 +150,6 @@ extension Notification.Name {
     static let hideAddQuicklink = Notification.Name("hideAddQuicklink")
 
     static let processWasKilled = Notification.Name("processWasKilled")
+
+    static let installedAppsUpdated = Notification.Name("installedAppsUpdated")
 }

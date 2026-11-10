@@ -5,11 +5,15 @@ final class SearchEngine {
     static let shared: SearchEngine = .init()
 
     private var installedApps: [InstalledApp] = []
-    private var appsLoaded = false
+    private var appsLoadedAt: Date?
+    private var spotlightFoundApps = false
+    private var appsRefreshInFlight = false
     private let appsLock = NSLock()
     private let appsLoadLock = NSLock()
 
     private static let maxResults = 80
+    private static let appListFreshness: TimeInterval = 300
+    private static let emptyAppListRetry: TimeInterval = 5
 
     private static let intents: [SearchTool] = [
         UnitConversionWorker.shared,
@@ -42,11 +46,33 @@ final class SearchEngine {
     private init() {}
 
     private func ensureAppsLoaded() {
+        guard !Self.disableAppLoading else { return }
         appsLoadLock.lock()
         defer { appsLoadLock.unlock() }
-        guard !appsLoaded, !Self.disableAppLoading else { return }
-        refreshInstalledApps()
-        appsLoaded = true
+        guard appsLoadedAt != nil else {
+            refreshInstalledApps()
+            return
+        }
+        guard isAppListStale() else { return }
+        appsLock.withLock { appsRefreshInFlight = true }
+        DispatchQueue.global(qos: .utility).async { self.refreshInstalledApps() }
+    }
+
+    private func isAppListStale() -> Bool {
+        appsLock.withLock {
+            guard !appsRefreshInFlight, let appsLoadedAt else { return false }
+            let freshness = spotlightFoundApps ? Self.appListFreshness : Self.emptyAppListRetry
+            return Date().timeIntervalSince(appsLoadedAt) > freshness
+        }
+    }
+
+    func simulateAppListLoadedBeforeSpotlightWasReady() {
+        appsLock.withLock {
+            installedApps = []
+            spotlightFoundApps = false
+            appsLoadedAt = .distantPast
+            appsRefreshInFlight = false
+        }
     }
 
     func preloadApps() {
@@ -244,14 +270,25 @@ final class SearchEngine {
             }
         apps.append(contentsOf: runningApps)
 
-        for app in Self.spotlightApps() where !apps.contains(where: { $0.name == app.name || $0.bundleID == app.bundleID }) {
+        let spotlightApps = Self.spotlightApps()
+        for app in spotlightApps where !apps.contains(where: { $0.name == app.name || $0.bundleID == app.bundleID }) {
             apps.append(app)
         }
 
         let sortedApps = apps.sorted { $0.name.lowercased() < $1.name.lowercased() }
-        appsLock.lock()
-        installedApps = sortedApps
-        appsLock.unlock()
+        let changed = appsLock.withLock { () -> Bool in
+            defer {
+                installedApps = sortedApps
+                spotlightFoundApps = !spotlightApps.isEmpty
+                appsLoadedAt = Date()
+                appsRefreshInFlight = false
+            }
+            return installedApps.map(\.path) != sortedApps.map(\.path)
+        }
+        guard changed else { return }
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: .installedAppsUpdated, object: nil)
+        }
     }
 
     private static let appQueries: [(query: String, scopes: [String])] = [
