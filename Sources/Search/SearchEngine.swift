@@ -23,6 +23,7 @@ final class SearchEngine {
         QuicklinkManager.shared,
         ColorPickerPlugin.shared,
         BatteryService.shared,
+        SystemLoadTool.shared,
         SystemInfoService.shared,
         NetworkInfoService.shared,
         TimeZoneConverterService.shared,

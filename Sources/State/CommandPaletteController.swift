@@ -19,7 +19,7 @@ final class CommandPaletteController {
             }
         }
         let center = NotificationCenter.default
-        for name in [Notification.Name.calendarCacheUpdated, .accessoryBatteriesUpdated] {
+        for name in [Notification.Name.calendarCacheUpdated, .accessoryBatteriesUpdated, .systemLoadUpdated] {
             center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 guard let self else { return }
                 Task { @MainActor in
