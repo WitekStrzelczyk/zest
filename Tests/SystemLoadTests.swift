@@ -24,6 +24,18 @@ struct SystemLoadTests {
         #expect(memory.subtitle.contains("Pressure"), "\(memory.subtitle)")
     }
 
+    @Test func memoryDemandAddsWhatIsSwappedToDiskToWhatIsInRAM() throws {
+        let rows = results("memory")
+        let demand = try #require(rows.first { $0.title.hasPrefix("Memory Demand:") }, "\(rows.map(\.title))")
+        let match = try #require(demand.title.wholeMatch(of: #/Memory Demand: ([\d.]+) GB \((\d+)% of RAM\)/#))
+        let usedPercent = try #require(rows.first?.title.firstMatch(of: #/(\d+)% used/#)).1
+
+        #expect(try #require(Int(match.2)) >= Int(usedPercent) ?? 0, "Demand includes everything already in RAM")
+        #expect(demand.subtitle.contains("in RAM"), "\(demand.subtitle)")
+        #expect(demand.subtitle.contains("swapped to disk"), "\(demand.subtitle)")
+        #expect(demand.subtitle.contains("compressed into"), "\(demand.subtitle)")
+    }
+
     @Test func ramAndShortPrefixesAlsoShowMemory() {
         #expect(results("ram").first?.title.hasPrefix("Memory:") == true)
         #expect(results("mem").first?.title.hasPrefix("Memory:") == true)
@@ -61,7 +73,9 @@ struct SystemLoadTests {
     }
 
     @Test func memoryListsTheAppsUsingTheMostMemoryBiggestFirst() throws {
-        let apps = Array(measured("memory").dropFirst().filter { !$0.title.hasPrefix("⚠️") })
+        let apps = measured("memory").dropFirst().filter {
+            !$0.title.hasPrefix("⚠️") && !$0.title.hasPrefix("Memory Demand:")
+        }
 
         #expect((1...3).contains(apps.count), "\(apps.map(\.title))")
         let sizes = try apps.map { app in

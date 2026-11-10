@@ -11,12 +11,20 @@ struct MemoryUsage {
     let totalBytes: UInt64
     let usedBytes: UInt64
     let compressedBytes: UInt64
+    let compressedOriginalBytes: UInt64
     let swapUsedBytes: UInt64
     let pressure: Pressure
 
     var usedPercent: Int {
         guard totalBytes > 0 else { return 0 }
         return Int((Double(usedBytes) / Double(totalBytes) * 100).rounded())
+    }
+
+    var demandBytes: UInt64 { usedBytes + swapUsedBytes }
+
+    var demandPercent: Int {
+        guard totalBytes > 0 else { return 0 }
+        return Int((Double(demandBytes) / Double(totalBytes) * 100).rounded())
     }
 }
 
@@ -71,7 +79,14 @@ final class SystemLoadService: @unchecked Sendable {
             }
         }
         guard result == KERN_SUCCESS else {
-            return MemoryUsage(totalBytes: total, usedBytes: 0, compressedBytes: 0, swapUsedBytes: 0, pressure: .normal)
+            return MemoryUsage(
+                totalBytes: total,
+                usedBytes: 0,
+                compressedBytes: 0,
+                compressedOriginalBytes: 0,
+                swapUsedBytes: 0,
+                pressure: .normal
+            )
         }
         let appPages = UInt64(stats.internal_page_count) - UInt64(min(stats.purgeable_count, stats.internal_page_count))
         let compressed = UInt64(stats.compressor_page_count) * pageSize
@@ -80,6 +95,7 @@ final class SystemLoadService: @unchecked Sendable {
             totalBytes: total,
             usedBytes: min(used, total),
             compressedBytes: compressed,
+            compressedOriginalBytes: stats.total_uncompressed_pages_in_compressor * pageSize,
             swapUsedBytes: Self.swapUsed(),
             pressure: Self.pressure()
         )

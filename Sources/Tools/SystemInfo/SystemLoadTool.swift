@@ -25,8 +25,6 @@ final class SystemLoadTool {
         let details = [
             "\(Self.gigabytes(memory.usedBytes)) of \(Self.wholeGigabytes(memory.totalBytes))",
             "Pressure \(memory.pressure.rawValue)",
-            "Compressed \(Self.gigabytes(memory.compressedBytes))",
-            "Swap \(Self.gigabytes(memory.swapUsedBytes))",
         ].joined(separator: " • ")
         let overview = result(
             title: "Memory: \(memory.usedPercent)% used",
@@ -45,7 +43,22 @@ final class SystemLoadTool {
                 score: score - 1 - index
             )
         }
-        return [overview] + warning + rows
+        return [overview, demandResult(memory, score: score)] + warning + rows
+    }
+
+    private func demandResult(_ memory: MemoryUsage, score: Int) -> SearchResult {
+        let compressed = Self.gigabytes(memory.compressedOriginalBytes)
+        let details = [
+            "\(Self.gigabytes(memory.usedBytes)) in RAM",
+            "\(Self.gigabytes(memory.swapUsedBytes)) swapped to disk",
+            "\(compressed) compressed into \(Self.gigabytes(memory.compressedBytes))",
+        ].joined(separator: " • ")
+        return result(
+            title: "Memory Demand: \(Self.gigabytes(memory.demandBytes)) (\(memory.demandPercent)% of RAM)",
+            subtitle: details,
+            icon: Self.memoryIcon,
+            score: score
+        )
     }
 
     private func memoryWarning(_ memory: MemoryUsage, topApp: AppLoad?, score: Int) -> SearchResult {
