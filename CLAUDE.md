@@ -85,5 +85,7 @@ Zest is a native Swift/AppKit macOS menu-bar command palette. These principles a
 ## Process
 
 - Work goes: story (product-owner, "As a / I want / So that" with Given/When/Then) → test-first implementation → lessons folded into these principles.
-- Check existing code, tests and stories before implementing anything.
-- After changes: build with zero warnings, launch the app (`./scripts/run_app.sh`), run the tests, and check keyboard and UI changes by hand in the running app.
+- Explore before changing anything: open the code, tests and stories the change touches, including ones the task does not name (a similar `SearchTool`, `SearchScoringWeights`, the tests of neighbouring tools), and reuse what you find.
+- Done means: zero build warnings, every test passing, the app launched (`./scripts/run_app.sh`) and keyboard and UI changes checked by hand in it. Until then, keep the parts of the task in a checklist and carry on.
+- Don't end a turn with a summary that announces the next step, an offer to continue, or a list of decisions that block nothing. Stop only when nothing can move without the user, or before a destructive or irreversible action, which always needs confirmation.
+- Say in one line what you are about to do before the first tool call, and finish with a short recap: what changed, what was verified, what is left.
